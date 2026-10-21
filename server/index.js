@@ -160,6 +160,20 @@ app.post('/api/admin/login', (req, res) => {
   res.setHeader('Set-Cookie', `gf_admin=${encodeURIComponent(sign(exp))}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${7 * 86400}${req.secure ? '; Secure' : ''}`);
   res.json({ ok: true });
 });
+// Discord sign-in → admin, only for the Discord account whose user ID is in ADMIN_DISCORD_ID.
+app.post('/api/admin/discord', wrap(async (req, res) => {
+  const tok = String(req.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  if (!AUTH || !env.ADMIN_DISCORD_ID || !tok) return res.json({ admin: false });
+  const r = await fetch(`${AUTH.url}/auth/v1/user`, { headers: { apikey: AUTH.key, Authorization: `Bearer ${tok}` } });
+  if (!r.ok) return res.json({ admin: false });
+  const u = await r.json();
+  const ids = String(env.ADMIN_DISCORD_ID).split(',').map((x) => x.trim()).filter(Boolean);
+  const ok = (u.identities || []).some((i) => i.provider === 'discord' && ids.includes(String(i.id || i.identity_data?.provider_id || i.identity_data?.sub)));
+  if (!ok) return res.json({ admin: false });
+  const exp = Date.now() + 7 * 864e5;
+  res.setHeader('Set-Cookie', `gf_admin=${encodeURIComponent(sign(exp))}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${7 * 86400}${req.secure ? '; Secure' : ''}`);
+  res.json({ admin: true });
+}));
 app.get('/api/admin/me', (req, res) => { res.setHeader('Cache-Control', 'no-store'); res.json({ admin: isAdmin(req) }); });
 app.post('/api/admin/logout', (req, res) => { res.setHeader('Set-Cookie', 'gf_admin=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict'); res.json({ ok: true }); });
 const admin = express.Router();

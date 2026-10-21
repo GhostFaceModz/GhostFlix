@@ -20,7 +20,7 @@ export function createAuth({ config, list, history, toast, onChange }) {
     if (sb || !A) return sb;
     const lib = await loadLib();
     sb = lib.createClient(A.url, A.key, { auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'ghostflix-auth' } });
-    sb.auth.onAuthStateChange((_e, session) => { const was = user?.id; user = session?.user || null; render(); if (user && user.id !== was) sync(); });
+    sb.auth.onAuthStateChange((_e, session) => { const was = user?.id; user = session?.user || null; render(); if (user && user.id !== was) sync(); if (session?.access_token) checkDiscordAdmin(session.access_token); });
     return sb;
   }
   const meta = () => { const m = user?.user_metadata || {}; return { name: m.custom_claims?.global_name || m.full_name || m.name || m.user_name || (user?.email || 'Viewer').split('@')[0], av: m.avatar_url || m.picture || '', provider: user?.app_metadata?.provider || '' }; };
@@ -128,4 +128,12 @@ export function createAuth({ config, list, history, toast, onChange }) {
     const u = new URL(location.href); if (u.searchParams.has('code')) { u.searchParams.delete('code'); window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash); }
   }).catch((e) => console.warn('[ghostflix] auth init', e));
   return { client, onToggle, onHistory, onHistoryRemove, onHistoryClear, openModal, signOut, meta, subscribe: (f) => listeners.add(f), get user() { return user; }, get enabled() { return !!A; } };
+}
+
+// If the signed-in Discord account is the site owner's, the server grants admin and the menu shows the Admin link.
+let adminChecked = '';
+function checkDiscordAdmin(token) {
+  if (adminChecked === token) return; adminChecked = token;
+  fetch('/api/admin/discord', { method: 'POST', credentials: 'same-origin', headers: { Authorization: `Bearer ${token}` } })
+    .then((r) => r.json()).then((d) => { const a = document.getElementById('adminLink'); if (a && d.admin) a.hidden = false; }).catch(() => {});
 }
