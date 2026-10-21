@@ -186,15 +186,17 @@ async function viewBrowse(type, category, title) {
     title: title || (type === 'free' ? 'Free to watch' : type === 'tv' ? 'Series' : type === 'movie' ? 'Movies' : 'Trending'),
     lead: type === 'free' ? 'Full titles from legit sources — public domain, official channels, and GhostFlix’s own hosting.' : '',
     pills: [...visibleCats.map(([k, n]) => ({ href: `/browse/${type}/${k}`, name: n, on: k === category })), ...gl.map((g) => ({ href: `/genre/${type}/${g.id}`, name: g.name }))],
-    url: (p) => `/api/list/${type}/${category}?page=${p}`,
+    url: (p) => `/api/list/${type}/${category}?page=${p}`, infinite: type === 'movie' || type === 'tv',
   });
 }
 async function viewGenre(type, id) {
   const g = GENRES[type]?.find((x) => x.id === +id);
   await gridView({ title: `${g?.name || 'Genre'} ${type === 'tv' ? 'series' : 'movies'}`, pills: [{ href: `/browse/${type}/popular`, name: 'All' }, ...(GENRES[type] || []).map((x) => ({ href: `/genre/${type}/${x.id}`, name: x.name, on: x.id === +id }))],
-    url: (p) => `/api/discover/${type}/${id}?page=${p}` });
+    url: (p) => `/api/discover/${type}/${id}?page=${p}`, infinite: true });
 }
-async function gridView({ title, lead = '', pills = [], url, empty }) {
+let gridObserver;
+async function gridView({ title, lead = '', pills = [], url, empty, infinite = false }) {
+  gridObserver?.disconnect(); gridObserver = null;
   main.innerHTML = `<div class="page"><h1>${esc(title)}</h1>${lead ? `<p class="lead">${esc(lead)}</p>` : ''}
     ${pills.length ? `<div class="pills">${pills.map((p) => `<a class="pill ${p.on ? 'on' : ''}" href="${p.href}" data-link>${esc(p.name)}</a>`).join('')}</div>` : ''}
     <div class="grid">${'<div class="card"><div class="pic skel"></div></div>'.repeat(12)}</div><div class="more"></div></div>`;
@@ -205,10 +207,23 @@ async function gridView({ title, lead = '', pills = [], url, empty }) {
     if (page === 1) grid.innerHTML = '';
     grid.insertAdjacentHTML('beforeend', d.results.map((c) => cardHTML(c)).join(''));
     if (page === 1 && !d.results.length) grid.outerHTML = empty || `<div class="empty"><img src="/img/logo.svg" alt=""><h2>Nothing here yet</h2><p>Try another category or search.</p></div>`;
+    if (infinite) { more.innerHTML = ''; return page < d.total_pages; }
     more.innerHTML = page < d.total_pages ? '<button class="btn ghost sm">Load more</button>' : '';
     const b = $('button', more); if (b) b.onclick = async () => { b.disabled = true; b.textContent = 'Loading…'; page++; await load(); };
   };
-  await load();
+  if (!infinite) return load();
+  let busy = false;
+  const obs = new IntersectionObserver(async (es) => {
+    if (busy || !es.some((e) => e.isIntersecting)) return;
+    if (!more.isConnected) return obs.disconnect();
+    busy = true; more.innerHTML = '<button class="btn ghost sm" disabled>Loading…</button>'; page++;
+    let hasMore = true;
+    try { hasMore = await load(); } catch { page--; more.innerHTML = ''; }
+    busy = false;
+    if (!hasMore || !more.isConnected || gridObserver !== obs) return obs.disconnect();
+    obs.unobserve(more); obs.observe(more); // re-check in case the sentinel is still in view
+  }, { rootMargin: '0px 0px 700px 0px' });
+  if (await load() && more.isConnected) { gridObserver = obs; obs.observe(more); }
 }
 async function viewSearch(q) {
   $('#q').value = q || '';
