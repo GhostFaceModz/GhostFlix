@@ -158,13 +158,3 @@ export function cinesrcUrl(type, id, season, episode) {
   const base = 'https://cinesrc.st/embed';
   return type === 'tv' ? `${base}/tv/${id}?s=${season ?? 1}&e=${episode ?? 1}` : `${base}/movie/${id}`;
 }
-
-// ---- NexStream (api.codespecters.com) ---------------------------------------------
-// Free embeddable streaming API: /embed/movie/{tmdbId} and /embed/tv/{tmdbId}/{season}/{episode},
-// ?apikey=<key> (domain-locked, required). Used as an automatic last-resort source for titles
-// with no specific source when NEXSTREAM_API_KEY is set.
-export function nexstreamUrl(type, id, season, episode, key) {
-  const base = 'https://api.codespecters.com/embed';
-  const path = type === 'tv' ? `/tv/${id}/${season ?? 1}/${episode ?? 1}` : `/movie/${id}`;
-  return `${base}${path}?apikey=${encodeURIComponent(key)}`;
-}

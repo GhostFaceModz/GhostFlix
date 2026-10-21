@@ -124,7 +124,7 @@ function heroHTML(c, { detail = false, items = [] } = {}) {
   const lowres = !c.backdrop || c.backdrop === c.poster;
   const g = (c.genres || (c.genre_ids || []).map((id) => ({ id, name: genreName(id) }))).filter((x) => x.name).slice(0, 2);
   const cont = Continue.get(c);
-  const playLabel = c.playable ? (cont ? 'Resume' : 'Play') : 'Play trailer';
+    const playLabel = c.playable ? (cont ? 'Resume' : 'Play') : 'Play';
   return `<section class="hero ${detail ? 'detail-hero' : ''} ${lowres ? 'lowres' : ''}" data-key="${keyOf(c)}">
     <div class="hero-bg"><img src="${esc(c.backdrop || c.poster || '')}" alt="" fetchpriority="high"></div>
     ${c.poster ? `<div class="hero-poster${c.demo ? ' art' : ''}" style="--h:${(c.id * 47) % 360}"><img src="${esc(c.poster)}" alt="">${c.demo ? `<div class="art-t"><small>${c.year || ''}${c.media_type === 'tv' ? ' · SERIES' : ''}</small><b>${esc(c.title)}</b></div>` : ''}</div>` : ''}

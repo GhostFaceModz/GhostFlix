@@ -6,7 +6,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { TmdbCatalog } from './tmdb.js';
 import { DemoCatalog } from './demo.js';
 import { Store } from './store.js';
-import { parseSource, playerFor, PROVIDER_LABELS, SourceError, validatePattern, fillPattern, nexstreamUrl, cinesrcUrl, isBlocked } from './sources.js';
+import { parseSource, playerFor, PROVIDER_LABELS, SourceError, validatePattern, fillPattern, cinesrcUrl, isBlocked } from './sources.js';
 import { toVtt } from './subtitles.js';
 import { previewImport, commitImport, runJob, startScheduler } from './importers.js';
 
@@ -123,9 +123,7 @@ app.get('/api/play/:type/:id', wrap(async (req, res) => {
   }
   if (!list.length) {
     // Built-in catch-all: CineSrc (cinesrc.st) — free, no key, covers movies + series.
-    // When NEXSTREAM_API_KEY is set, NexStream is added as a second selectable option.
-    try { list = [{ ...parseSource(cinesrcUrl(type, id, s, e), env), label: 'CineSrc', origin: 'cinesrc' }]; } catch {}
-    if (env.NEXSTREAM_API_KEY) { try { list.push({ ...parseSource(nexstreamUrl(type, id, s, e, env.NEXSTREAM_API_KEY), env), label: 'NexStream', origin: 'nexstream' }); } catch {} }
+        try { list = [{ ...parseSource(cinesrcUrl(type, id, s, e), env), label: 'CineSrc', origin: 'cinesrc' }]; } catch {}
   }
   const sources = [];
   for (const src of list) { try { sources.push({ ...playerFor(src, env), provider: src.provider, providerName: PROVIDER_LABELS[src.provider], label: src.label || '' }); } catch {} }
@@ -188,7 +186,7 @@ app.use('/api/admin', admin);
 
 admin.get('/state', (req, res) => res.json({ mode: catalog.mode, backend: store.backend, sources: store.allSources().reverse(),
   subs: Object.entries(store.data.subs || {}).flatMap(([key, list]) => list.map(({ vtt, ...t }) => ({ key, ...t, title: store.data.titles[key.split(':').slice(0, 2).join(':')]?.title || key }))), unmatched: store.data.unmatched, jobs: store.data.jobs,
-  patterns: store.data.patterns || { movie: '', tv: '' }, channels: store.data.channels || [], hasYouTubeKey: !!env.YOUTUBE_API_KEY, nexstream: !!env.NEXSTREAM_API_KEY, updatedAt: store.data.updatedAt }));
+  patterns: store.data.patterns || { movie: '', tv: '' }, channels: store.data.channels || [], hasYouTubeKey: !!env.YOUTUBE_API_KEY, updatedAt: store.data.updatedAt }));
 admin.get('/lookup', wrap(async (req, res) => {
   const q = String(req.query.q || '').trim();
   if (/^\d+$/.test(q)) {
