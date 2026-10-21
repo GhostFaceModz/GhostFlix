@@ -86,15 +86,16 @@ img{display:block;max-width:100%}
 .row-h h2{font-size:clamp(17px,1.5vw,22px);font-weight:700;letter-spacing:-.01em}
 .row-h a{font-size:13px;color:var(--acc);opacity:0;transform:translateX(-6px);transition:opacity .25s,transform .25s}
 .row:hover .row-h a,.row-h a:focus-visible{opacity:1;transform:none}
-.track-wrap{position:relative}
-.track{display:flex;gap:10px;overflow-x:auto;overflow-y:visible;scroll-snap-type:x proximity;scroll-padding:0 var(--pad);padding:14px var(--pad) 26px;margin:-14px 0 -26px;scrollbar-width:none;overscroll-behavior-x:contain}
+.track-wrap{position:relative;isolation:isolate}
+.track{position:relative;z-index:1;display:flex;gap:10px;overflow-x:auto;overflow-y:visible;scroll-snap-type:x proximity;scroll-padding:0 var(--pad);padding:14px var(--pad) 26px;margin:-14px 0 -26px;scrollbar-width:none;overscroll-behavior-x:contain}
 .track::-webkit-scrollbar{display:none}
-.arrow{position:absolute;top:0;bottom:0;width:calc(var(--pad) - 6px);min-width:44px;z-index:5;display:flex;align-items:center;justify-content:center;background:linear-gradient(90deg,rgba(4,5,10,.85),rgba(4,5,10,0));opacity:0;transition:opacity .25s}
+.arrow{position:absolute;top:0;bottom:0;width:calc(var(--pad) - 6px);min-width:44px;z-index:30;pointer-events:auto;cursor:pointer;display:flex;align-items:center;justify-content:center;background:linear-gradient(90deg,rgba(4,5,10,.85),rgba(4,5,10,0));opacity:0;transition:opacity .25s}
 .arrow.r{right:0;background:linear-gradient(270deg,rgba(4,5,10,.85),rgba(4,5,10,0))}
 .arrow svg{width:30px;height:30px;stroke:#fff;stroke-width:2.4;fill:none;transition:transform .2s}
 .arrow:hover svg{transform:scale(1.25)}
 .track-wrap:hover .arrow{opacity:1}
 .arrow[disabled]{display:none}
+/* arrows sit in .track-wrap's stacking context above .track (z:1), so hovered cards (z:20 inside .track) can never cover them */
 
 /* cards */
 .card{position:relative;flex:0 0 auto;width:clamp(128px,13.2vw,200px);scroll-snap-align:start;border-radius:var(--r);transition:transform .35s var(--ease),z-index 0s .35s;z-index:1}
@@ -110,7 +111,6 @@ img{display:block;max-width:100%}
 .card .acts .p{background:#fff;color:#000;border-color:#fff}
 .card .acts svg{width:14px;height:14px;fill:currentColor}
 .card .acts button:hover{border-color:var(--acc)}
-.card .badge{position:absolute;top:8px;left:8px;z-index:3;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 7px;border-radius:6px;background:rgba(95,227,255,.92);color:#03121c;box-shadow:0 0 14px rgba(95,227,255,.5)}
 .card .noimg{position:absolute;inset:0;display:grid;place-items:center;padding:12px;text-align:center;font-weight:700;font-size:14px;color:#cfd5de}
 @media (hover:hover){
 .card:hover{transform:scale(1.12) translateY(-4px);z-index:20;transition:transform .35s var(--ease)}
@@ -348,7 +348,6 @@ html[data-theme=dim] .bg{background:radial-gradient(1200px 600px at 80% -10%,rgb
 .dock a.on{background:var(--acc-soft)}
 .btn.cta{background:linear-gradient(135deg,var(--acc-soft),var(--acc) 55%,var(--acc2))}
 .acct-btn{background:linear-gradient(135deg,var(--acc-soft),var(--acc))}
-.card .badge{background:var(--acc)}
 html[data-size=s] .card{width:clamp(108px,10.5vw,160px)}
 html[data-size=l] .card{width:clamp(150px,16vw,250px)}
 html[data-cards=landscape] .card:not(.top){width:clamp(220px,22vw,330px)}

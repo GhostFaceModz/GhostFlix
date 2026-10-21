@@ -76,7 +76,7 @@ function cardHTML(c, opts = {}) {
     : `<img src="${esc(land ? c.backdrop : c.poster)}" alt="" loading="lazy" decoding="async">`;
   const prog = opts.progress != null ? `<div class="prog"><i style="width:${Math.max(4, Math.min(100, opts.progress))}%"></i></div>` : '';
   const g = (c.genre_ids || []).slice(0, 2).map(genreName).filter(Boolean).join(' · ');
-  const inner = `<div class="pic${art ? ' art' : ''}"${art ? ` style="--h:${hue}"` : ''}>${pic}${opts.s != null ? `<span class="ep-badge">S${esc(opts.s)} E${esc(opts.e)}</span>` : c.playable ? '<span class="badge">Free</span>' : ''}${prog}
+  const inner = `<div class="pic${art ? ' art' : ''}"${art ? ` style="--h:${hue}"` : ''}>${pic}${opts.s != null ? `<span class="ep-badge">S${esc(opts.s)} E${esc(opts.e)}</span>` : ''}${prog}
     <div class="info"><b>${esc(c.title)}</b><span>${c.rating ? `<i class="rt">${c.rating}</i>` : ''}${c.year ? `<i>${c.year}</i>` : ''}${c.media_type === 'tv' ? '<i>Series</i>' : ''}</span>
     ${g ? `<span style="margin-top:3px">${esc(g)}</span>` : ''}
     <div class="acts"><a class="p" href="${watchHref(c, opts.s, opts.e)}" data-link aria-label="Play ${esc(c.title)}">${ICON.play}</a>
