@@ -22,14 +22,19 @@ export class Store {
     this.data = empty();
     this._saving = Promise.resolve();
   }
-  get backend() { return this.supa ? 'supabase' : 'file'; }
+  get backend() { return this.supa ? 'supabase' : this.supaMissing ? 'file (ghostflix_store table missing — run supabase/store.sql)' : 'file'; }
 
   async load() {
     let doc = null;
     if (this.supa) {
       try {
         const r = await fetch(`${this.supa.url}/rest/v1/ghostflix_store?id=eq.main&select=data`, { headers: this._supaHeaders() });
-        if (r.ok) { const rows = await r.json(); doc = rows[0]?.data || null; } else console.warn('[store] supabase load failed', r.status);
+        if (r.ok) { const rows = await r.json(); doc = rows[0]?.data || null; }
+        else {
+          console.warn('[store] supabase load failed', r.status);
+          // Table not created yet → fall back to the local file so the app still works (non-persistent on free hosts).
+          if (r.status === 404 || r.status === 400) { this.supa = null; this.supaMissing = true; if (existsSync(this.file)) doc = JSON.parse(await readFile(this.file, 'utf8')); }
+        }
       } catch (e) { console.warn('[store] supabase load error', e.message); }
     } else if (existsSync(this.file)) {
       doc = JSON.parse(await readFile(this.file, 'utf8'));
