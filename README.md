@@ -1,5 +1,7 @@
 # GhostFlix 👻
 
+**Live site:** [ghostflix.onrender.com](https://ghostflix.onrender.com)
+
 A premium, dark, streaming-style catalog for movies and series — part of the GhostGames family.
 Metadata comes from [TMDB](https://www.themoviedb.org/); playback comes from trailers, public-domain films and
 sources the site owner adds — with a hard denylist of known unlicensed streaming hosts.
