@@ -3,6 +3,7 @@
 const GOOGLE_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3Z"/><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.4 14c-.2-.6-.3-1.3-.3-2s.1-1.4.3-2V7.4H3.1a10 10 0 0 0 0 9.2L6.4 14Z"/><path fill="#EA4335" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.4L6.4 10C7.2 7.7 9.4 6 12 6Z"/></svg>';
 export const DISCORD_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.6 1.3a18.4 18.4 0 0 0-5.5 0L8.6 3a19.7 19.7 0 0 0-4.9 1.5C.6 9.1-.3 13.6.1 18.1a19.9 19.9 0 0 0 6 3l1.3-2a12.9 12.9 0 0 1-2-1l.5-.4a14.2 14.2 0 0 0 12.2 0l.5.4c-.6.4-1.3.7-2 1l1.3 2a19.8 19.8 0 0 0 6-3c.5-5.2-.8-9.7-3.6-13.7ZM8.3 15.3c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Zm7.4 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Z"/></svg>';
 export const ICONS = { DISCORD_SVG };
+import { Cosmetics, avatarWrap } from './cosmetics.js?v=20261021c';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const WL = 'ghostflix_watchlist', HI = 'ghostflix_history';
 
@@ -20,7 +21,7 @@ export function createAuth({ config, list, history, toast, onChange }) {
     if (sb || !A) return sb;
     const lib = await loadLib();
     sb = lib.createClient(A.url, A.key, { auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: 'ghostflix-auth' } });
-    sb.auth.onAuthStateChange((_e, session) => { const was = user?.id; user = session?.user || null; render(); if (user && user.id !== was) sync(); if (session?.access_token) checkDiscordAdmin(session.access_token); });
+    sb.auth.onAuthStateChange((_e, session) => { const was = user?.id; user = session?.user || null; if (user) Cosmetics.fromUser(user); render(); if (user && user.id !== was) sync(); if (session?.access_token) checkDiscordAdmin(session.access_token); });
     return sb;
   }
   const meta = () => { const m = user?.user_metadata || {}; return { name: m.custom_claims?.global_name || m.full_name || m.name || m.user_name || (user?.email || 'Viewer').split('@')[0], av: m.avatar_url || m.picture || '', provider: user?.app_metadata?.provider || '' }; };
@@ -35,14 +36,14 @@ export function createAuth({ config, list, history, toast, onChange }) {
       return;
     }
     const m = meta();
-    slot.innerHTML = `<div class="acct"><button class="acct-me" type="button" aria-haspopup="menu" aria-expanded="false">${m.av ? `<img src="${esc(m.av)}" alt="" referrerpolicy="no-referrer">` : `<span class="ini">${esc(m.name[0] || '?')}</span>`}<span class="un">${esc(m.name)}</span><svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 15.5 5.5 9l1.4-1.4 5.1 5.1 5.1-5.1L18.5 9z"/></svg></button>
-      <div class="acct-dd" role="menu"><div class="acct-h"><b>${esc(m.name)}</b><span>${esc(user.email || '')}</span></div>
+    slot.innerHTML = `<div class="acct"><button class="acct-me" type="button" aria-haspopup="menu" aria-expanded="false">${avatarWrap(m.av ? `<img src="${esc(m.av)}" alt="" referrerpolicy="no-referrer">` : `<span class="ini">${esc(m.name[0] || '?')}</span>`)}<span class="un gf-name">${esc(m.name)}</span><svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M12 15.5 5.5 9l1.4-1.4 5.1 5.1 5.1-5.1L18.5 9z"/></svg></button>
+      <div class="acct-dd" role="menu"><div class="acct-h"><b class="gf-name">${esc(m.name)}</b><span>${esc(user.email || '')}</span></div>
       <a href="/my-list" data-link role="menuitem">My List</a><a href="/settings/history" data-link role="menuitem">History</a><a href="/settings" data-link role="menuitem">Settings</a><button type="button" data-signout role="menuitem">Sign out</button></div></div>`;
   }
   function drawer() {
     const d = document.getElementById('drawerAuth'); if (!d) return;
     const m = meta();
-    d.innerHTML = user ? `<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">${m.av ? `<img src="${esc(m.av)}" alt="" width="36" height="36" style="border-radius:50%" referrerpolicy="no-referrer">` : ''}<b style="font-size:14px">${esc(m.name)}</b></div><button class="btn dark sm" data-signout type="button">Sign out</button>`
+    d.innerHTML = user ? `<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">${m.av ? avatarWrap(`<img src="${esc(m.av)}" alt="" width="36" height="36" style="border-radius:50%" referrerpolicy="no-referrer">`) : ''}<b style="font-size:14px" class="gf-name">${esc(m.name)}</b></div><button class="btn dark sm" data-signout type="button">Sign out</button>`
       : `<button class="btn cta sm" data-signin type="button">Sign in</button>`;
   }
   function openModal() {
@@ -121,10 +122,11 @@ export function createAuth({ config, list, history, toast, onChange }) {
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { close(); document.querySelectorAll('.acct.open').forEach((a) => a.classList.remove('open')); } });
 
+  window.addEventListener('gf:cosmetics', () => render());
   render();
   // Only load the SDK eagerly when a session might exist (stored session or OAuth callback ?code=).
   if (A && (localStorage.getItem('ghostflix-auth') || /[?&]code=/.test(location.search))) client().then(async (c) => {
-    const { data } = await c.auth.getSession(); user = data.session?.user || null; render(); if (user) sync();
+    const { data } = await c.auth.getSession(); user = data.session?.user || null; if (user) Cosmetics.fromUser(user); render(); if (user) sync();
     const u = new URL(location.href); if (u.searchParams.has('code')) { u.searchParams.delete('code'); window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash); }
   }).catch((e) => console.warn('[ghostflix] auth init', e));
   return { client, onToggle, onHistory, onHistoryRemove, onHistoryClear, openModal, signOut, meta, subscribe: (f) => listeners.add(f), get user() { return user; }, get enabled() { return !!A; } };

@@ -1,8 +1,9 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js';
-import { Settings, applySettings, renderSettings } from './settings.js';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js';
-applySettings();
+import { createAuth, ICONS } from './auth.js?v=20261021c';
+import { applyCosmetics } from './cosmetics.js?v=20261021c';
+import { Settings, applySettings, renderSettings } from './settings.js?v=20261021c';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261021c';
+applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -17,6 +18,8 @@ const ICON = {
   right: '<svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>',
 };
 let CONFIG = { mode: 'demo' };
+let SITE = { sections: {}, rows: {}, announcement: { on: false } };
+const sectionOn = (k) => SITE.sections?.[k] !== false;
 let AUTH = null;
 const region = () => Settings.get().region || (navigator.language || 'en-US').split('-')[1] || 'US';
 
@@ -169,8 +172,9 @@ async function viewHome() {
   const rows = [...d.rows];
   if (cont.length) rows.unshift({ id: 'continue', title: 'Continue watching', items: cont, cont: true });
   const list = List.all(); if (list.length) rows.splice(cont.length ? 2 : 1, 0, { id: 'mylist', title: 'My List', link: '/my-list', items: list });
-  main.innerHTML = `<div class="rows">${rows.map(rowHTML).join('')}</div>`;
-  mountHero(d.hero.length ? d.hero : rows[0]?.items.slice(0, 5) || []);
+  const shown = rows.filter((r) => SITE.rows?.[r.id] !== false);
+  main.innerHTML = `<div class="rows">${shown.map(rowHTML).join('')}</div>`;
+  mountHero(d.hero.length ? d.hero : shown[0]?.items.slice(0, 5) || []);
   wireRows();
 }
 async function viewBrowse(type, category, title) {
@@ -345,6 +349,18 @@ function openPlayer(o) {
 }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('.player')) $('.player .back').click(); });
 
+function sectionOff() { main.innerHTML = `<div class="page"><div class="empty"><img src="/img/logo.svg" alt=""><h2>This section is switched off</h2><p>It’s temporarily unavailable. Check back soon.</p><p style="margin-top:16px"><a class="btn ghost sm" href="/" data-link>Back home</a></p></div></div>`; }
+function applySite() {
+  const map = { discover: 'discover', live: 'live', genres: 'genres', 'my-list': 'mylist' };
+  $$('[data-nav]').forEach((a) => { const k = map[a.dataset.nav]; if (k) a.hidden = !sectionOn(k); });
+  const an = SITE.announcement || {}; const box = $('#announce');
+  if (an.on && an.text && sessionStorage.getItem('gf.an') !== an.text) {
+    box.innerHTML = `<div class="announce" role="status" style="--an:${/^#[0-9a-f]{6}$/i.test(an.color || '') ? an.color : '#5fe3ff'}"><span>${esc(an.text)}</span><button class="x" type="button" aria-label="Dismiss announcement">×</button></div>`;
+    $('.x', box).onclick = () => { sessionStorage.setItem('gf.an', an.text); box.innerHTML = ''; document.body.classList.remove('has-announce'); };
+    document.body.classList.add('has-announce');
+  } else { box.innerHTML = ''; document.body.classList.remove('has-announce'); }
+}
+
 // ---- router ---------------------------------------------------------------------
 const routes = [
   [/^\/$/, () => viewHome(), 'home'],
@@ -353,15 +369,16 @@ const routes = [
   [/^\/browse\/(free|all|movie|tv)\/(\w+)$/, (m) => viewBrowse(m[1], m[2]), (m) => (m[1] === 'tv' ? 'tv' : 'movies')],
   [/^\/genre\/(movie|tv)\/(\d+)$/, (m) => viewGenre(m[1], m[2]), (m) => (m[1] === 'tv' ? 'tv' : 'movies')],
   [/^\/search$/, () => viewSearch(new URLSearchParams(location.search).get('q') || ''), 'search'],
-  [/^\/my-list$/, () => viewMyList(), 'my-list'],
-  [/^\/genres$/, () => viewGenres(), 'genres'],
-  [/^\/discover$/, () => viewDiscover(pageCtx()), 'discover'],
-  [/^\/live$/, () => viewLive(pageCtx()), 'live'],
+  [/^\/my-list$/, () => (sectionOn('mylist') ? (() => viewMyList())() : sectionOff()), 'my-list'],
+  [/^\/genres$/, () => (sectionOn('genres') ? (() => viewGenres())() : sectionOff()), 'genres'],
+  [/^\/discover$/, () => (sectionOn('discover') ? (() => viewDiscover(pageCtx()))() : sectionOff()), 'discover'],
+  [/^\/live$/, () => (sectionOn('live') ? (() => viewLive(pageCtx()))() : sectionOff()), 'live'],
   // Watch Parties: built but disabled for now (enable with ENABLE_WATCH_PARTIES=1).
   [/^\/party$/, () => (CONFIG.parties ? viewPartyHome(pageCtx()) : (history.replaceState({}, '', '/'), render())), 'party'],
   [/^\/party\/([a-z0-9]{4,12})$/i, (m) => (CONFIG.parties ? viewParty(pageCtx(), m[1].toLowerCase()) : (history.replaceState({}, '', '/'), render())), 'party'],
-  [/^\/(?:settings|profile)$/, () => renderSettings(main, settingsCtx()), 'settings'],
-  [/^\/settings\/(history|appearance|subtitles|player|preferences|account|connections|tv|profiles)$/, (m) => renderSettings(main, settingsCtx(), m[1]), 'settings'],
+  [/^\/settings$/, () => renderSettings(main, settingsCtx()), 'settings'],
+  [/^\/profile$/, () => renderSettings(main, settingsCtx(), 'profile'), 'settings'],
+  [/^\/settings\/(history|appearance|subtitles|player|preferences|account|connections|tv|profiles|profile)$/, (m) => renderSettings(main, settingsCtx(), m[1]), 'settings'],
   [/^\/title\/(movie|tv)\/(\d+)$/, (m) => viewTitle(m[1], m[2]), null],
 ];
 let lastPage = null;
@@ -416,6 +433,7 @@ $('#searchForm').addEventListener('submit', (e) => { e.preventDefault(); const v
 let st; $('#q').addEventListener('input', (e) => { clearTimeout(st); const v = e.target.value.trim(); st = setTimeout(() => v.length > 1 && (location.pathname === '/search' ? history.replaceState({}, '', `/search?q=${encodeURIComponent(v)}`) || render() : go(`/search?q=${encodeURIComponent(v)}`)), 450); });
 const nav = $('#nav'); const onScroll = () => nav.classList.toggle('solid', window.scrollY > 30); window.addEventListener('scroll', onScroll, { passive: true }); onScroll();
 $('#yr').textContent = new Date().getFullYear();
+$('#themeTgl').onclick = () => { const light = Settings.get().theme === 'light'; Settings.set({ theme: light ? 'dark' : 'light' }); if (location.pathname === '/settings/appearance') { lastPage = null; render(); } };
 
 // ---- drawer menu ----
 const drawerEl = $('#drawer'), scrim = $('#scrim'), burger = $('#burger');
@@ -428,6 +446,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 (async () => {
+  try { SITE = await api('/api/site-config'); } catch {} applySite();
   try { CONFIG = await api('/api/config'); GENRES = await api('/api/genres'); } catch {} document.querySelectorAll('[data-feature=parties]').forEach((el) => (el.hidden = !CONFIG.parties));
   AUTH = createAuth({ config: CONFIG, list: List, history: Continue, toast, onChange: () => { if (/^\/(my-list|settings.*)?$/.test(location.pathname)) { lastPage = null; render(); } } });
   AUTH.subscribe(() => { if (location.pathname.startsWith('/settings')) { lastPage = null; render(); } });

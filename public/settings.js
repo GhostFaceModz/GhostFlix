@@ -1,3 +1,4 @@
+import { Cosmetics, BORDER_GROUPS, GLOWS, avatarWrap } from './cosmetics.js?v=20261021c';
 // GhostFlix settings: stored in localStorage, applied live (theme, accent, cards, subtitles, player prefs).
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const ACCENTS = {
@@ -31,7 +32,8 @@ export function applySettings(s = Settings.get()) {
   let st = document.getElementById('gfSubStyle');
   if (!st) { st = document.createElement('style'); st.id = 'gfSubStyle'; document.head.appendChild(st); }
   st.textContent = `video::cue{${subtitleCSS(s.subs)}}`;
-  document.querySelector('meta[name=theme-color]')?.setAttribute('content', s.theme === 'amoled' ? '#000000' : '#04050a');
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', { amoled: '#000000', dim: '#10141d', light: '#f4f6fa' }[s.theme] || '#04050a');
+  const tb = document.getElementById('themeTgl'); if (tb) { const l = s.theme === 'light'; tb.setAttribute('aria-label', l ? 'Switch to dark theme' : 'Switch to light theme'); tb.setAttribute('aria-pressed', String(l)); }
 }
 function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
 
@@ -74,11 +76,33 @@ export function renderSettings(main, ctx, sub) {
         <a class="tile" href="/settings/profiles" data-link><span>${ico('profiles')}</span>Profiles</a>
         ${u ? `<a class="tile" href="/settings/account" data-link><span>${m.av ? `<img src="${esc(m.av)}" alt="" referrerpolicy="no-referrer">` : ico('user')}</span>${esc(m.name.split(' ')[0])}</a>` : `<button class="tile" type="button" data-signin><span>${ico('user')}</span>Sign in</button>`}
       </div>
-      ${group('Account', [item('/settings/account', 'user', 'Account', 'Profile, sync and backup')])}
+      ${group('Account', [item('/profile', 'user', 'Profile', 'Avatar border and name glow'), item('/settings/account', 'user', 'Account', 'Sync and backup')])}
       ${group('App', [item('/settings/preferences', 'sliders', 'Preferences', 'Language, content and behavior'), item('/settings/appearance', 'palette', 'Appearance', 'Theme, layout and cards')])}
       ${group('Playback', [item('/settings/player', 'play', 'Player', 'Playback, gestures and sources'), item('/settings/subtitles', 'subs', 'Subtitles', 'Style, size and languages')])}
       ${group('Integrations', [item('/settings/connections', 'link', 'Connections', 'Discord, GitHub')])}
       <p class="set-foot">GhostFlix · legit sources only</p></div>`;
+    return;
+  }
+  if (sub === 'profile') {
+    const c = Cosmetics.get(); const name = m?.name || 'Viewer';
+    const av = m?.av ? `<img src="${esc(m.av)}" alt="" referrerpolicy="no-referrer">` : `<span class="ini">${esc(name[0] || '?')}</span>`;
+    const custom = c.glow && !GLOWS.some(([v]) => v === c.glow);
+    main.innerHTML = `<div class="page settings profile-cos">${header('Profile')}
+      <div class="set-group pad cos-prev"><div class="cos-me">${avatarWrap(av, c.border)}<div><b class="gf-name">${esc(name)}</b><small>${u ? 'Signed in · saved to your account' : 'Saved on this device · sign in to sync'}</small></div></div></div>
+      <div class="set-label">Avatar border</div>
+      ${BORDER_GROUPS.map((g) => `<div class="set-group pad cos-group" data-cat="${g.id}"><div class="cos-cat">${esc(g.name)}</div><div class="cos-grid">${g.items.map(([id, label]) => `<button type="button" class="cos-opt ${c.border === id ? 'on' : ''}" data-border="${id}" aria-pressed="${c.border === id}">${avatarWrap(av, id)}<span>${esc(label)}</span></button>`).join('')}</div></div>`).join('')}
+      <div class="set-label">Name glow</div><div class="set-group pad"><div class="glows">${GLOWS.map(([v, l]) => `<button type="button" class="glow-sw ${c.glow === v ? 'on' : ''}" data-glow="${v}" title="${l}" aria-label="${l}" style="${v ? `--sw:${v}` : ''}">${v ? '' : '⌀'}</button>`).join('')}
+        <label class="glow-custom ${custom ? 'on' : ''}" title="Custom colour"><input type="color" id="glowCustom" value="${c.glow || '#5fe3ff'}" aria-label="Custom glow colour"><span>Custom</span></label></div>
+        <p class="set-note">Shown as a glow on your display name (here and in the header).</p></div></div>`;
+    const save = async (patch) => {
+      Cosmetics.set(patch); re();
+      if (u) { try { const cl = await ctx.auth.client(); const cur = Cosmetics.get(); const { error } = await cl.auth.updateUser({ data: { gf_border: cur.border, gf_glow: cur.glow } }); if (error) throw error; } catch (e) { ctx.toast('Saved on this device (account sync failed)'); } }
+    };
+    main.querySelectorAll('[data-border]').forEach((b) => (b.onclick = () => save({ border: b.dataset.border })));
+    main.querySelectorAll('[data-glow]').forEach((b) => (b.onclick = () => save({ glow: b.dataset.glow })));
+    const ci = main.querySelector('#glowCustom');
+    ci.oninput = () => { document.documentElement.style.setProperty('--gf-glow', ci.value); document.documentElement.dataset.glow = '1'; };
+    ci.onchange = () => save({ glow: ci.value });
     return;
   }
   if (sub === 'history') {
@@ -97,7 +121,7 @@ export function renderSettings(main, ctx, sub) {
     const cardPrev = (layout) => `<div class="lay-prev ${layout}">${'<i></i>'.repeat(layout === 'poster' ? 4 : 2)}</div>`;
     main.innerHTML = `<div class="page settings">${header('Appearance')}
       <div class="set-label">Theme</div><div class="set-group pad">
-        <div class="themes">${[['dark', 'Dark', '#04050a'], ['amoled', 'AMOLED black', '#000'], ['dim', 'Dim', '#10141d']].map(([v, l, c]) => `<button type="button" class="theme ${s.theme === v ? 'on' : ''}" data-set="theme" data-val="${v}"><span style="background:${c}"><i></i></span>${l}</button>`).join('')}</div></div>
+        <div class="themes">${[['dark', 'Dark', '#04050a'], ['amoled', 'AMOLED black', '#000'], ['dim', 'Dim', '#10141d'], ['light', 'Light', '#f4f6fa']].map(([v, l, c]) => `<button type="button" class="theme ${s.theme === v ? 'on' : ''}" data-set="theme" data-val="${v}"><span style="background:${c}"><i></i></span>${l}</button>`).join('')}</div></div>
       <div class="set-label">Accent colour</div><div class="set-group pad"><div class="swatches">${Object.entries(ACCENTS).map(([k, a]) => `<button type="button" class="sw ${s.accent === k ? 'on' : ''}" data-set="accent" data-val="${k}" title="${a.name}" aria-label="${a.name}" style="--c:${a.acc};--c2:${a.acc2}"></button>`).join('')}</div><small class="dim">${esc((ACCENTS[s.accent] || ACCENTS.ghost).name)}</small></div>
       <div class="set-label">Cards</div><div class="set-group pad">
         ${row('Layout', `<div class="lays">${[['poster', 'Poster'], ['landscape', 'Landscape']].map(([v, l]) => `<button type="button" class="lay ${s.cardLayout === v ? 'on' : ''}" data-set="cardLayout" data-val="${v}">${cardPrev(v)}${l}</button>`).join('')}</div>`)}
@@ -145,7 +169,7 @@ export function renderSettings(main, ctx, sub) {
   }
   if (sub === 'account') {
     main.innerHTML = `<div class="page settings">${header('Account')}
-      <div class="set-group pad">${u ? `<div class="who">${m.av ? `<img src="${esc(m.av)}" alt="" referrerpolicy="no-referrer">` : ''}<div><b>${esc(m.name)}</b><small>${esc(u.email || '')}${m.provider ? ' · via ' + esc(m.provider) : ''}</small></div></div><p class="set-note">Your list and watch history sync automatically.</p><button class="btn dark sm" data-signout type="button">Sign out</button>`
+      <div class="set-group pad">${u ? `<div class="who">${m.av ? `<img src="${esc(m.av)}" alt="" referrerpolicy="no-referrer">` : ''}<div><b class="gf-name">${esc(m.name)}</b><small>${esc(u.email || '')}${m.provider ? ' · via ' + esc(m.provider) : ''}</small></div></div><p class="set-note">Your list and watch history sync automatically.</p><button class="btn dark sm" data-signout type="button">Sign out</button>`
         : `<b>Not signed in</b><p class="set-note">Sign in with Google or Discord to sync your list and history across devices.</p><button class="btn cta sm" data-signin type="button">Sign in</button>`}</div>
       <div class="set-label">Backup</div><div class="set-group pad">${row('Export my data', '<button class="btn dark sm" id="exp" type="button">Download</button>', 'List, history and settings as JSON')}${row('Import', '<label class="btn dark sm">Choose file<input type="file" id="imp" accept="application/json" hidden></label>')}</div></div>`;
     main.querySelector('#exp').onclick = () => { const blob = new Blob([JSON.stringify({ list: ctx.list.all(), history: ctx.history.all(), settings: Settings.get() }, null, 1)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'ghostflix-backup.json'; a.click(); };
