@@ -56,11 +56,34 @@ export async function viewLive(ctx) {
     $$('[data-ch]', main).forEach((b) => (b.onclick = () => { sel = channels.find((c) => c.id === b.dataset.ch); draw(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
   };
   const mount = () => {
-    const el = $('#livePlayer', main); if (!sel || !el) return;
-    const f = document.createElement('iframe'); f.src = sel.player.src; f.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media'; f.allowFullscreen = true; f.title = sel.name;
-    f.referrerPolicy = 'unsafe-url';
-    el.appendChild(f);
-  };
+      const el = $('#livePlayer', main); if (!sel || !el) return;
+      el.innerHTML = '';
+      const p = sel.player;
+      if (p.kind === 'hls' || (p.src && p.src.endsWith('.m3u8'))) {
+        const v = document.createElement('video'); v.controls = true; v.playsInline = true;
+        el.appendChild(v);
+        if (v.canPlayType('application/vnd.apple.mpegurl')) {
+          v.src = p.src;
+        } else {
+          loadHLS(v, p.src);
+        }
+      } else {
+        const f = document.createElement('iframe'); f.src = p.src; f.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media'; f.allowFullscreen = true; f.title = sel.name;
+        f.referrerPolicy = 'unsafe-url';
+        el.appendChild(f);
+      }
+    };
+
+  function loadHLS(video, src) {
+    if (!window.Hls) {
+      const s = document.createElement('script'); s.src = '/vendor/hls.min.js'; s.onload = () => initHLS(video, src); document.head.appendChild(s);
+    } else initHLS(video, src);
+  }
+  function initHLS(video, src) {
+    if (!window.Hls.isSupported()) return;
+    const h = new window.Hls(); h.loadSource(src); h.attachMedia(video);
+    h.on(window.Hls.Events.ERROR, (e, d) => { if (d.fatal) h.destroy(); });
+  }
   draw();
 }
 
