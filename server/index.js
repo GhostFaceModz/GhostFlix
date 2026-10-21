@@ -25,6 +25,78 @@ const catalog = env.TMDB_API_KEY ? new TmdbCatalog(env) : demo;
 const store = await new Store(env).load();
 const ctx = { store, catalog, env };
 
+// ---- iptv-org Live TV channels -------------------------------------------------------
+// Fetches and parses M3U playlists from iptv-org (US + UK), caches for 1 hour.
+let IPTV_CACHE = { channels: [], expires: 0 };
+async function loadIPTVChannels() {
+  const now = Date.now();
+  if (IPTV_CACHE.channels.length && now < IPTV_CACHE.expires) return IPTV_CACHE.channels;
+  const urls = [
+    'https://iptv-org.github.io/iptv/countries/us.m3u',
+    'https://iptv-org.github.io/iptv/countries/gb.m3u'
+  ];
+  const channels = [];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const text = await res.text();
+      parseM3U(text, channels);
+    } catch {}
+  }
+  IPTV_CACHE = { channels, expires: now + 60 * 60 * 1000 }; // 1 hour cache
+  return channels;
+}
+
+function parseM3U(text, out) {
+  const lines = text.split('\n');
+  let name = '', logo = '', group = '', tvgId = '';
+  for (const line of lines) {
+    if (line.startsWith('#EXTINF:')) {
+      const attrs = line.slice(8);
+      const nameMatch = attrs.match(/,([^,]+)$/);
+      if (nameMatch) name = nameMatch[1].trim();
+      const logoMatch = attrs.match(/tvg-logo="([^"]*)"/);
+      if (logoMatch) logo = logoMatch[1];
+      const groupMatch = attrs.match(/group-title="([^"]*)"/);
+      if (groupMatch) group = groupMatch[1];
+      const idMatch = attrs.match(/tvg-id="([^"]*)"/);
+      if (idMatch) tvgId = idMatch[1];
+    } else if (line && !line.startsWith('#')) {
+      const url = line.trim();
+      if (url.startsWith('http') && name) {
+        const cat = normalizeCategory(group);
+        out.push({
+          id: `iptv-${tvgId || crypto.createHash('md5').update(url).digest('hex').slice(0, 8)}`,
+          name: name.trim(),
+          category: cat,
+          logo: logo || '',
+          url,
+          official: '',
+          custom: false,
+          iptv: true
+        });
+      }
+      name = logo = group = tvgId = '';
+    }
+  }
+}
+
+function normalizeCategory(g) {
+  const map = {
+    'news': 'News', 'sports': 'Sports', 'movies': 'Movies', 'music': 'Music',
+    'kids': 'Kids', 'documentary': 'Documentary', 'entertainment': 'Entertainment',
+    'lifestyle': 'Lifestyle', 'general': 'General', 'religious': 'Religious',
+    'shop': 'Shopping', 'business': 'Business', 'weather': 'Weather',
+    'animation': 'Animation', 'classic': 'Classic', 'auto': 'Auto',
+    'cooking': 'Cooking', 'travel': 'Travel', 'culture': 'Culture',
+    'education': 'Education', 'science': 'Science', 'game': 'Gaming',
+    'relax': 'Relax', 'nature': 'Nature', 'outdoor': 'Outdoor'
+  };
+  const key = (g || '').toLowerCase().split(';')[0].trim();
+  return map[key] || (key ? key.charAt(0).toUpperCase() + key.slice(1) : 'Other');
+}
+
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -106,10 +178,11 @@ app.get('/api/discover', wrap(async (req, res) => {
   cacheFor(res, 120); res.json(d);
 }));
 const CURATED = JSON.parse(readFileSync(path.join(ROOT, 'data/live-channels.json'), 'utf8')).channels;
-app.get('/api/live', (req, res) => {
+app.get('/api/live', async (req, res) => {
+  const iptv = await loadIPTVChannels();
   const out = [];
-  for (const c of [...CURATED, ...(store.data.channels || [])]) {
-    try { const p = playerFor(parseSource(c.url, env), env); out.push({ id: c.id, name: c.name, category: c.category || 'Other', logo: c.logo || '', official: c.official || c.url, custom: !!c.custom, player: p }); } catch {}
+  for (const c of [...CURATED, ...(store.data.channels || []), ...iptv]) {
+    try { const p = playerFor(parseSource(c.url, env), env); out.push({ id: c.id, name: c.name, category: c.category || 'Other', logo: c.logo || '', official: c.official || c.url, custom: !!c.custom, player: p, iptv: !!c.iptv }); } catch {}
   }
   res.json({ channels: out });
 });
