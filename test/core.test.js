@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSource, playerFor, validatePattern, fillPattern, GENERIC_SANDBOX } from '../server/sources.js';
+import { parseSource, playerFor, validatePattern, fillPattern, nexstreamUrl, GENERIC_SANDBOX } from '../server/sources.js';
 import { parseTitle, detectImport } from '../server/importers.js';
 import { toVtt } from '../server/subtitles.js';
 
@@ -43,6 +43,13 @@ test('title parsing', () => {
   assert.deepEqual(parseTitle('Night of the Living Dead (1968) | Full Movie | HD'), { title: 'Night of the Living Dead', year: 1968, season: null, episode: null });
   assert.equal(parseTitle('Sherlock Holmes S01E07 The Red Headed League').episode, 7);
   assert.equal(parseTitle('2001: A Space Odyssey').title, '2001: A Space Odyssey');
+});
+test('NexStream links', () => {
+  assert.equal(nexstreamUrl('movie', 597, null, null, 'nx_abc123'), 'https://api.codespecters.com/embed/movie/597?apikey=nx_abc123');
+  assert.equal(nexstreamUrl('tv', 1399, 1, 1, 'nx_abc123'), 'https://api.codespecters.com/embed/tv/1399/1/1?apikey=nx_abc123');
+  assert.equal(nexstreamUrl('tv', 1399, 2, 9, 'nx_a b'), 'https://api.codespecters.com/embed/tv/1399/2/9?apikey=nx_a%20b');
+  const p = playerFor(parseSource(nexstreamUrl('movie', 597, null, null, 'nx_abc123')));
+  assert.equal(p.kind, 'iframe'); assert.equal(p.src, 'https://api.codespecters.com/embed/movie/597?apikey=nx_abc123');
 });
 test('import URL detection', () => {
   assert.deepEqual(detectImport('https://archive.org/details/feature_films'), { kind: 'archive', collection: 'feature_films' });

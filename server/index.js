@@ -6,7 +6,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { TmdbCatalog } from './tmdb.js';
 import { DemoCatalog } from './demo.js';
 import { Store } from './store.js';
-import { parseSource, playerFor, PROVIDER_LABELS, SourceError, validatePattern, fillPattern, isBlocked } from './sources.js';
+import { parseSource, playerFor, PROVIDER_LABELS, SourceError, validatePattern, fillPattern, nexstreamUrl, isBlocked } from './sources.js';
 import { toVtt } from './subtitles.js';
 import { previewImport, commitImport, runJob, startScheduler } from './importers.js';
 
@@ -59,7 +59,7 @@ const T = (t) => { if (t !== 'movie' && t !== 'tv' && t !== 'all') { const e = n
 const ID = (v) => { const n = parseInt(v, 10); if (!(n > 0)) { const e = new Error('Bad id'); e.status = 400; throw e; } return n; };
 const cacheFor = (res, s) => res.setHeader('Cache-Control', `public, max-age=${s}`);
 const patternFor = (type) => store.data.patterns?.[type] || '';
-const withPlayable = (c) => (c ? { ...c, playable: (catalog.mode === 'demo' && !!c.demo) || store.hasAnyFor(c.media_type, c.id) || !!patternFor(c.media_type) } : c);
+const withPlayable = (c) => (c ? { ...c, playable: (catalog.mode === 'demo' && !!c.demo) || store.hasAnyFor(c.media_type, c.id) || !!patternFor(c.media_type) || !!env.NEXSTREAM_API_KEY } : c);
 const markList = (d) => ({ ...d, results: d.results.map(withPlayable) });
 
 // ---- public API ---------------------------------------------------------------
@@ -120,6 +120,10 @@ app.get('/api/play/:type/:id', wrap(async (req, res) => {
   if (!list.length && patternFor(type)) {
     // Owner's link pattern — only used when the title has no specific source. Re-validated against the denylist.
     try { list = [{ ...parseSource(fillPattern(patternFor(type), { tmdb_id: id, season: s ?? 1, episode: e ?? 1 }), env), label: 'Pattern', origin: 'pattern' }]; } catch {}
+  }
+  if (!list.length && env.NEXSTREAM_API_KEY) {
+    // Last resort: NexStream (api.codespecters.com). Enable by setting NEXSTREAM_API_KEY.
+    try { list = [{ ...parseSource(nexstreamUrl(type, id, s, e, env.NEXSTREAM_API_KEY), env), label: 'NexStream', origin: 'nexstream' }]; } catch {}
   }
   const sources = [];
   for (const src of list) { try { sources.push({ ...playerFor(src, env), provider: src.provider, providerName: PROVIDER_LABELS[src.provider], label: src.label || '' }); } catch {} }
@@ -182,7 +186,7 @@ app.use('/api/admin', admin);
 
 admin.get('/state', (req, res) => res.json({ mode: catalog.mode, backend: store.backend, sources: store.allSources().reverse(),
   subs: Object.entries(store.data.subs || {}).flatMap(([key, list]) => list.map(({ vtt, ...t }) => ({ key, ...t, title: store.data.titles[key.split(':').slice(0, 2).join(':')]?.title || key }))), unmatched: store.data.unmatched, jobs: store.data.jobs,
-  patterns: store.data.patterns || { movie: '', tv: '' }, channels: store.data.channels || [], hasYouTubeKey: !!env.YOUTUBE_API_KEY, updatedAt: store.data.updatedAt }));
+  patterns: store.data.patterns || { movie: '', tv: '' }, channels: store.data.channels || [], hasYouTubeKey: !!env.YOUTUBE_API_KEY, nexstream: !!env.NEXSTREAM_API_KEY, updatedAt: store.data.updatedAt }));
 admin.get('/lookup', wrap(async (req, res) => {
   const q = String(req.query.q || '').trim();
   if (/^\d+$/.test(q)) {
