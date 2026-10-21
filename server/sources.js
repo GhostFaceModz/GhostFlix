@@ -150,6 +150,15 @@ export function fillPattern(p, v) {
   return p.replace(/\{tmdb_id\}/g, encodeURIComponent(v.tmdb_id)).replace(/\{season\}/g, encodeURIComponent(v.season ?? '')).replace(/\{episode\}/g, encodeURIComponent(v.episode ?? ''));
 }
 
+// ---- CineSrc (cinesrc.st) ------------------------------------------------------------
+// Free TMDB-based embed API, no key required. Bundled as the default catch-all so every
+// movie/series with no attached source still plays. Movie: /embed/movie/{tmdb_id};
+// TV: /embed/tv/{tmdb_id}?s={season}&e={episode}.
+export function cinesrcUrl(type, id, season, episode) {
+  const base = 'https://cinesrc.st/embed';
+  return type === 'tv' ? `${base}/tv/${id}?s=${season ?? 1}&e=${episode ?? 1}` : `${base}/movie/${id}`;
+}
+
 // ---- NexStream (api.codespecters.com) ---------------------------------------------
 // Free embeddable streaming API: /embed/movie/{tmdbId} and /embed/tv/{tmdbId}/{season}/{episode},
 // ?apikey=<key> (domain-locked, required). Used as an automatic last-resort source for titles

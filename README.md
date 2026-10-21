@@ -65,7 +65,7 @@ npm test                 # unit tests (source parsing, link patterns, title pars
 | `SUPABASE_PUBLIC_URL`, `SUPABASE_ANON_KEY` | Sign-in + sync. Public values (URL + anon/publishable key); data is protected by RLS. |
 | `AUTH_GOOGLE`, `AUTH_DISCORD` | Set to `false` to hide a provider button. |
 | `YOUTUBE_API_KEY` | Optional. Import whole YouTube playlists/channels (without it: latest ~15 via RSS). |
-| `NEXSTREAM_API_KEY` | Optional. Auto-play **every** title with no attached source via NexStream (api.codespecters.com, free key — watermark-free embeds, domain-locked). Specific sources and your link patterns still win; NexStream is the catch-all. |
+| `NEXSTREAM_API_KEY` | Optional. **Every** title with no attached source already auto-plays via the built-in CineSrc catch-all (cinesrc.st, free, no key). Setting this adds NexStream (api.codespecters.com, domain-locked key) as a second-chance fallback. |
 | `CRON_SECRET` | Optional. Protects `POST /api/cron/resync` (header `x-cron-secret`). |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` | Optional server-side persistence of the admin store (see below). **Server only — never expose.** |
 | `DISCORD_INVITE_URL`, `GITHUB_URL` | Community links (floating Discord/GitHub buttons, Settings → Connections). Defaults to the GhostGames Discord and the GhostFlix repo. |

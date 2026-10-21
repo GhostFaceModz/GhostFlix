@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSource, playerFor, validatePattern, fillPattern, nexstreamUrl, GENERIC_SANDBOX } from '../server/sources.js';
+import { parseSource, playerFor, validatePattern, fillPattern, nexstreamUrl, cinesrcUrl, GENERIC_SANDBOX } from '../server/sources.js';
 import { parseTitle, detectImport } from '../server/importers.js';
 import { toVtt } from '../server/subtitles.js';
 
@@ -50,6 +50,14 @@ test('NexStream links', () => {
   assert.equal(nexstreamUrl('tv', 1399, 2, 9, 'nx_a b'), 'https://api.codespecters.com/embed/tv/1399/2/9?apikey=nx_a%20b');
   const p = playerFor(parseSource(nexstreamUrl('movie', 597, null, null, 'nx_abc123')));
   assert.equal(p.kind, 'iframe'); assert.equal(p.src, 'https://api.codespecters.com/embed/movie/597?apikey=nx_abc123');
+});
+test('CineSrc links', () => {
+  assert.equal(cinesrcUrl('movie', 597, null, null), 'https://cinesrc.st/embed/movie/597');
+  assert.equal(cinesrcUrl('movie', 1084242, null, null), 'https://cinesrc.st/embed/movie/1084242');
+  assert.equal(cinesrcUrl('tv', 1399, 1, 1), 'https://cinesrc.st/embed/tv/1399?s=1&e=1');
+  assert.equal(cinesrcUrl('tv', 1396, 5, 12), 'https://cinesrc.st/embed/tv/1396?s=5&e=12');
+  const p = playerFor(parseSource(cinesrcUrl('movie', 597, null, null)));
+  assert.equal(p.kind, 'iframe'); assert.equal(p.src, 'https://cinesrc.st/embed/movie/597');
 });
 test('import URL detection', () => {
   assert.deepEqual(detectImport('https://archive.org/details/feature_films'), { kind: 'archive', collection: 'feature_films' });
