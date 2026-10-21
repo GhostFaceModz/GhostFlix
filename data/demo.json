@@ -1,0 +1,760 @@
+{
+ "generated": "2026-10-21T02:13:02.389Z",
+ "genres": {
+  "12": "Adventure",
+  "14": "Fantasy",
+  "16": "Animation",
+  "18": "Drama",
+  "27": "Horror",
+  "28": "Action",
+  "35": "Comedy",
+  "36": "History",
+  "37": "Western",
+  "53": "Thriller",
+  "80": "Crime",
+  "878": "Science Fiction",
+  "9648": "Mystery",
+  "10402": "Music",
+  "10749": "Romance",
+  "10751": "Family",
+  "10752": "War"
+ },
+ "titles": [
+  {
+   "id": 900001,
+   "media_type": "movie",
+   "title": "Night of the Living Dead",
+   "year": 1968,
+   "overview": "A group of strangers barricade themselves inside a rural Pennsylvania farmhouse as the recently dead rise and lay siege. George A. Romero's low-budget landmark that reinvented the horror film.",
+   "genre_ids": [
+    27,
+    53
+   ],
+   "runtime": 95,
+   "poster": "https://archive.org/services/img/Night.Of.The.Living.Dead_1080p",
+   "backdrop": "https://archive.org/services/img/Night.Of.The.Living.Dead_1080p",
+   "creator": "Russell W. Streiner, Karl Hardman",
+   "ia": "Night.Of.The.Living.Dead_1080p",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900002,
+   "media_type": "movie",
+   "title": "His Girl Friday",
+   "year": 1940,
+   "overview": "Hilarious romantic comedy starring Cary Grant and Rosalind Russell. Russell is rough and tumble reporter looking to get out of the news racket by marrying and becoming a house wife after her divorce from newspaper publisher Grant. Just when she is about to leave town with her husband-to-be the still lovesick Grant drafts her to cover one final breaking news sensation. Along with plenty of laughs and fast paced dialog…",
+   "genre_ids": [
+    35,
+    10749
+   ],
+   "runtime": 91,
+   "poster": "https://archive.org/services/img/his_girl_friday",
+   "backdrop": "https://archive.org/services/img/his_girl_friday",
+   "creator": "Howard Hawks",
+   "ia": "his_girl_friday",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900003,
+   "media_type": "movie",
+   "title": "Nosferatu",
+   "year": 1922,
+   "overview": "Estate agent Hutter travels to the Carpathian mountains to sell a house to the mysterious Count Orlok — and unleashes a plague upon his hometown. F. W. Murnau's silent expressionist masterpiece.",
+   "genre_ids": [
+    27,
+    14
+   ],
+   "runtime": 1,
+   "poster": "https://archive.org/services/img/Nosferatu_most_complete_version_93_mins.",
+   "backdrop": "https://archive.org/services/img/Nosferatu_most_complete_version_93_mins.",
+   "creator": "Enrico Dieckmann & Albin Grau",
+   "ia": "Nosferatu_most_complete_version_93_mins.",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900004,
+   "media_type": "movie",
+   "title": "The General",
+   "year": 1926,
+   "overview": "When Union spies steal his beloved locomotive — with his sweetheart aboard — Southern engineer Johnnie Gray gives chase in one of the greatest action-comedies ever filmed. Starring Buster Keaton.",
+   "genre_ids": [
+    35,
+    12,
+    10752
+   ],
+   "runtime": 78,
+   "poster": "https://archive.org/download/The_General_Buster_Keaton/General-still.jpg",
+   "backdrop": "https://archive.org/download/The_General_Buster_Keaton/General-still.jpg",
+   "creator": "Clyde Bruckman and Buster Keaton",
+   "ia": "The_General_Buster_Keaton",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900005,
+   "media_type": "movie",
+   "title": "Detour",
+   "year": 1945,
+   "overview": "A down-on-his-luck nightclub pianist hitchhikes west to reunite with his girlfriend, but a sudden death and a ruthless stranger drag him into a nightmare. A lean, fatalistic film noir classic.",
+   "genre_ids": [
+    80,
+    18,
+    53
+   ],
+   "runtime": 67,
+   "poster": "https://archive.org/services/img/Detour",
+   "backdrop": "https://archive.org/services/img/Detour",
+   "creator": "Edgar G. Ulmer",
+   "ia": "Detour",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900006,
+   "media_type": "movie",
+   "title": "House on Haunted Hill",
+   "year": 1959,
+   "overview": "Frederick Loren has invited five strangers to a party of a lifetime. He is offering each of them $10,000 if they can stay the night in a house.",
+   "genre_ids": [
+    27,
+    53,
+    18
+   ],
+   "runtime": 74,
+   "poster": "https://archive.org/services/img/house_on_haunted_hill_ipod",
+   "backdrop": "https://archive.org/services/img/house_on_haunted_hill_ipod",
+   "creator": "William Castle",
+   "ia": "house_on_haunted_hill_ipod",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900007,
+   "media_type": "movie",
+   "title": "Charade",
+   "year": 1953,
+   "overview": "An anthology of three stories of intrigue and romance, starring James Mason and Pamela Mason.",
+   "genre_ids": [
+    80,
+    18,
+    9648
+   ],
+   "runtime": null,
+   "poster": "https://archive.org/services/img/Charade_1953",
+   "backdrop": "https://archive.org/services/img/Charade_1953",
+   "creator": "James Mason",
+   "ia": "Charade_1953",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900008,
+   "media_type": "movie",
+   "title": "Carnival of Souls",
+   "year": 1962,
+   "overview": "Atmospheric 60s B-horror film with a cult following. Mary Henry is enjoying the day by riding around with two friends but everything goes wrong when challenged to a drag race and their car gets forced off of a bridge. The car sinks into the murky depths, and all three women are assumed drowned. Some time later Mary emerges unscathed from the river. She tries to start a new life by becoming a church organist but Mary…",
+   "genre_ids": [
+    27,
+    53
+   ],
+   "runtime": 82,
+   "poster": "https://archive.org/services/img/CarnivalofSouls",
+   "backdrop": "https://archive.org/services/img/CarnivalofSouls",
+   "creator": "Herk Harvey",
+   "ia": "CarnivalofSouls",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900009,
+   "media_type": "movie",
+   "title": "The Cabinet of Dr. Caligari",
+   "year": 1919,
+   "overview": "A sinister showman and his sleepwalking servant arrive at a village fair — and a string of murders follows. The towering work of German Expressionist cinema.",
+   "genre_ids": [
+    27,
+    14
+   ],
+   "runtime": 51,
+   "poster": "https://archive.org/services/img/DasKabinettdesDoktorCaligariTheCabinetofDrCaligari",
+   "backdrop": "https://archive.org/services/img/DasKabinettdesDoktorCaligariTheCabinetofDrCaligari",
+   "creator": "Rudolf Meinert and Erich Pommer",
+   "ia": "DasKabinettdesDoktorCaligariTheCabinetofDrCaligari",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900010,
+   "media_type": "movie",
+   "title": "Scarlet Street",
+   "year": 1945,
+   "overview": "German director Fritz Lang is best known for the highly influential films from relatively early in his career, especially Metropolis (1927) and M (1931). But he also had a brief Hollywood heyday during the mid 1940s, when he made some of his best films. Scarlet Street has been claimed by film noir. This attribution is understandable. The lighting is dark, with heavy use of shadows. The characters are all shady as…",
+   "genre_ids": [
+    35,
+    80,
+    18
+   ],
+   "runtime": 103,
+   "poster": "https://archive.org/services/img/ScarletStreet",
+   "backdrop": "https://archive.org/services/img/ScarletStreet",
+   "creator": "Fritz Lang, Walter Wanger",
+   "ia": "ScarletStreet",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900011,
+   "media_type": "movie",
+   "title": "The Stranger",
+   "year": 1946,
+   "overview": "Set Connecticut after World War II, The Stranger is a cat and mouse game between Wilson (Edward G. Robinson), a member of the Allied War Crimes Commission and Franz Kindler (Orson Welles), a Nazi who has assumed the false identity of Dr. Charles Rankin. To complete his new intelligentsia disguise, Kindler marries Mary Longstreet, daughter of a Supreme Court justice.",
+   "genre_ids": [
+    80,
+    9648,
+    53
+   ],
+   "runtime": 95,
+   "poster": "https://archive.org/services/img/TheStranger_0",
+   "backdrop": "https://archive.org/services/img/TheStranger_0",
+   "creator": "Sam Spiegel",
+   "ia": "TheStranger_0",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900012,
+   "media_type": "movie",
+   "title": "Meet John Doe",
+   "year": 1941,
+   "overview": "A fired reporter invents a fictional everyman who threatens suicide in protest of social ills — then hires a drifter to play him, igniting a national movement. Directed by Frank Capra, starring Gary Cooper and Barbara Stanwyck.",
+   "genre_ids": [
+    35,
+    18
+   ],
+   "runtime": 122,
+   "poster": "https://archive.org/services/img/meet_john_doe",
+   "backdrop": "https://archive.org/services/img/meet_john_doe",
+   "creator": "Frank Capra",
+   "ia": "meet_john_doe",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900013,
+   "media_type": "movie",
+   "title": "Sita Sings the Blues",
+   "year": 2008,
+   "overview": "Sita is a goddess separated from her beloved Lord and husband Rama. Nina is an animator whose husband moves to India, then dumps her by email. Three hilarious shadow puppets narrate both ancient tragedy and modern comedy in this beautifully animated interpretation of the Indian epic Ramayana. Set to the 1920's jazz vocals of Annette Hanshaw, Sita Sings the Blues earns its tagline as \"the Greatest Break-Up Story Ever…",
+   "genre_ids": [
+    16,
+    10402,
+    14
+   ],
+   "runtime": 81,
+   "poster": "https://archive.org/services/img/Sita_Sings_the_Blues",
+   "backdrop": "https://archive.org/services/img/Sita_Sings_the_Blues",
+   "creator": "Nina Paley",
+   "ia": "Sita_Sings_the_Blues",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900014,
+   "media_type": "movie",
+   "title": "Gulliver's Travels",
+   "year": 1939,
+   "overview": "Shipwrecked sailor Lemuel Gulliver washes ashore in Lilliput, a tiny kingdom on the brink of war over a wedding song. The Fleischer Studios animated feature.",
+   "genre_ids": [
+    16,
+    12,
+    14
+   ],
+   "runtime": 72,
+   "poster": "https://archive.org/services/img/gullivers_travels1939",
+   "backdrop": "https://archive.org/services/img/gullivers_travels1939",
+   "creator": "Max Fleischer",
+   "ia": "gullivers_travels1939",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900015,
+   "media_type": "movie",
+   "title": "The Phantom of the Opera",
+   "year": 1925,
+   "overview": "At the Opera of Paris, a mysterious phantom threatens a famous lyric singer, Carlotta and thus forces her to give up her role (Marguerite in Faust) for unknown Christine Daae. Christine meets this phantom (a masked man) in the catacombs, where he lives.",
+   "genre_ids": [
+    27,
+    18
+   ],
+   "runtime": 106,
+   "poster": "https://archive.org/services/img/ThePhantomoftheOpera",
+   "backdrop": "https://archive.org/services/img/ThePhantomoftheOpera",
+   "creator": "Carl Laemmle",
+   "ia": "ThePhantomoftheOpera",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900016,
+   "media_type": "movie",
+   "title": "The Lost World",
+   "year": 1925,
+   "overview": "The first film adaptation of Sir Arthur Conan Doyle's classic novel about a land where prehistoric creatures still roam.You can find more information regarding this film on its IMDb page .",
+   "genre_ids": [
+    12,
+    14
+   ],
+   "runtime": null,
+   "poster": "https://archive.org/services/img/lost_world",
+   "backdrop": "https://archive.org/services/img/lost_world",
+   "creator": "Jamie White",
+   "ia": "lost_world",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900017,
+   "media_type": "movie",
+   "title": "Horror Express",
+   "year": 1973,
+   "overview": "In 1906, on a train racing through Siberia, Christopher Lee and Peter Cushing are engulfed in nightmare when a frozen missing link comes to life. You can load the mpeg2 file into DVDAuthorGUI (a free program) and, with the push of a button, quickly create the structure of a DVD to watch on your television (after burning with ImgBurn or the like).",
+   "genre_ids": [
+    27
+   ],
+   "runtime": 87,
+   "poster": "https://archive.org/services/img/Horror_Express",
+   "backdrop": "https://archive.org/services/img/Horror_Express",
+   "creator": "Eugenio Martín",
+   "ia": "Horror_Express",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900018,
+   "media_type": "movie",
+   "title": "Secret Agent",
+   "year": 1936,
+   "overview": "During the First World War, a British novelist is sent to Switzerland under a false identity to hunt down an enemy agent. An early Alfred Hitchcock spy thriller.",
+   "genre_ids": [
+    53,
+    9648
+   ],
+   "runtime": null,
+   "poster": "https://archive.org/services/img/Hitchcock_Secret_Agent",
+   "backdrop": "https://archive.org/services/img/Hitchcock_Secret_Agent",
+   "creator": "Alfred Hitchcock",
+   "ia": "Hitchcock_Secret_Agent",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900019,
+   "media_type": "movie",
+   "title": "McLintock!",
+   "year": 1963,
+   "overview": "A rough-and-tumble cattle baron's life is turned upside down when his estranged wife returns to town. John Wayne and Maureen O'Hara in a rowdy comedy western.",
+   "genre_ids": [
+    35,
+    37
+   ],
+   "runtime": 126,
+   "poster": "https://archive.org/services/img/mclintok_widescreen",
+   "backdrop": "https://archive.org/services/img/mclintok_widescreen",
+   "creator": "Michael Wayne",
+   "ia": "mclintok_widescreen",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900020,
+   "media_type": "movie",
+   "title": "Royal Wedding",
+   "year": 1951,
+   "overview": "Brother and sister dancing duo Tom and Ellen Bowen (Fred Astaire and Jane Powell) travel to merry old England. There, against the backdrop of the impending wedding of royals, they go about the usual comedic pursuit of love. This film is probably most memorable for Astaire's dream sequence that has him dancing on the ceiling. The source is not of the best quality, with analog artifacts and blownout color. For more…",
+   "genre_ids": [
+    35,
+    10402
+   ],
+   "runtime": 91,
+   "poster": "https://archive.org/services/img/royal_wedding",
+   "backdrop": "https://archive.org/services/img/royal_wedding",
+   "creator": "Arthur Freed",
+   "ia": "royal_wedding",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900021,
+   "media_type": "movie",
+   "title": "The Flying Deuces",
+   "year": 1939,
+   "overview": "This was the first comedy that Laurel and Hardy starred in without producer Hal Roach, although they had previously been \"guest stars\" in four MGM movies. After they finished making \"The Flying Deuces,\" they returned to Hal Roach Studios to make films. In order to make this movie, producer Boris Morros bought the rights to the 1931 French film \"Les deux legionnaires,\" which had a similar plot. \"The Flying Deuces\" was…",
+   "genre_ids": [
+    35
+   ],
+   "runtime": 69,
+   "poster": "https://archive.org/services/img/TheFlyingDeuces",
+   "backdrop": "https://archive.org/services/img/TheFlyingDeuces",
+   "creator": "Boris Morros",
+   "ia": "TheFlyingDeuces",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900022,
+   "media_type": "movie",
+   "title": "Suddenly",
+   "year": 1954,
+   "overview": "\"Three gunmen, who have been hired to assassinate the President, hold a family hostage while waiting for their target. Interesting B film which focuses on psychopathic killer well-portrayed against type by Frank Sinatra.\" - noir expert Spencer Selby | Cast: Frank Sinatra, Sterling Hayden, James Gleason, Nancy Gates. 77 min.",
+   "genre_ids": [
+    80,
+    18
+   ],
+   "runtime": 75,
+   "poster": "https://archive.org/services/img/suddenly",
+   "backdrop": "https://archive.org/services/img/suddenly",
+   "creator": "Lewis Allen",
+   "ia": "suddenly",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900023,
+   "media_type": "movie",
+   "title": "Battleship Potemkin",
+   "year": 1925,
+   "overview": "Sailors aboard a Russian battleship mutiny against their officers in 1905, sparking an uprising in Odessa. Sergei Eisenstein's revolutionary silent film.",
+   "genre_ids": [
+    18,
+    36,
+    10752
+   ],
+   "runtime": 73,
+   "poster": "https://archive.org/services/img/BattleshipPotemkin",
+   "backdrop": "https://archive.org/services/img/BattleshipPotemkin",
+   "creator": "Jacob Bliokh",
+   "ia": "BattleshipPotemkin",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900024,
+   "media_type": "movie",
+   "title": "Sherlock Holmes and the Secret Weapon",
+   "year": 1943,
+   "overview": "Based on the Sir Authur Conan Doyle story \"The Dancing Men\", Sherlock Holmes and Dr. Watson are placed in WWII europe to help protect a scientist and his invention from the Nazis. Basil Rathbone .... Sherlock Holmes Nigel Bruce .... Dr. John H. Watson Lionel Atwill .... Professor Moriarty Kaaren Verne .... Charlotte Eberli William Post Jr. .... Dr. Franz Tobel Dennis Hoey .... Inspector Lestrade Holmes Herbert ....…",
+   "genre_ids": [
+    9648,
+    80
+   ],
+   "runtime": 67,
+   "poster": "https://archive.org/services/img/secret_weapon",
+   "backdrop": "https://archive.org/services/img/secret_weapon",
+   "creator": "Roy William Neill",
+   "ia": "secret_weapon",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900025,
+   "media_type": "movie",
+   "title": "Penny Serenade",
+   "year": 1941,
+   "overview": "Touching romantic comedy starring Cary Grant and Irene Dunne. Find out more about this film at its IMDB page .",
+   "genre_ids": [
+    35,
+    10749
+   ],
+   "runtime": null,
+   "poster": "https://archive.org/services/img/penny_serenade",
+   "backdrop": "https://archive.org/services/img/penny_serenade",
+   "creator": "George Stevens",
+   "ia": "penny_serenade",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900026,
+   "media_type": "movie",
+   "title": "Quicksand",
+   "year": 1950,
+   "overview": "An engrossing suspense film with Mickey Rooney, Peter Lorre, and Jeanne Cagney. Needing money for a date, Rooney borrows $20 from the cash register, starting a chain of events that includes car theft, burglary, and possibly murder. (Yes, that is Jack Elam in the bar scene.) Read more at the IMDB . (The video is interlaced in both the MPEG2 file and the Cinepack. If viewing with VLC, deinterlace with menu-path…",
+   "genre_ids": [
+    80,
+    53
+   ],
+   "runtime": 78,
+   "poster": "https://archive.org/download/Quicksand_clear/Quicksand_pic.jpg",
+   "backdrop": "https://archive.org/download/Quicksand_clear/Quicksand_pic.jpg",
+   "creator": "Irving Pichel",
+   "ia": "Quicksand_clear",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900027,
+   "media_type": "movie",
+   "title": "Jungle Book",
+   "year": 1942,
+   "overview": "Teenaged Mowgli, who was raised by wolves, appears in a village in India and is adopted by Messua. Mowgli learns human language and some human ways quickly, though keeping jungle ideas. Influential Merchant Buldeo is bigoted against 'beasts' including Mowgli; not so Buldeo's pretty daughter, whom Mowgli takes on a jungle tour where they find a treasure, setting the evil of human greed in motion. Nominated for 4…",
+   "genre_ids": [
+    12,
+    14,
+    28
+   ],
+   "runtime": 108,
+   "poster": "https://archive.org/services/img/JungleBook",
+   "backdrop": "https://archive.org/services/img/JungleBook",
+   "creator": "Alexander Korda",
+   "ia": "JungleBook",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900028,
+   "media_type": "movie",
+   "title": "My Favorite Brunette",
+   "year": 1947,
+   "overview": "A baby photographer who dreams of being a private eye gets mistaken for one — and tangled up with a beautiful woman and a gang of crooks. Bob Hope and Dorothy Lamour.",
+   "genre_ids": [
+    35
+   ],
+   "runtime": 86,
+   "poster": "https://archive.org/services/img/my_favorite_brunette",
+   "backdrop": "https://archive.org/services/img/my_favorite_brunette",
+   "creator": "Daniel Dare",
+   "ia": "my_favorite_brunette",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900029,
+   "media_type": "movie",
+   "title": "Teenagers from Outer Space",
+   "year": 1959,
+   "overview": "A young alien (David Love) falls for a pretty teenage Earth girl (Dawn Anderson) and they team up to try to stop the plans of his invading cohorts.",
+   "genre_ids": [
+    27,
+    878
+   ],
+   "runtime": 85,
+   "poster": "https://archive.org/services/img/teenagers_from_outerspace",
+   "backdrop": "https://archive.org/services/img/teenagers_from_outerspace",
+   "creator": "Tom Graeff",
+   "ia": "teenagers_from_outerspace",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900030,
+   "media_type": "movie",
+   "title": "Killers From Space",
+   "year": 1954,
+   "overview": "A scientist survives a plane crash near a nuclear test site, only to discover that aliens with bulging eyes are plotting to conquer Earth.",
+   "genre_ids": [
+    878
+   ],
+   "runtime": 71,
+   "poster": "https://archive.org/services/img/Killers_from_space",
+   "backdrop": "https://archive.org/services/img/Killers_from_space",
+   "creator": "W. Lee Wilder",
+   "ia": "Killers_from_space",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900031,
+   "media_type": "movie",
+   "title": "The Ghoul",
+   "year": 1933,
+   "overview": "The Ghoul is a 1933 British Horror film starring Boris Karloff, Cedric Hardwicke, Ernest Thesiger and Ralph Richardson, whose debut film this was. The plot centres around a Professor (Karloff) who is to be buried with an Egyptian jewel in order to attain eternal life. When the jewel is stolen by his servant, the professor rises from the dead to reclaim it. The film, based on the play and novel by Dr. Frank King and…",
+   "genre_ids": [
+    27,
+    18
+   ],
+   "runtime": 68,
+   "poster": "https://archive.org/services/img/TheGhoul",
+   "backdrop": "https://archive.org/services/img/TheGhoul",
+   "creator": "T Hayes Hunter",
+   "ia": "TheGhoul",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900032,
+   "media_type": "movie",
+   "title": "Dressed To Kill",
+   "year": 1946,
+   "overview": "Aka 'Sherlock Holmes in Dressed To Kill' - features Basil Rathbone as Sherlock Holmes. You can find more information regarding this film on its IMDb page .",
+   "genre_ids": [
+    9648,
+    80
+   ],
+   "runtime": 71,
+   "poster": "https://archive.org/services/img/dressed_to_kill",
+   "backdrop": "https://archive.org/services/img/dressed_to_kill",
+   "creator": "Roy William Neill",
+   "ia": "dressed_to_kill",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900033,
+   "media_type": "movie",
+   "title": "Plan 9 From Outer Space",
+   "year": 1959,
+   "overview": "Plan 9 from Outer Space is a 1959 independently made American black-and-white science fiction-horror film, produced, written, directed, and edited by Ed Wood. It stars Gregory Walcott, Mona McKinnon, Tor Johnson, and \"Vampira\" (Maila Nurmi) and is narrated by Criswell. It also posthumously bills Bela Lugosi as a guest-star (silent footage of the actor had been shot by Wood for another, unfinished film just prior to…",
+   "genre_ids": [
+    878,
+    27
+   ],
+   "runtime": null,
+   "poster": "https://archive.org/services/img/plan-9-from-outer-space",
+   "backdrop": "https://archive.org/services/img/plan-9-from-outer-space",
+   "creator": "Ed Wood",
+   "ia": "plan-9-from-outer-space",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900034,
+   "media_type": "movie",
+   "title": "Cyrano De Bergerac",
+   "year": 1950,
+   "overview": "France, 1640: Cyrano, a brilliant swordsman and poet cursed with an enormous nose, secretly helps a handsome rival woo the woman he loves. José Ferrer won an Oscar for the role.",
+   "genre_ids": [
+    18,
+    10749
+   ],
+   "runtime": 112,
+   "poster": "https://archive.org/services/img/Cyrano_DeBergerac",
+   "backdrop": "https://archive.org/services/img/Cyrano_DeBergerac",
+   "creator": "Stanley Kramer",
+   "ia": "Cyrano_DeBergerac",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900035,
+   "media_type": "movie",
+   "title": "Impact",
+   "year": 1949,
+   "overview": "\"Wealthy businessman survives attempt by wife to have him killed, makes it look like she succeeded and starts a new life in small town as auto mechanic. Variation on idea elevated to noir importance by The Killers (1946), where victim of femme fatale tries to abandon the city and his past identity.\" - noir expert Spencer Selby",
+   "genre_ids": [
+    80
+   ],
+   "runtime": 109,
+   "poster": "https://archive.org/services/img/impact",
+   "backdrop": "https://archive.org/services/img/impact",
+   "creator": "",
+   "ia": "impact",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900036,
+   "media_type": "movie",
+   "title": "The Little Princess",
+   "year": 1939,
+   "overview": "When her father goes missing in the Boer War, wealthy schoolgirl Sara Crewe is reduced to a servant at her boarding school — but never loses hope. Starring Shirley Temple.",
+   "genre_ids": [
+    18,
+    10751
+   ],
+   "runtime": 92,
+   "poster": "https://archive.org/services/img/little_princess",
+   "backdrop": "https://archive.org/services/img/little_princess",
+   "creator": "Walter Lang",
+   "ia": "little_princess",
+   "license": "Public domain / open license (Internet Archive)"
+  },
+  {
+   "id": 900500,
+   "media_type": "tv",
+   "title": "Sherlock Holmes (1954)",
+   "year": 1954,
+   "overview": "Ronald Howard and H. Marion Crawford star as Holmes and Watson in this 1950s television series, many episodes of which are in the public domain and preserved on the Internet Archive. (Demo: episode order is approximate.)",
+   "genre_ids": [
+    9648,
+    80
+   ],
+   "poster": "https://archive.org/services/img/SherlockHolmes-TheCaseoftheCunninghamHeritage",
+   "backdrop": "https://archive.org/services/img/SherlockHolmes-TheCaseoftheCunninghamHeritage",
+   "ia": null,
+   "seasons": [
+    {
+     "season_number": 1,
+     "name": "Season 1",
+     "episodes": [
+      {
+       "episode_number": 1,
+       "name": "The Case of the Cunningham Heritage",
+       "overview": "Holmes unravels the mystery surrounding the death of Mr. Cunningham, a gentleman whose fiancée was found by his body with a knife in her hand. This television episode marks the first filmed meeting between Sherlock Holmes and Dr. Watson. Based on \"A Study in…",
+       "runtime": 27,
+       "still": "https://archive.org/services/img/SherlockHolmes-TheCaseoftheCunninghamHeritage",
+       "ia": "SherlockHolmes-TheCaseoftheCunninghamHeritage"
+      },
+      {
+       "episode_number": 2,
+       "name": "The Case of Lady Beryl",
+       "overview": "Lady Beryl admits to a crime she did not commit. Holmes not only reveals the true murderer, but Lady Beryl's motive for lying about the crime.",
+       "runtime": 27,
+       "still": "https://archive.org/services/img/SherlockHolmes-TheCaseofLadyBeryl",
+       "ia": "SherlockHolmes-TheCaseofLadyBeryl"
+      },
+      {
+       "episode_number": 3,
+       "name": "The Case of the Pennsylvania Gun",
+       "overview": "Based on the novel \"The Valley of Fear,\" Holmes and Watson are called to Sussex to investigate the murder of Squire John Douglas. The local inspector thinks he has it all figured out, but Holmes discovers the crime is more complicated than it looks.",
+       "runtime": 26,
+       "still": "https://archive.org/services/img/SherlockHolmes-TheCaseofthePennsylvaniaGun",
+       "ia": "SherlockHolmes-TheCaseofthePennsylvaniaGun"
+      },
+      {
+       "episode_number": 4,
+       "name": "The Case of the Texas Cowgirl",
+       "overview": "Minnie O'Malley, a cowgirl in a travelling rodeo, seeks help from Sherlock Holmes--to remove a dead body from her hotel room! Strangely, Holmes seems to be more than happy to comply. Suspects range from a Blackfoot Indian, the owner of the rodeo Bison Jack,…",
+       "runtime": 27,
+       "still": "https://archive.org/services/img/SherlockHolmes-TheCaseoftheTexasCowgirl",
+       "ia": "SherlockHolmes-TheCaseoftheTexasCowgirl"
+      },
+      {
+       "episode_number": 5,
+       "name": "The Case of the Belligerent Ghost",
+       "overview": "Watson is quite flustered after a man in distress dies in his care...only to find himself attacked by the very same dead man on Watson's way back home to Baker Street! So what does this have to do with daVinci's \"Madonna on the Rocks\" painting allegedly being…",
+       "runtime": 27,
+       "still": "https://archive.org/services/img/SherlockHolmes-TheCaseoftheBelligerentGhost",
+       "ia": "SherlockHolmes-TheCaseoftheBelligerentGhost"
+      },
+      {
+       "episode_number": 6,
+       "name": "The Case of the Shy Ballerina",
+       "overview": "A simple case of mistakenly switched coats suddenly turns into blackmail and then murder! When poor Watson's hat was found at the scene of the crime, even he becomes a suspect. This episode features Natalie Schaffer, best known in her role later on in…",
+       "runtime": 27,
+       "still": "https://archive.org/services/img/SherlockHolmes-TheCaseoftheShyBallerina",
+       "ia": "SherlockHolmes-TheCaseoftheShyBallerina"
+      },
+      {
+       "episode_number": 7,
+       "name": "The Case of the Red Headed League",
+       "overview": "A classic Holmes and Watson mystery.",
+       "runtime": 26,
+       "still": "https://archive.org/services/img/SherlockHolmes-TheCaseOfTheRedHeadedLeague",
+       "ia": "SherlockHolmes-TheCaseOfTheRedHeadedLeague"
+      },
+      {
+       "episode_number": 8,
+       "name": "The Case of the French Interpreter",
+       "overview": "A classic Holmes and Watson mystery.",
+       "runtime": 26,
+       "still": "https://archive.org/services/img/SherlockHolmes-TheCaseOfTheFrenchInterpreter_714",
+       "ia": "SherlockHolmes-TheCaseOfTheFrenchInterpreter_714"
+      },
+      {
+       "episode_number": 9,
+       "name": "The Case of the Singing Violin",
+       "overview": "A classic Holmes and Watson mystery.",
+       "runtime": 26,
+       "still": "https://archive.org/services/img/SherlockHolmes-TheCaseOfTheSingingViolin",
+       "ia": "SherlockHolmes-TheCaseOfTheSingingViolin"
+      },
+      {
+       "episode_number": 10,
+       "name": "The Case of the Eiffel Tower",
+       "overview": "A classic Holmes and Watson mystery.",
+       "runtime": 26,
+       "still": "https://archive.org/services/img/SherlockHolmes-TheCaseOfTheEiffelTower",
+       "ia": "SherlockHolmes-TheCaseOfTheEiffelTower"
+      },
+      {
+       "episode_number": 11,
+       "name": "The Case of the Haunted Gainsborough",
+       "overview": "This is the story of the hunt for the MacGregan treasure -- and curse!",
+       "runtime": 26,
+       "still": "https://archive.org/services/img/SherlockHolmes-TheCaseOfTheHauntedGainsborough",
+       "ia": "SherlockHolmes-TheCaseOfTheHauntedGainsborough"
+      },
+      {
+       "episode_number": 12,
+       "name": "The Case of the Diamond Tooth",
+       "overview": "Holmes is on the case of a man who is found dead in the river.",
+       "runtime": 26,
+       "still": "https://archive.org/services/img/SherlockHolmes-TheCaseOfTheDiamondTooth",
+       "ia": "SherlockHolmes-TheCaseOfTheDiamondTooth"
+      }
+     ]
+    }
+   ],
+   "license": "Public domain (Internet Archive)"
+  }
+ ]
+}

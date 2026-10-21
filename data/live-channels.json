@@ -1,0 +1,89 @@
+{
+ "note": "Curated free, legal live channels using each broadcaster's OFFICIAL YouTube live stream. Edit freely; admins can add more in /admin.",
+ "channels": [
+  {
+   "id": "nasa",
+   "name": "NASA Live",
+   "category": "Science",
+   "url": "https://www.youtube.com/embed/live_stream?channel=UCLA_DiR1FfKNvjuUpBHmylQ",
+   "official": "https://www.youtube.com/channel/UCLA_DiR1FfKNvjuUpBHmylQ/live"
+  },
+  {
+   "id": "aje",
+   "name": "Al Jazeera English",
+   "category": "News",
+   "url": "https://www.youtube.com/embed/live_stream?channel=UCNye-wNBqNL5ZzHSJj3l8Bg",
+   "official": "https://www.youtube.com/channel/UCNye-wNBqNL5ZzHSJj3l8Bg/live"
+  },
+  {
+   "id": "dw",
+   "name": "DW News",
+   "category": "News",
+   "url": "https://www.youtube.com/embed/live_stream?channel=UCknLrEdhRCp1aegoMqRaCZg",
+   "official": "https://www.youtube.com/channel/UCknLrEdhRCp1aegoMqRaCZg/live"
+  },
+  {
+   "id": "f24",
+   "name": "France 24 English",
+   "category": "News",
+   "url": "https://www.youtube.com/embed/live_stream?channel=UCQfwfsi5VrQ8yKZ-UWmAEFg",
+   "official": "https://www.youtube.com/channel/UCQfwfsi5VrQ8yKZ-UWmAEFg/live"
+  },
+  {
+   "id": "sky",
+   "name": "Sky News",
+   "category": "News",
+   "url": "https://www.youtube.com/embed/live_stream?channel=UCoMdktPbSTixAyNGwb-UYkQ",
+   "official": "https://www.youtube.com/channel/UCoMdktPbSTixAyNGwb-UYkQ/live"
+  },
+  {
+   "id": "abc",
+   "name": "ABC News Live",
+   "category": "News",
+   "url": "https://www.youtube.com/embed/live_stream?channel=UCBi2mrWuNuyYy4gbM6fU18Q",
+   "official": "https://www.youtube.com/channel/UCBi2mrWuNuyYy4gbM6fU18Q/live"
+  },
+  {
+   "id": "nbc",
+   "name": "NBC News NOW",
+   "category": "News",
+   "url": "https://www.youtube.com/embed/live_stream?channel=UCeY0bbntWzzVIaj2z3QigXg",
+   "official": "https://www.youtube.com/channel/UCeY0bbntWzzVIaj2z3QigXg/live"
+  },
+  {
+   "id": "bbg",
+   "name": "Bloomberg Television",
+   "category": "Business",
+   "url": "https://www.youtube.com/embed/live_stream?channel=UCIALMKvObZNtJ6AmdCLP7Lg",
+   "official": "https://www.youtube.com/channel/UCIALMKvObZNtJ6AmdCLP7Lg/live"
+  },
+  {
+   "id": "euronews",
+   "name": "Euronews",
+   "category": "News",
+   "url": "https://www.youtube.com/embed/live_stream?channel=UCSrZ3UV4jOidv8ppoVuvW9Q",
+   "official": "https://www.youtube.com/channel/UCSrZ3UV4jOidv8ppoVuvW9Q/live"
+  },
+  {
+   "id": "lofi",
+   "name": "Lofi Girl",
+   "category": "Music",
+   "url": "https://www.youtube.com/embed/live_stream?channel=UCSJ4gkVC6NrvII8umztf0Ow",
+   "official": "https://www.youtube.com/channel/UCSJ4gkVC6NrvII8umztf0Ow/live"
+  },
+  {
+   "id": "mba",
+   "name": "Monterey Bay Aquarium",
+   "category": "Nature",
+   "url": "https://www.youtube.com/embed/live_stream?channel=UCnM5iMGiKsZg-iOlIO2ZkdQ",
+   "official": "https://www.youtube.com/channel/UCnM5iMGiKsZg-iOlIO2ZkdQ/live"
+  },
+  {
+   "id": "explore",
+   "name": "Explore Live Nature Cams",
+   "category": "Nature",
+   "url": "https://www.youtube.com/embed/live_stream?channel=UC-2KSeUU5SMCX6XLRD-AEvw",
+   "official": "https://www.youtube.com/channel/UC-2KSeUU5SMCX6XLRD-AEvw/live"
+  }
+ ]
+}

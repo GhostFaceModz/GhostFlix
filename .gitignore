@@ -1,0 +1,12 @@
+node_modules/
+.env
+data/store.json
+data/store.json.tmp
+*.log
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+data/subs/
+.DS_Store

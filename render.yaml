@@ -1,0 +1,28 @@
+# Render Blueprint — free web service (no paid add-ons).
+services:
+  - type: web
+    name: ghostflix
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: TMDB_API_KEY
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: TMDB_REGION
+        value: US
+      - key: SUPABASE_PUBLIC_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: CRON_SECRET
+        generateValue: true

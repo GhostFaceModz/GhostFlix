@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GhostFlix Admin</title><meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/admin.css">
+</head>
+<body class="adm">
+<div class="bg" aria-hidden="true"></div>
+<header class="nav solid">
+  <a class="logo" href="/"><img src="/img/logo.svg" alt="" width="30" height="30"><span class="wm"><span class="name">GHOST<em>FLIX</em></span></span></a>
+  <span class="tag">Admin</span>
+  <div class="nav-r"><span id="who" class="dim"></span><button class="btn ghost sm" id="logout" hidden>Sign out</button></div>
+</header>
+<main class="admin" id="app">
+  <section id="login" class="panel login" hidden>
+    <img src="/img/logo.svg" alt="" width="54">
+    <h1>Admin sign in</h1>
+    <p class="dim" id="loginNote">Enter the GhostFlix admin password.</p>
+    <form id="loginForm"><input type="password" name="password" placeholder="Password" autocomplete="current-password" required><button class="btn glow">Sign in</button></form>
+    <p class="err" id="loginErr"></p>
+  </section>
+
+  <div id="dash" hidden>
+    <div class="stats" id="stats"></div>
+    <div class="cols">
+      <section class="panel" id="addPanel">
+        <h2><span class="n">1</span>Add video to a title</h2>
+        <p class="dim">Attach a source to a movie, or to a specific series episode. Paste any http(s) video/embed link or &lt;iframe&gt; code — YouTube, Vimeo, Internet Archive, Dailymotion, Bunny, Cloudflare Stream, your own host, MP4/HLS… Known unlicensed hosts (vidsrc, 2embed, multiembed, …) are blocked.</p>
+        <label>Find title <small>(name or TMDB id)</small></label>
+        <div class="lookup"><input id="lookupQ" placeholder="e.g. Night of the Living Dead" autocomplete="off"><div class="results" id="lookupRes"></div></div>
+        <div class="picked" id="picked"><span class="dim">No title selected</span></div>
+        <div class="ep-fields" id="epFields" hidden>
+          <div><label>Season</label><input id="season" type="number" min="0" placeholder="1"></div>
+          <div><label>Episode</label><input id="episode" type="number" min="1" placeholder="1"></div>
+          <p class="dim small">Leave blank to attach to the whole series.</p>
+        </div>
+        <label>Video link or embed code</label>
+        <input id="srcUrl" placeholder="https://www.youtube.com/watch?v=…  ·  https://archive.org/details/…">
+        <div class="validate" id="validate"></div>
+        <label>Label <small>(optional)</small></label>
+        <input id="srcLabel" placeholder="e.g. Restored 4K · English subs">
+        <button class="btn glow" id="addBtn" disabled>Save source</button>
+        <p class="err" id="addErr"></p>
+        <div class="subbox">
+          <label>Subtitles for this title/episode <small>(.srt or .vtt — converted to WebVTT)</small></label>
+          <div class="row3" style="grid-template-columns:90px 1fr auto">
+            <div><input id="subLang" value="en" maxlength="8" aria-label="Language code"></div>
+            <div><input id="subLabel" placeholder="Label, e.g. English (CC)"></div>
+            <label class="btn ghost sm" style="margin:0">Upload<input type="file" id="subFile" accept=".srt,.vtt,text/vtt" hidden></label>
+          </div>
+          <p class="dim small">Shown in GhostFlix’s own player for MP4/HLS sources. Pick a title above first.</p>
+        </div>
+      </section>
+
+      <section class="panel" id="importPanel">
+        <h2><span class="n">2</span>Import</h2>
+        <p class="dim">Paste a YouTube playlist/channel URL, or an Internet Archive collection or search URL. GhostFlix fetches every video, matches it to TMDB by title + year, and lets you review before saving.</p>
+        <label>Source URL</label>
+        <input id="impUrl" placeholder="https://www.youtube.com/playlist?list=…  ·  https://archive.org/details/feature_films">
+        <div class="row3">
+          <div><label>Max items</label><input id="impLimit" type="number" value="100" min="1" max="1000"></div>
+          <div><label>Match as</label><div class="select"><select id="impType"><option value="auto">Auto</option><option value="movie">Movies</option><option value="tv">Series episodes</option></select></div></div>
+          <label class="check"><input type="checkbox" id="impResync"> Re-sync daily</label>
+        </div>
+        <div class="btns"><button class="btn glow" id="impBtn">Fetch & match</button>
+          <button class="btn ghost" id="seedIA" title="Internet Archive public-domain feature films">Seed: Internet Archive feature_films</button></div>
+        <p class="dim small" id="ytNote"></p>
+        <p class="err" id="impErr"></p>
+        <div id="impOut"></div>
+      </section>
+    </div>
+
+    <section class="panel" id="patternPanel">
+      <h2><span class="n">3</span>Link patterns <small class="dim">(your own host)</small></h2>
+      <p class="dim">Titles with no specific source automatically use these. Placeholders: <code>{tmdb_id}</code>, and for series <code>{season}</code> + <code>{episode}</code>. Patterns on denylisted hosts are rejected.</p>
+      <label>Movie pattern</label><input id="patMovie" placeholder="https://media.yourdomain.com/movie/{tmdb_id}">
+      <label>Series pattern</label><input id="patTv" placeholder="https://media.yourdomain.com/tv/{tmdb_id}/{season}/{episode}">
+      <div class="btns"><button class="btn glow sm" id="patSave">Save patterns</button><button class="btn ghost sm" id="patClear">Clear</button></div>
+      <p class="err" id="patErr"></p>
+    </section>
+
+    <section class="panel">
+      <h2><span class="n">4</span>Live TV channels</h2>
+      <p class="dim">Add free, legal live channels (official streams only — e.g. a broadcaster’s YouTube live URL <code>youtube.com/channel/UC…/live</code> or their official HLS). Curated defaults live in <code>data/live-channels.json</code>.</p>
+      <div class="row3" style="grid-template-columns:1fr 140px"><div><label>Name</label><input id="chName" placeholder="Channel name"></div><div><label>Category</label><input id="chCat" placeholder="News"></div></div>
+      <label>Official stream URL</label><input id="chUrl" placeholder="https://www.youtube.com/channel/UC…/live">
+      <button class="btn glow sm" id="chAdd">Add channel</button><p class="err" id="chErr"></p>
+      <div class="table" id="chTable"></div>
+    </section>
+
+    <section class="panel">
+      <h2><span class="n">5</span>Playable sources <small class="dim" id="srcCount"></small></h2>
+      <input id="srcFilter" placeholder="Filter…" class="filter">
+      <div class="table" id="srcTable"></div>
+      <h2 style="margin-top:22px">Subtitle tracks</h2><div class="table" id="subTable"></div>
+    </section>
+    <div class="cols">
+      <section class="panel"><h2>Unmatched imports</h2><p class="dim">Videos that couldn’t be matched confidently. Assign a TMDB id or dismiss.</p><div id="unmatched"></div></section>
+      <section class="panel"><h2>Import jobs</h2><p class="dim">Saved imports. Daily re-sync runs hourly checks while the server is awake; on Render’s free tier also point a free cron at <code>POST /api/cron/resync</code>.</p><div id="jobs"></div>
+        <h2 style="margin-top:26px">Backup</h2><p class="dim">Render free disks reset on deploy. Export, then commit the file as <code>data/seed-store.json</code> (or use Supabase).</p>
+        <div class="btns"><a class="btn ghost sm" href="/api/admin/export" download>Export JSON</a><label class="btn ghost sm">Restore JSON<input type="file" id="restore" accept="application/json" hidden></label></div></section>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/admin.js" type="module"></script>
+</body>
+</html>
