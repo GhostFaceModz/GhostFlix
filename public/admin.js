@@ -112,16 +112,16 @@ $('#addBtn').onclick = async () => {
 $('#srcFilter').oninput = renderSources;
 function renderSources() {
   const f = $('#srcFilter').value.toLowerCase();
-  const list = STATE.sources.filter((s) => !f || [s.title?.title, s.key, s.url, s.label, s.provider, s.origin].join(' ').toLowerCase().includes(f));
+  const list = STATE.sources.filter((s) => !f || JSON.stringify(s).toLowerCase().includes(f));
   $('#srcCount').textContent = `(${STATE.sources.length})`;
   $('#srcTable').innerHTML = list.slice(0, 400).map((s) => {
     const [t, id, ep] = s.key.split(':');
     return `<div class="tr"><img src="${esc(s.title?.poster || '')}" alt=""><div><b>${esc(s.title?.title || `${t} ${id}`)}${ep ? ` · ${esc(ep.toUpperCase())}` : ''}</b><span class="dim">${t === 'tv' ? 'Series' : 'Movie'} · TMDB ${esc(id)}${s.label ? ' · ' + esc(s.label) : ''}</span></div>
       <div class="u hide-sm"><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a></div><div class="hide-sm"><span class="pv">${esc(s.provider)}</span><div class="dim small">${esc(s.origin)}</div></div>
-      <div><a class="mini" href="/watch/${t}/${id}${ep ? `?s=${parseInt(ep.slice(1))}&e=${ep.split('e')[1]}` : ''}" target="_blank" style="display:inline-grid;place-items:center">▶</a> <button data-edit="${esc(s.sid)}">Edit</button> <button data-del="${esc(s.sid)}">Delete</button></div></div>`;
+      <div><a class="mini" href="/watch/${t}/${id}${ep ? `?s=${parseInt(ep.slice(1))}&e=${ep.split('e')[1]}` : ''}" target="_blank" style="display:inline-grid;place-items:center">▶</a> <button data-edit="${esc(s.sid)}">Edit</button> <button data-del="${esc(s.sid)}">Remove</button></div></div>`;
   }).join('') || '<p class="dim">No sources yet. Add one above or run an import.</p>';
   $$('[data-edit]').forEach((b) => (b.onclick = () => editSource(b)));
-  $$('[data-del]').forEach((b) => (b.onclick = async () => { if (!confirm('Delete this embed from the title? This can’t be undone.')) return; await api(`/api/admin/sources/${b.dataset.del}`, { method: 'DELETE' }); refresh(); }));
+  $$('[data-del]').forEach((b) => (b.onclick = async () => { if (!confirm('Remove this source?')) return; await api(`/api/admin/sources/${b.dataset.del}`, { method: 'DELETE' }); refresh(); }));
 }
 
 // ---- import ----
@@ -252,30 +252,24 @@ function finalize(it) {
   if (it.type !== 'movie' && it.type !== 'tv') return { ...it, error: 'Unknown type (movie or tv)' };
   return it;
 }
-let LAST_BATCH = [];
 async function runBulk(items) {
   items = items.map(finalize); const total = items.length; if (!total) { toast('Nothing to add'); return; }
   const res = $('#bulkRes'); res.innerHTML = items.map((it, i) => `<li data-r="${i}" class="${it.error ? 'no' : 'wait'}"><span class="st">${it.error ? '✗' : '…'}</span> <span class="what">${esc(it.title || (it.id ? `${it.type} ${it.id}${it.season ? ` S${it.season}E${it.episode || '?'}` : ''}` : it.raw.slice(0, 80)))}</span> <span class="msg dim small">${esc(it.error || 'queued')}</span></li>`).join('');
-  $('#bulkBtn').disabled = true; LAST_BATCH = []; let ok = 0, fail = 0, done = 0;
+  $('#bulkBtn').disabled = true; let ok = 0, fail = 0, done = 0;
   for (const [i, it] of items.entries()) {
     const li = $(`[data-r="${i}"]`, res);
     if (!it.error) {
       progress('#bulkProg', done, total, `Adding ${done + 1} of ${total}…`); li.className = 'busy'; $('.msg', li).textContent = 'adding…';
       try {
         const r = await api('/api/admin/sources', { method: 'POST', body: { url: it.url, type: it.type, id: it.id, season: it.type === 'tv' ? it.season ?? '' : '', episode: it.type === 'tv' ? it.episode ?? '' : '', label: it.label || '' } });
-        LAST_BATCH.push(r.source.sid); ok++; li.className = 'ok'; $('.st', li).textContent = '✓'; $('.msg', li).textContent = `saved → ${r.key}`;
+        ok++; li.className = 'ok'; $('.st', li).textContent = '✓'; $('.msg', li).textContent = `saved → ${r.key}`;
       } catch (e) { fail++; li.className = 'no'; $('.st', li).textContent = '✗'; $('.msg', li).textContent = e.message; }
     } else fail++;
     done++; progress('#bulkProg', done, total, `${done} of ${total} processed · ${ok} added · ${fail} failed`);
   }
   progress('#bulkProg', total, total, `Done: ${ok} added · ${fail} failed (of ${total})`);
-  $('#bulkBtn').disabled = false; $('#bulkUndo').hidden = !LAST_BATCH.length; if (ok) refresh();
+  $('#bulkBtn').disabled = false; if (ok) refresh();
 }
-$('#bulkUndo').onclick = async () => {
-  if (!LAST_BATCH.length || !confirm(`Remove the ${LAST_BATCH.length} source(s) added in this batch?`)) return;
-  let n = 0; for (const sid of LAST_BATCH) { progress('#bulkProg', n, LAST_BATCH.length, `Removing ${n + 1} of ${LAST_BATCH.length}…`); try { await api(`/api/admin/sources/${sid}`, { method: 'DELETE' }); } catch {} n++; }
-  progress('#bulkProg', n, n, `Removed ${n} source(s)`); LAST_BATCH = []; $('#bulkUndo').hidden = true; $('#bulkRes').innerHTML = ''; refresh();
-};
 $('#bulkBtn').onclick = () => runBulk(parseList($('#bulkText').value));
 const readFile = (f) => new Promise((resolve, reject) => {
   const r = new FileReader();
@@ -310,13 +304,13 @@ $('#dropFile').onchange = (e) => { const files = [...e.target.files]; e.target.v
 
 // ---- site controls ----
 let SITE = null, HERO = null;
-const SECTION_NAMES = { discover: 'Discover', live: 'Live TV', genres: 'Genres', mylist: 'My List' };
+const SECTION_NAMES = { discover: 'Discover', live: 'Live TV', mylist: 'My List / Downloads (dock tab)' };
 async function loadSite() {
   try { SITE = await api('/api/admin/site'); } catch (e) { $('#siteErr').textContent = e.message; return; }
   const s = SITE.site;
   $('#anText').value = s.announcement.text; $('#anOn').checked = s.announcement.on; $('#anColor').value = s.announcement.color || '#5fe3ff';
   $('#maintOn').checked = s.maintenance; HERO = s.hero; renderHero();
-  $('#secChecks').innerHTML = SITE.sectionKeys.map((k) => `<label class="check"><input type="checkbox" data-sec="${k}" ${s.sections[k] ? 'checked' : ''}> ${SECTION_NAMES[k] || k}</label>`).join('') + '<p class="dim small">There’s no Downloads section on GhostFlix yet, so there’s nothing to toggle for it.</p>';
+  $('#secChecks').innerHTML = SITE.sectionKeys.map((k) => `<label class="check"><input type="checkbox" data-sec="${k}" ${s.sections[k] ? 'checked' : ''}> ${SECTION_NAMES[k] || k}</label>`).join('');
   $('#rowChecks').innerHTML = SITE.rows.map((r) => `<label class="check"><input type="checkbox" data-row="${esc(r.id)}" ${s.rows[r.id] === false ? '' : 'checked'}> ${esc(r.title)}</label>`).join('') || '<p class="dim small">No rows</p>';
   const st = SITE.stats; const base = $('#stats');
   base.querySelector('.stat.users')?.remove();

@@ -52,7 +52,7 @@ app.use((req, res, next) => {
 });
 
 // ---- site config (admin-controlled: announcement, hero, sections, maintenance) ---------
-const SECTION_KEYS = ['discover', 'live', 'genres', 'mylist'];
+const SECTION_KEYS = ['discover', 'live', 'mylist'];
 const siteCfg = () => {
   const d = store.data.site || {};
   return {
@@ -286,7 +286,7 @@ admin.get('/site', wrap(async (req, res) => {
   if (catalog.mode !== 'demo' && store.playableCards().length) rows.splice(1, 0, { id: 'free', title: 'Free to watch on GhostFlix' });
   rows.unshift({ id: 'continue', title: 'Continue watching (per viewer)' }, { id: 'mylist', title: 'My List (per viewer)' });
   const keys = new Set(Object.keys(store.data.sources).map((k) => k.split(':').slice(0, 2).join(':')));
-  const stats = { titlesWithEmbeds: keys.size, sources: Object.values(store.data.sources).reduce((n, l) => n + l.length, 0), customChannels: (store.data.channels || []).length, users: null };
+  const stats = { titlesWithEmbeds: keys.size, users: null };
   if (store.supa) {
     try {
       const r = await fetch(`${store.supa.url}/auth/v1/admin/users?page=1&per_page=1`, { headers: { apikey: store.supa.key, Authorization: `Bearer ${store.supa.key}` } });

@@ -351,7 +351,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('.play
 
 function sectionOff() { main.innerHTML = `<div class="page"><div class="empty"><img src="/img/logo.svg" alt=""><h2>This section is switched off</h2><p>It’s temporarily unavailable. Check back soon.</p><p style="margin-top:16px"><a class="btn ghost sm" href="/" data-link>Back home</a></p></div></div>`; }
 function applySite() {
-  const map = { discover: 'discover', live: 'live', genres: 'genres', 'my-list': 'mylist' };
+  const map = { discover: 'discover', live: 'live', 'my-list': 'mylist' };
   $$('[data-nav]').forEach((a) => { const k = map[a.dataset.nav]; if (k) a.hidden = !sectionOn(k); });
   const an = SITE.announcement || {}; const box = $('#announce');
   if (an.on && an.text && sessionStorage.getItem('gf.an') !== an.text) {
@@ -370,7 +370,7 @@ const routes = [
   [/^\/genre\/(movie|tv)\/(\d+)$/, (m) => viewGenre(m[1], m[2]), (m) => (m[1] === 'tv' ? 'tv' : 'movies')],
   [/^\/search$/, () => viewSearch(new URLSearchParams(location.search).get('q') || ''), 'search'],
   [/^\/my-list$/, () => (sectionOn('mylist') ? (() => viewMyList())() : sectionOff()), 'my-list'],
-  [/^\/genres$/, () => (sectionOn('genres') ? (() => viewGenres())() : sectionOff()), 'genres'],
+  [/^\/genres$/, () => viewGenres(), 'genres'],
   [/^\/discover$/, () => (sectionOn('discover') ? (() => viewDiscover(pageCtx()))() : sectionOff()), 'discover'],
   [/^\/live$/, () => (sectionOn('live') ? (() => viewLive(pageCtx()))() : sectionOff()), 'live'],
   // Watch Parties: built but disabled for now (enable with ENABLE_WATCH_PARTIES=1).

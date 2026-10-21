@@ -75,7 +75,7 @@
             <input type="file" id="dropFile" accept=".txt,.csv,.tsv,.json,text/plain,text/csv,application/json" multiple hidden>
           </div>
           <textarea id="bulkText" rows="3" placeholder="…or paste lines here"></textarea>
-          <div class="btns"><button class="btn glow sm" id="bulkBtn" type="button">Add all</button><button class="btn ghost sm" id="bulkUndo" type="button" hidden>Undo this batch</button></div>
+          <div class="btns"><button class="btn glow sm" id="bulkBtn" type="button">Add all</button></div>
           <div class="prog-box" id="bulkProg" hidden><div class="bar"><i></i></div><span class="pt"></span></div>
           <ol class="bulk-res" id="bulkRes"></ol>
         </div>
@@ -128,8 +128,8 @@
     </section>
 
     <section class="panel">
-      <h2><span class="n">5</span>Titles &amp; embeds <small class="dim" id="srcCount"></small></h2>
-      <input id="srcFilter" placeholder="Search titles, ids, links…" class="filter">
+      <h2><span class="n">5</span>Playable sources <small class="dim" id="srcCount"></small></h2>
+      <input id="srcFilter" placeholder="Filter…" class="filter">
       <div class="table" id="srcTable"></div>
       <h2 style="margin-top:22px">Subtitle tracks</h2><div class="table" id="subTable"></div>
     </section>

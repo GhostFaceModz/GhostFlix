@@ -76,7 +76,7 @@ export function renderSettings(main, ctx, sub) {
         <a class="tile" href="/settings/profiles" data-link><span>${ico('profiles')}</span>Profiles</a>
         ${u ? `<a class="tile" href="/settings/account" data-link><span>${m.av ? `<img src="${esc(m.av)}" alt="" referrerpolicy="no-referrer">` : ico('user')}</span>${esc(m.name.split(' ')[0])}</a>` : `<button class="tile" type="button" data-signin><span>${ico('user')}</span>Sign in</button>`}
       </div>
-      ${group('Account', [item('/profile', 'user', 'Profile', 'Avatar border and name glow'), item('/settings/account', 'user', 'Account', 'Sync and backup')])}
+      ${group('Account', [item('/profile', 'user', 'Profile', 'Avatar border and name glow'), item('/settings/account', 'user', 'Account', 'Profile, sync and backup')])}
       ${group('App', [item('/settings/preferences', 'sliders', 'Preferences', 'Language, content and behavior'), item('/settings/appearance', 'palette', 'Appearance', 'Theme, layout and cards')])}
       ${group('Playback', [item('/settings/player', 'play', 'Player', 'Playback, gestures and sources'), item('/settings/subtitles', 'subs', 'Subtitles', 'Style, size and languages')])}
       ${group('Integrations', [item('/settings/connections', 'link', 'Connections', 'Discord, GitHub')])}

@@ -522,7 +522,6 @@ body.in-party .dc-bubble{display:none!important}
 .theme-tgl svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .theme-tgl .sun{display:none}html[data-theme=light] .theme-tgl .sun{display:block}html[data-theme=light] .theme-tgl .moon{display:none}
 @media (max-width:760px){.nav{gap:8px}.theme-tgl{width:36px;height:36px}.nav .sso-wrap{gap:6px}.search input{font-size:16px}}
-@media (max-width:420px){.nav .sso.g{display:none}}
 
 /* ---- announcement banner (admin) ---- */
 .announce{z-index:390;margin:0;padding:10px 48px 10px var(--pad);background:var(--an,#5fe3ff);color:#03121c;font-size:14px;font-weight:600;text-align:center;position:fixed;left:0;right:0;top:68px}
