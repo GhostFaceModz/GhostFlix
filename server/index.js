@@ -47,7 +47,8 @@ async function loadIPTVChannels() {
     } catch {}
   }
   // Keep only channels with a valid http(s) URL and a non-empty name
-  const valid = channels.filter(c => c.url && /^https?:\/\//i.test(c.url) && c.name.trim());
+  const valid = channels.filter(c => c.url && /^https?:\/\//i.test(c.url) && c.name.trim() && c.name.trim().length >= 3 && !/^\d+$/.test(c.name.trim()));
+  // Remove stub/placeholder entries: short names, numeric-only names
   IPTV_CACHE = { channels: valid, expires: now + 60 * 60 * 1000 }; // 1 hour cache
   return valid;
 }
