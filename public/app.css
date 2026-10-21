@@ -618,10 +618,11 @@ html[data-theme=light] .hero p.ov,html[data-theme=light] .hero .meta{color:#2a34
 @keyframes gfGhostWiggle{0%,100%{transform:rotate(0)}20%{transform:rotate(-10deg)}40%{transform:rotate(9deg)}60%{transform:rotate(-6deg)}80%{transform:rotate(4deg)}}
 }
 /* header wordmark: melting GhostFlix title image (+ one slow falling droplet under FLIX) */
-.logo .wm-img{position:relative;display:block;line-height:0}
-.logo .wm-img img{width:auto;height:36px;filter:none!important;transform:none!important;animation:none!important}
+.logo .wm-img{position:relative;display:block;line-height:0;transform:translateY(4px)}
+.logo .wm-img img{width:123px;height:auto;filter:none!important;transform:none!important;animation:none!important}
 .logo .wm-img::after{content:"";position:absolute;left:94.3%;top:86%;width:3px;height:4px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;background:#5fe3ff;box-shadow:0 0 4px rgba(95,227,255,.8);opacity:0;pointer-events:none}
-.logo .wm-img .wm-vid{display:none;position:absolute;left:-1.7px;top:-1.7px;width:125px;height:43px;pointer-events:none}
+.logo .wm-img .wm-vid{display:none;position:absolute;left:-1.69px;top:-.95px;width:126.2px;height:38px;pointer-events:none}
+html.gf-novid .logo .wm-img .wm-vid{display:none!important}html.gf-novid .logo .wm-img picture{visibility:visible!important}
 @media (prefers-reduced-motion:no-preference){
 html:not([data-theme=light]) .logo .wm-img .wm-vid{display:block}
 html:not([data-theme=light]) .logo .wm-img picture{visibility:hidden}
