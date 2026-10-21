@@ -18,6 +18,7 @@ export async function viewDiscover(ctx) {
   $('.disc-rows', main).outerHTML = `<div class="disc-rows">
     ${rowHTML({ id: 'top10', title: 'Top 10 today', top10: true, items: d.top10 }, 'd0')}
     ${because ? rowHTML(because, 'd1') : ''}
+    ${resume.items.length ? rowHTML(resume, 'd1') : ''}
     ${d.rows.map((r, i) => rowHTML(r, 'd' + (i + 2))).join('')}
     <section class="row"><div class="row-h"><h2>Pick a mood</h2></div><div style="padding:0 var(--pad)">${moodBar}</div><div id="moodShelf">${rowHTML({ ...d.moods[0], title: '' }, 'mood')}</div></section>
   </div>`;
