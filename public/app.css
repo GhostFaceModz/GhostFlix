@@ -610,3 +610,10 @@ html[data-theme=light] .select select{background:#fff;color:#0b1220}
 html[data-theme=light] .hero::before{background:linear-gradient(90deg,rgba(244,246,250,.96) 0%,rgba(244,246,250,.7) 38%,rgba(244,246,250,0) 70%),linear-gradient(0deg,var(--bg) 0%,rgba(244,246,250,0) 38%),linear-gradient(180deg,rgba(244,246,250,.6),rgba(244,246,250,0) 22%)}
 html[data-theme=light] .notice{background:rgba(255,255,255,.85);color:#1b2535;border-color:rgba(0,140,190,.3)}html[data-theme=light] .notice b{color:#0b1220}
 html[data-theme=light] .hero p.ov,html[data-theme=light] .hero .meta{color:#2a3446}
+/* header ghost logo: float + sway, wiggle + brighter glow on hover (static for reduced-motion users) */
+@media (prefers-reduced-motion:no-preference){
+#nav>.logo img{animation:gfGhostFloat 3.2s ease-in-out infinite;transform-origin:50% 60%}
+#nav>.logo:hover img{animation:gfGhostWiggle .5s ease-in-out;filter:drop-shadow(0 0 11px rgba(95,227,255,.8))}
+@keyframes gfGhostFloat{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-3.5px) rotate(3deg)}}
+@keyframes gfGhostWiggle{0%,100%{transform:rotate(0)}20%{transform:rotate(-10deg)}40%{transform:rotate(9deg)}60%{transform:rotate(-6deg)}80%{transform:rotate(4deg)}}
+}
