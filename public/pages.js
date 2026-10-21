@@ -10,16 +10,15 @@ export async function viewDiscover(ctx) {
   const d = await api('/api/discover');
   const last = history.all()[0];
   let because = null;
-  if (last) { try { const t = await api(`/api/title/${last.media_type}/${last.id}`); if (t.recommendations?.length) because = { id: 'because', title: `Because you watched ${t.title}`, items: t.recommendations }; } catch {}   // Continue watching / resume positions
-  const moodBar
-  const resume = { id: \"resume\", title: \"Continue Watching\", items: [] };
-  try { const r = await api(\'/api/watch-position\'); if (r && r.positions) { for (const [type, ids] of Object.entries(r.positions)) { for (const [id, pos] of Object.entries(ids)) { const title = store.data.titles[type + \':\' + id]; if (title) { resume.items.push({ id: type + \':\' + id, title: title.title, year: title.year, poster: title.poster, position: pos }); } } } } catch {} 
+  if (last) { try { const t = await api(`/api/title/${last.media_type}/${last.id}`); if (t.recommendations?.length) because = { id: 'because', title: `Because you watched ${t.title}`, items: t.recommendations }; } catch {} }
+  // Continue watching / resume positions
+  const resume = { id: 'resume', title: 'Continue Watching', items: [] };
+  try { const r = await api('/api/watch-position'); if (r && r.positions) { for (const [type, ids] of Object.entries(r.positions)) { for (const [id, pos] of Object.entries(ids)) { const title = history.all().find((c) => c.media_type === type && String(c.id) === id); if (title) { resume.items.push({ ...title, position: pos }); } } } } } catch {}
   const moodBar = `<div class="pills mood-pills" role="tablist">${d.moods.map((m, i) => `<button class="pill ${i === 0 ? 'on' : ''}" role="tab" data-mood="${i}">${esc(m.title)}</button>`).join('')}</div>`;
   $('.disc-rows', main).outerHTML = `<div class="disc-rows">
     ${rowHTML({ id: 'top10', title: 'Top 10 today', top10: true, items: d.top10 }, 'd0')}
     ${because ? rowHTML(because, 'd1') : ''}
-    ${resume.items.length ? rowHTML(resume, 'd1') : ''}
-    ${resume.items.length ? rowHTML(resume, 'd1') : ''}
+    ${resume.items.length ? rowHTML(resume, 'dr') : ''}
     ${d.rows.map((r, i) => rowHTML(r, 'd' + (i + 2))).join('')}
     <section class="row"><div class="row-h"><h2>Pick a mood</h2></div><div style="padding:0 var(--pad)">${moodBar}</div><div id="moodShelf">${rowHTML({ ...d.moods[0], title: '' }, 'mood')}</div></section>
   </div>`;

@@ -436,32 +436,32 @@ admin.post('/restore', wrap(async (req, res) => {
   store.data = { ...store.data, ...d, sources }; await store.save(); res.json({ ok: true, skipped });
 }));
 
+// Watch position endpoints
+// POST /api/watch-position: save position
+// GET /api/watch-position: get saved positions
+app.post('/api/watch-position', wrap(async (req, res) => {
+  const { type, id, position } = req.body;
+  if (type && id != null) {
+    store.watchPosition(type, id, position != null ? position : 0);
+    res.json({ ok: true, position: store.getWatchPosition(type, id) });
+  } else {
+    res.status(400).json({ error: 'type and id required' });
+  }
+}));
+app.get('/api/watch-position', wrap(async (req, res) => {
+  const positions = {};
+  if (store.data.watchPositions) {
+    for (const [key, pos] of Object.entries(store.data.watchPositions)) {
+      const [t, id] = key.split(':', 2);
+      positions[t] = positions[t] || {};
+      positions[t][id] = pos;
+    }
+  }
+  res.json({ positions });
+}));
+
 // External cron hook for the daily re-sync (Render free instances sleep when idle).
 app.post('/api/cron/resync', wrap(async (req, res) => {
-  // Watch position endpoints
-  // POST /api/watch-position: save position
-  // GET /api/watch-position: get saved positions
-  app.post('/api/watch-position', wrap(async (req, res) => {
-    const { type, id, position } = req.body;
-    if (type && id != null) {
-      store.watchPosition(type, id, position != null ? position : 0);
-      res.json({ ok: true, position: store.getWatchPosition(type, id) });
-    } else {
-      res.status(400).json({ error: 'type and id required'); }
-    }
-  });
-  app.get('/api/watch-position', wrap(async (req, res) => {
-    const positions = {};
-    if (store.data.watchPositions) {
-      for (const [key, pos] of Object.entries(store.data.watchPositions)) {
-        const [t, id] = key.split(':', 2);
-        positions[t] = positions[t] || {};
-        positions[t][id] = pos;
-      }
-    }
-    res.json({ positions });
-  });
-
   if (!env.CRON_SECRET || req.get('x-cron-secret') !== env.CRON_SECRET) return res.status(401).json({ error: 'unauthorized' });
   const out = [];
   for (const j of store.data.jobs.filter((x) => x.resync)) { try { out.push({ id: j.id, ...(await runJob(j, ctx)) }); } catch (e) { out.push({ id: j.id, error: e.message }); } }

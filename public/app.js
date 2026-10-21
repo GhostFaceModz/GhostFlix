@@ -2,7 +2,7 @@
 import { createAuth, ICONS } from './auth.js?v=20261021c';
 import { applyCosmetics } from './cosmetics.js?v=20261021c';
 import { Settings, applySettings, renderSettings } from './settings.js?v=20261021c';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261021c';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261021j';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
