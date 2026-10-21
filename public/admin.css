@@ -54,3 +54,20 @@ label{display:block;font-size:12.5px;font-weight:600;color:#cfd5de;margin:14px 0
 code{background:rgba(255,255,255,.08);padding:1px 6px;border-radius:6px;font-size:12px}
 @media (max-width:900px){.cols{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.tr{grid-template-columns:38px 1fr 80px}.tr .hide-sm{display:none}.row3{grid-template-columns:1fr 1fr}.row3 .check{grid-column:1/-1}}
 .subbox{margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}
+/* progress indicator */
+.prog-box{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+.prog-box .bar{height:8px;border-radius:5px;background:rgba(255,255,255,.08);overflow:hidden;position:relative}
+.prog-box .bar i{display:block;height:100%;width:0;border-radius:5px;background:linear-gradient(90deg,var(--acc2),var(--acc));box-shadow:0 0 10px var(--acc-glow);transition:width .25s}
+.prog-box.ind .bar i{width:35%;animation:gfind 1.1s ease-in-out infinite}
+@keyframes gfind{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}
+.prog-box .pt{font-size:12.5px;color:var(--mute)}
+/* drop zone */
+.dropzone{display:flex;flex-direction:column;gap:6px;padding:18px;border-radius:14px;border:2px dashed rgba(95,227,255,.35);background:rgba(95,227,255,.04);cursor:pointer;transition:border-color .2s,background .2s;text-align:center}
+.dropzone.over,.dropzone:hover,.dropzone:focus-visible{border-color:var(--acc);background:rgba(95,227,255,.1)}
+.admin textarea{height:auto;min-height:70px;padding:10px 14px;margin-top:10px;resize:vertical}
+.bulk-res{margin:10px 0 0 18px;font-size:12.5px;display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto}
+.bulk-res li.ok .st{color:#7dffb2}.bulk-res li.no .st,.bulk-res li.no .msg{color:var(--hot)}.bulk-res li.busy .st{color:var(--acc)}
+/* site controls */
+.site-cols{gap:28px}
+.checks{display:flex;flex-wrap:wrap;gap:4px 18px}.checks .check{height:34px}.checks p{width:100%}
+.tr.edit{grid-template-columns:1fr}.tr.edit .ed label{margin-top:8px}

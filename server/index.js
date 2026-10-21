@@ -51,6 +51,29 @@ app.use((req, res, next) => {
   next();
 });
 
+// ---- site config (admin-controlled: announcement, hero, sections, maintenance) ---------
+const SECTION_KEYS = ['discover', 'live', 'genres', 'mylist'];
+const siteCfg = () => {
+  const d = store.data.site || {};
+  return {
+    announcement: { on: !!d.announcement?.on, text: String(d.announcement?.text || ''), color: d.announcement?.color || '#5fe3ff' },
+    hero: d.hero?.id ? { type: d.hero.type, id: d.hero.id, title: d.hero.title || '' } : null,
+    sections: Object.fromEntries(SECTION_KEYS.map((k) => [k, d.sections?.[k] !== false])),
+    rows: { ...(d.rows || {}) },
+    maintenance: !!d.maintenance,
+  };
+};
+const MAINT_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>GhostFlix — back soon</title><meta name="robots" content="noindex"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/app.css"></head>
+<body><div class="bg" aria-hidden="true"></div><main class="maint"><img src="/img/logo.svg" alt="" width="84" height="84"><h1>GHOST<em>FLIX</em> is getting a tune-up</h1><p>We’re doing a bit of maintenance and will be back soon. Thanks for your patience!</p></main></body></html>`;
+app.use((req, res, next) => {
+  if (!store.data.site?.maintenance || isAdmin(req)) return next();
+  const p = req.path;
+  if (p.startsWith('/api/admin') || p === '/admin' || p === '/admin.html' || p === '/api/site-config' || p === '/api/config' || p === '/healthz' || p === '/health' || p.startsWith('/vendor/') || /\.[a-z0-9]{2,5}$/i.test(p)) return next();
+  res.setHeader('Cache-Control', 'no-store'); res.setHeader('Retry-After', '3600');
+  if (p.startsWith('/api/')) return res.status(503).json({ error: 'GhostFlix is in maintenance mode. Back soon!', maintenance: true });
+  res.status(503).type('html').send(MAINT_HTML);
+});
+
 const wrap = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((e) => {
   const status = e.status || 500; if (status >= 500) console.error(e);
   res.status(status).json({ error: e.message || 'Server error' });
@@ -65,12 +88,16 @@ const markList = (d) => ({ ...d, results: d.results.map(withPlayable) });
 // ---- public API ---------------------------------------------------------------
 app.get('/api/config', (req, res) => res.json({ mode: catalog.mode, hasTmdbKey: !!env.TMDB_API_KEY, adminEnabled: !!env.ADMIN_PASSWORD, region: env.TMDB_REGION || 'US',
   auth: AUTH, discordUrl: DISCORD_URL, githubUrl: env.GITHUB_URL || 'https://github.com/GhostFaceModz/GhostFlix', parties: env.ENABLE_WATCH_PARTIES === '1' }));
+app.get('/api/site-config', (req, res) => { res.setHeader('Cache-Control', 'no-store'); const c = siteCfg(); res.json({ ...c, admin: isAdmin(req) }); });
 app.get('/api/home', wrap(async (req, res) => {
   const d = await catalog.home();
   const free = catalog.mode === 'demo' ? [] : store.playableCards();
   if (free.length) d.rows.splice(1, 0, { id: 'free', title: 'Free to watch on GhostFlix', link: '/browse/free/all', items: free.slice(0, 30) });
   d.rows.forEach((r) => (r.items = r.items.map(withPlayable)));
   d.hero = d.hero.map(withPlayable);
+  const site = siteCfg();
+  d.rows = d.rows.filter((r) => site.rows[r.id] !== false);
+  if (site.hero) { try { const h = withPlayable({ ...(await catalog.title(site.hero.type, site.hero.id)), media_type: site.hero.type }); d.hero = [h, ...d.hero.filter((x) => !(x.id === h.id && x.media_type === h.media_type))]; } catch {} }
   cacheFor(res, 60); res.json(d);
 }));
 app.get('/api/discover', wrap(async (req, res) => {
@@ -242,6 +269,45 @@ admin.post('/channels', wrap(async (req, res) => {
 }));
 admin.delete('/channels/:id', wrap(async (req, res) => { store.data.channels = (store.data.channels || []).filter((c) => c.id !== req.params.id); await store.save(); res.json({ ok: true }); }));
 admin.delete('/sources/:sid', wrap(async (req, res) => { const ok = store.removeSource(String(req.params.sid)); await store.save(); res.status(ok ? 200 : 404).json({ ok }); }));
+admin.patch('/sources/:sid', wrap(async (req, res) => {
+  for (const [key, list] of Object.entries(store.data.sources)) {
+    const i = list.findIndex((x) => x.sid === req.params.sid); if (i < 0) continue;
+    const cur = list[i]; const next = { ...cur };
+    if (req.body?.url != null && String(req.body.url).trim() && String(req.body.url).trim() !== cur.url) Object.assign(next, parseSource(req.body.url, env));
+    if (req.body?.label != null) next.label = String(req.body.label).slice(0, 80);
+    next.sid = cur.sid; next.origin = cur.origin; next.addedAt = cur.addedAt; next.editedAt = new Date().toISOString();
+    list[i] = next; await store.save(); return res.json({ ok: true, key, source: next });
+  }
+  res.status(404).json({ error: 'Not found' });
+}));
+admin.get('/site', wrap(async (req, res) => {
+  let rows = [];
+  try { rows = (await catalog.home()).rows.map((r) => ({ id: r.id, title: r.title })); } catch {}
+  if (catalog.mode !== 'demo' && store.playableCards().length) rows.splice(1, 0, { id: 'free', title: 'Free to watch on GhostFlix' });
+  rows.unshift({ id: 'continue', title: 'Continue watching (per viewer)' }, { id: 'mylist', title: 'My List (per viewer)' });
+  const keys = new Set(Object.keys(store.data.sources).map((k) => k.split(':').slice(0, 2).join(':')));
+  const stats = { titlesWithEmbeds: keys.size, sources: Object.values(store.data.sources).reduce((n, l) => n + l.length, 0), customChannels: (store.data.channels || []).length, users: null };
+  if (store.supa) {
+    try {
+      const r = await fetch(`${store.supa.url}/auth/v1/admin/users?page=1&per_page=1`, { headers: { apikey: store.supa.key, Authorization: `Bearer ${store.supa.key}` } });
+      if (r.ok) { const tot = r.headers.get('x-total-count'); const j = await r.json(); stats.users = tot != null ? +tot : (j.total ?? null); }
+    } catch {}
+  }
+  res.json({ site: siteCfg(), rows, stats, sectionKeys: SECTION_KEYS });
+}));
+admin.put('/site', wrap(async (req, res) => {
+  const b = req.body || {}; const cur = store.data.site || {};
+  const next = { ...cur };
+  if (b.announcement) {
+    const color = /^#[0-9a-f]{6}$/i.test(b.announcement.color || '') ? b.announcement.color : '#5fe3ff';
+    next.announcement = { on: !!b.announcement.on, text: String(b.announcement.text || '').slice(0, 280), color };
+  }
+  if ('hero' in b) next.hero = b.hero && b.hero.id ? { type: T(b.hero.type) === 'all' ? 'movie' : b.hero.type, id: ID(b.hero.id), title: String(b.hero.title || '').slice(0, 120) } : null;
+  if (b.sections) next.sections = Object.fromEntries(SECTION_KEYS.map((k) => [k, b.sections[k] !== false]));
+  if (b.rows) next.rows = Object.fromEntries(Object.entries(b.rows).filter(([k, v]) => /^[\w-]{1,40}$/.test(k) && v === false).map(([k]) => [k, false]));
+  if ('maintenance' in b) next.maintenance = !!b.maintenance;
+  store.data.site = next; await store.save(); res.json({ ok: true, site: siteCfg() });
+}));
 admin.post('/import/preview', wrap(async (req, res) => res.json(await previewImport(req.body || {}, ctx))));
 admin.post('/import/commit', wrap(async (req, res) => {
   const { rows = [], saveJob, url, limit, type, resync } = req.body || {};

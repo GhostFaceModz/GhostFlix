@@ -5,7 +5,7 @@
 <title>GhostFlix Admin</title><meta name="robots" content="noindex">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/admin.css">
+<link rel="stylesheet" href="/app.css?v=20261021c"><link rel="stylesheet" href="/admin.css?v=20261021c">
 </head>
 <body class="adm">
 <div class="bg" aria-hidden="true"></div>
@@ -25,6 +25,28 @@
 
   <div id="dash" hidden>
     <div class="stats" id="stats"></div>
+    <section class="panel" id="sitePanel">
+      <h2><span class="n">★</span>Site controls</h2>
+      <div class="cols site-cols">
+        <div>
+          <label>Announcement banner</label>
+          <input id="anText" maxlength="280" placeholder="e.g. New: Live TV guide! 🎉">
+          <div class="row3" style="grid-template-columns:auto auto 1fr"><label class="check"><input type="checkbox" id="anOn"> Show banner</label><label class="check">Colour <input type="color" id="anColor" value="#5fe3ff" style="width:44px;height:30px;padding:0;border:0;background:none"></label><span></span></div>
+          <label>Featured hero title <small>(home page)</small></label>
+          <div class="lookup"><input id="heroQ" placeholder="Search a title or TMDB id…" autocomplete="off"><div class="results" id="heroRes"></div></div>
+          <div class="picked" id="heroPicked"><span class="dim">Auto (trending)</span></div>
+          <div class="btns"><button class="btn ghost sm" id="heroAuto" type="button">Use auto</button></div>
+          <label style="margin-top:18px">Maintenance mode</label>
+          <label class="check"><input type="checkbox" id="maintOn"> On — visitors see a “back soon” page (admins still see the site)</label>
+        </div>
+        <div>
+          <label>Site sections</label><div class="checks" id="secChecks"></div>
+          <label>Home rows</label><div class="checks" id="rowChecks"></div>
+        </div>
+      </div>
+      <div class="btns"><button class="btn glow sm" id="siteSave" type="button">Save site settings</button><button class="btn ghost sm" id="siteReset" type="button">Reset to defaults</button></div>
+      <p class="err" id="siteErr"></p>
+    </section>
     <div class="cols">
       <section class="panel" id="addPanel">
         <h2><span class="n">1</span>Add video to a title</h2>
@@ -44,6 +66,19 @@
         <input id="srcLabel" placeholder="e.g. Restored 4K · English subs">
         <button class="btn glow" id="addBtn" disabled>Save source</button>
         <p class="err" id="addErr"></p>
+        <div class="prog-box" id="addProg" hidden><div class="bar"><i></i></div><span class="pt"></span></div>
+        <div class="subbox">
+          <label>Bulk add <small>(drag &amp; drop or paste)</small></label>
+          <div class="dropzone" id="dropZone" tabindex="0" role="button" aria-label="Drop links or a .txt/.csv/.json list here, or click to choose a file">
+            <b>Drop links or a list file here</b>
+            <span class="dim small">One per line: <code>TMDB-URL embed-URL [label]</code> · <code>movie,603,,,https://…</code> · <code>tv,1399,1,2,https://…</code> · embed links like <code>…/embed/movie/603</code> · or just embed links to attach to the title picked above. Files: .txt · .csv · .json. (Links only — video files can’t be uploaded.)</span>
+            <input type="file" id="dropFile" accept=".txt,.csv,.tsv,.json,text/plain,text/csv,application/json" multiple hidden>
+          </div>
+          <textarea id="bulkText" rows="3" placeholder="…or paste lines here"></textarea>
+          <div class="btns"><button class="btn glow sm" id="bulkBtn" type="button">Add all</button><button class="btn ghost sm" id="bulkUndo" type="button" hidden>Undo this batch</button></div>
+          <div class="prog-box" id="bulkProg" hidden><div class="bar"><i></i></div><span class="pt"></span></div>
+          <ol class="bulk-res" id="bulkRes"></ol>
+        </div>
         <div class="subbox">
           <label>Subtitles for this title/episode <small>(.srt or .vtt — converted to WebVTT)</small></label>
           <div class="row3" style="grid-template-columns:90px 1fr auto">
@@ -93,8 +128,8 @@
     </section>
 
     <section class="panel">
-      <h2><span class="n">5</span>Playable sources <small class="dim" id="srcCount"></small></h2>
-      <input id="srcFilter" placeholder="Filter…" class="filter">
+      <h2><span class="n">5</span>Titles &amp; embeds <small class="dim" id="srcCount"></small></h2>
+      <input id="srcFilter" placeholder="Search titles, ids, links…" class="filter">
       <div class="table" id="srcTable"></div>
       <h2 style="margin-top:22px">Subtitle tracks</h2><div class="table" id="subTable"></div>
     </section>
@@ -107,6 +142,6 @@
   </div>
 </main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script src="/admin.js" type="module"></script>
+<script src="/admin.js?v=20261021c" type="module"></script>
 </body>
 </html>
