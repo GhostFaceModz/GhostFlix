@@ -133,7 +133,10 @@ app.get('/api/play/:type/:id', wrap(async (req, res) => {
 }));
 
 // ---- admin auth -----------------------------------------------------------------
-const SECRET = crypto.createHash('sha256').update(`${env.SESSION_SECRET || ''}|${env.ADMIN_PASSWORD || ''}|ghostflix`).digest();
+// ADMIN_PASSWORD_SHA256 (hex sha256 of the password) can be used instead of ADMIN_PASSWORD.
+const ADMIN_HASH = (env.ADMIN_PASSWORD_SHA256 || (env.ADMIN_PASSWORD ? crypto.createHash('sha256').update(env.ADMIN_PASSWORD).digest('hex') : '')).trim().toLowerCase();
+if (ADMIN_HASH) env.ADMIN_PASSWORD = env.ADMIN_PASSWORD || 'hash-configured';
+const SECRET = crypto.createHash('sha256').update(`${env.SESSION_SECRET || ''}|${ADMIN_HASH}|ghostflix`).digest();
 const sign = (exp) => `${exp}.${crypto.createHmac('sha256', SECRET).update(String(exp)).digest('hex')}`;
 const cookieOf = (req, name) => (req.headers.cookie || '').split(/;\s*/).map((c) => c.split('=')).find(([k]) => k === name)?.[1];
 function isAdmin(req) {
@@ -150,7 +153,7 @@ app.post('/api/admin/login', (req, res) => {
   if (Date.now() - a.t > 15 * 60e3) { a.n = 0; a.t = Date.now(); }
   if (a.n >= 10) return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
   const pw = String(req.body?.password || '');
-  const ok = pw.length === env.ADMIN_PASSWORD.length && crypto.timingSafeEqual(Buffer.from(pw), Buffer.from(env.ADMIN_PASSWORD));
+  const ok = crypto.timingSafeEqual(Buffer.from(crypto.createHash('sha256').update(pw).digest('hex')), Buffer.from(ADMIN_HASH.padEnd(64, '0').slice(0, 64)));
   if (!ok) { a.n++; attempts.set(ip, a); return res.status(401).json({ error: 'Wrong password.' }); }
   attempts.delete(ip);
   const exp = Date.now() + 7 * 864e5;
