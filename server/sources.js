@@ -166,3 +166,14 @@ export function vidcoreUrl(type, id, season, episode) {
   const base = 'https://vidcore.org/embed';
   return type === 'tv' ? `${base}/tv/${id}/${season ?? 1}/${episode ?? 1}` : `${base}/movie/${id}`;
 }
+
+// Additional backup embed providers
+export function tvidlinkUrl(type, id, season, episode) {
+  const base = 'https://tvidlink.pro/embed';
+  return { provider: 'tvidlink', id, season, episode, url: base + (season || episode ? '/'+season+'/episode-'+episode : '') + '.html' };
+}
+
+export function superembedUrl(type, id, season, episode) {
+  const base = 'https://superembed.stream/embed';
+  return { provider: 'superembed', id, season, episode, url: base + (season || episode ? '/'+season+'/episode-'+episode : '') + '.html' };
+}
