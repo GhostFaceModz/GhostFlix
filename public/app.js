@@ -316,7 +316,7 @@ function openPlayer(o) {
     stage.innerHTML = '';
     if (x.kind === 'iframe') {
       const f = document.createElement('iframe'); f.src = Settings.get().autoplay ? x.src : x.src.replace(/([?&])autoplay=(1|true)&?/, '$1').replace(/[?&]$/, ''); f.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media'; f.allowFullscreen = true;
-      f.referrerPolicy = 'strict-origin-when-cross-origin'; f.title = o.title; if (x.sandbox) f.setAttribute('sandbox', x.sandbox); stage.appendChild(f);
+      f.referrerPolicy = 'unsafe-url'; f.title = o.title; if (x.sandbox) f.setAttribute('sandbox', x.sandbox); stage.appendChild(f);
     } else if (x.kind === 'video' || x.kind === 'hls') {
       const v = document.createElement('video'); v.controls = true; v.autoplay = Settings.get().autoplay; v.playsInline = true; v.poster = o.card?.backdrop || ''; v.crossOrigin = 'anonymous';
       const S = Settings.get().subs;

@@ -4,7 +4,7 @@
 
 A premium, dark, streaming-style catalog for movies and series — part of the GhostGames family.
 Metadata comes from [TMDB](https://www.themoviedb.org/); playback comes from trailers, public-domain films and
-sources the site owner adds — with a hard denylist of known unlicensed streaming hosts.
+sources the site owner adds — any host can be embedded, nothing is blocked.
 
 ![Home](screens/home-desktop.png)
 
@@ -37,14 +37,13 @@ sources the site owner adds — with a hard denylist of known unlicensed streami
 `server/sources.js` is the only way a playable source enters the app:
 
 - Admins can paste **any http(s)** video page, embed URL, `<iframe>` code or MP4/WebM/HLS link.
-  Well-known providers are normalised and their embed URLs rebuilt server-side; other pages play in a **sandboxed iframe**
-  (`allow-scripts allow-same-origin allow-presentation allow-forms` — no popups, no top-level navigation).
-- A **hard denylist** of known unlicensed hosts (vidsrc.*, vidcore.org, 2embed.*, multiembed.mov, superembed, embed.su,
-  autoembed, vidlink, smashystream, moviesapi.club, …) is rejected on save **and** re-checked at play time; it also applies
-  to URLs smuggled in query strings, to restored backups, and to importers. It cannot be overridden by config.
+  Well-known providers are normalised and their embed URLs rebuilt server-side; every other page plays in a
+  **fully unrestricted iframe** (no sandbox attribute), so any host can be embedded — popups, navigation and
+  all included.
+- There is **no denylist** — hosts are never rejected, no matter how they're added (pasted, imported, restored
+  from backup, or hidden in query strings).
 - **Link patterns** (Admin → Link patterns): a movie pattern with `{tmdb_id}` and a series pattern with
   `{tmdb_id}`, `{season}`, `{episode}` for your own host. Titles without a specific source use them automatically.
-  Patterns must have a fixed host and are rejected if that host is denylisted.
 
 ## Quick start
 
@@ -52,7 +51,7 @@ sources the site owner adds — with a hard denylist of known unlicensed streami
 npm install
 cp .env.example .env     # fill in what you have (all optional)
 npm start                # http://localhost:3000
-npm test                 # unit tests (denylist, link patterns, title parsing, srt→vtt)
+npm test                 # unit tests (source parsing, link patterns, title parsing, srt→vtt)
 ```
 
 ## Configuration (`.env` / Render env vars)
@@ -98,7 +97,7 @@ The admin store (sources, subtitles, import jobs) is one JSON document:
 ## Project layout
 
 ```
-server/      Express app, TMDB + demo catalogs, source rules/denylist, importers, store, subtitles
+server/      Express app, TMDB + demo catalogs, source rules (no denylist), importers, store, subtitles
 public/      SPA (app.js, settings.js, auth.js), admin UI, styles, logo
 data/        demo.json (public-domain demo catalog), seed-store.json (optional)
 supabase/    SQL for accounts sync and optional server store

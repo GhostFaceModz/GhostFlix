@@ -28,7 +28,7 @@
     <div class="cols">
       <section class="panel" id="addPanel">
         <h2><span class="n">1</span>Add video to a title</h2>
-        <p class="dim">Attach a source to a movie, or to a specific series episode. Paste any http(s) video/embed link or &lt;iframe&gt; code — YouTube, Vimeo, Internet Archive, Dailymotion, Bunny, Cloudflare Stream, your own host, MP4/HLS… Known unlicensed hosts (vidsrc, 2embed, multiembed, …) are blocked.</p>
+        <p class="dim">Attach a source to a movie, or to a specific series episode. Paste any http(s) video/embed link or &lt;iframe&gt; code — YouTube, Vimeo, Internet Archive, Dailymotion, Bunny, Cloudflare Stream, your own host, MP4/HLS… Any host works, nothing is blocked.</p>
         <label>Find title <small>(name or TMDB id)</small></label>
         <div class="lookup"><input id="lookupQ" placeholder="e.g. Night of the Living Dead" autocomplete="off"><div class="results" id="lookupRes"></div></div>
         <div class="picked" id="picked"><span class="dim">No title selected</span></div>
@@ -75,7 +75,7 @@
 
     <section class="panel" id="patternPanel">
       <h2><span class="n">3</span>Link patterns <small class="dim">(your own host)</small></h2>
-      <p class="dim">Titles with no specific source automatically use these. Placeholders: <code>{tmdb_id}</code>, and for series <code>{season}</code> + <code>{episode}</code>. Patterns on denylisted hosts are rejected.</p>
+      <p class="dim">Titles with no specific source automatically use these. Placeholders: <code>{tmdb_id}</code>, and for series <code>{season}</code> + <code>{episode}</code>. Any host is allowed.</p>
       <label>Movie pattern</label><input id="patMovie" placeholder="https://media.yourdomain.com/movie/{tmdb_id}">
       <label>Series pattern</label><input id="patTv" placeholder="https://media.yourdomain.com/tv/{tmdb_id}/{season}/{episode}">
       <div class="btns"><button class="btn glow sm" id="patSave">Save patterns</button><button class="btn ghost sm" id="patClear">Clear</button></div>

@@ -58,7 +58,7 @@ export async function viewLive(ctx) {
   const mount = () => {
     const el = $('#livePlayer', main); if (!sel || !el) return;
     const f = document.createElement('iframe'); f.src = sel.player.src; f.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media'; f.allowFullscreen = true; f.title = sel.name;
-    if (sel.player.sandbox) f.setAttribute('sandbox', sel.player.sandbox);
+    f.referrerPolicy = 'unsafe-url';
     el.appendChild(f);
   };
   draw();
@@ -126,8 +126,8 @@ export async function viewParty(ctx, room) {
     } else {
       const isYT = /youtube(-nocookie)?\.com\/embed\/[\w-]{11}/.test(src.src);
       const f = document.createElement('iframe'); f.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture'; f.allowFullscreen = true;
+      f.referrerPolicy = 'unsafe-url';
       f.src = isYT ? src.src.replace('autoplay=1', 'autoplay=0') + `&enablejsapi=1&origin=${encodeURIComponent(location.origin)}` : src.src.replace(/([?&])autoplay=(1|true)/, '$1autoplay=0');
-      if (src.sandbox) f.setAttribute('sandbox', src.sandbox);
       stage.prepend(f);
       if (isYT) {
         const cmd = (func, args = []) => f.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args }), '*');

@@ -10,7 +10,8 @@ import { parseSource, playerFor, PROVIDER_LABELS, SourceError, validatePattern, 
 import { toVtt } from './subtitles.js';
 import { previewImport, commitImport, runJob, startScheduler } from './importers.js';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+import { fileURLToPath } from 'node:url';
+const ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 // Minimal .env loader (no dependency) for local dev.
 if (existsSync(path.join(ROOT, '.env'))) {
   for (const line of readFileSync(path.join(ROOT, '.env'), 'utf8').split(/\r?\n/)) {
@@ -29,8 +30,7 @@ app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '8mb' }));
 
-// Security headers. frame-src is limited to the allowlisted players, so even a bug elsewhere
-// cannot frame an unlicensed embed host.
+// Security headers. frame-src allows any http(s) player, so any host can be embedded.
 // Public Supabase Auth config (URL + publishable/anon key are designed to be public; RLS protects data).
 const AUTH = env.SUPABASE_PUBLIC_URL && env.SUPABASE_ANON_KEY ? {
   url: env.SUPABASE_PUBLIC_URL.replace(/\/$/, ''), key: env.SUPABASE_ANON_KEY,
@@ -42,7 +42,7 @@ app.use((req, res, next) => {
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com", "img-src 'self' data: https://image.tmdb.org https://archive.org https://*.archive.org https://i.ytimg.com https://*.googleusercontent.com https://cdn.discordapp.com",
-    // Any http(s) player may be framed (denylist is enforced server-side when sources are saved AND when played).
+    // Any http(s) player may be framed — no host restrictions.
     "media-src 'self' blob: https: http:", `connect-src 'self' https: http:${authOrigin ? ` ${authOrigin.replace('https://', 'wss://')}` : ''}`,
     'frame-src https: http:', "object-src 'none'", "base-uri 'self'", "frame-ancestors 'self'",
   ].join('; '));
@@ -250,7 +250,7 @@ admin.delete('/jobs/:id', wrap(async (req, res) => { store.data.jobs = store.dat
 admin.get('/export', (req, res) => { res.setHeader('Content-Disposition', 'attachment; filename="ghostflix-store.json"'); res.json(store.data); });
 admin.post('/restore', wrap(async (req, res) => {
   const d = req.body; if (!d || typeof d.sources !== 'object') throw new SourceError('Not a GhostFlix export.');
-  // Re-validate every source on restore so a hand-edited file cannot sneak in a blocked host.
+  // Re-parse every source on restore so a hand-edited file still normalises to valid sources.
   const sources = {}; let skipped = 0;
   for (const [k, list] of Object.entries(d.sources)) for (const s of list) { try { const p = parseSource(s.url || s.id, env); (sources[k] ||= []).push({ ...s, ...p }); } catch { skipped++; } }
   store.data = { ...store.data, ...d, sources }; await store.save(); res.json({ ok: true, skipped });

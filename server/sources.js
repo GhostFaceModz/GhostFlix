@@ -1,37 +1,26 @@
 // Video sources.
 //
 // Policy:
-//  * Any http(s) video/embed URL (or pasted <iframe> code) is accepted for a title, EXCEPT hosts on the
-//    hard denylist of known unlicensed streaming/embed aggregators below. The denylist cannot be
-//    overridden by configuration.
+//  * Any http(s) video/embed URL (or pasted <iframe> code) is accepted for a title — nothing is
+//    denylisted, so any host can be embedded. Only the http(s) scheme and basic URL sanity are enforced.
 //  * Well-known providers (YouTube, Vimeo, Internet Archive, Dailymotion, Bunny, Cloudflare Stream) are
-//    normalised to {provider, id} and their embed URLs rebuilt server-side; other pages become a sandboxed
-//    generic iframe, and .mp4/.webm/.m3u8 links play in GhostFlix's own player.
+//    normalised to {provider, id} and their embed URLs rebuilt server-side; other pages become an
+//    unrestricted generic iframe, and .mp4/.webm/.m3u8 links play in GhostFlix's own player.
 //  * Optional admin "link patterns" ({tmdb_id}/{season}/{episode}) for the owner's own host are validated
-//    against the same denylist (see patterns below).
+//    the same way (see patterns below).
 
-export const BLOCKED_PATTERNS = [
-  /vidsrc/i, /vidcore\.org/i, /2embed/i, /multiembed/i, /superembed/i, /embed\.su\b/i, /autoembed/i, /vidlink/i,
-  /smashystream/i, /moviesapi\.club/i,
-  /vidsrc/i, /2embed/i, /superembed/i, /multiembed/i, /embed\.su\b/i, /embedsu/i, /autoembed/i,
-  /vidcloud/i, /smashy/i, /moviesapi/i, /vidlink/i, /nontongo/i, /flixhq/i, /123movies/i,
-  /fmovies/i, /gomovies/i, /putlocker/i, /soap2day/i, /solarmovie/i, /yesmovies/i, /primewire/i,
-  /movie-?web/i, /warezcdn/i, /filemoon/i, /streamtape/i, /dood(stream)?\./i, /mixdrop/i,
-  /upstream\.to/i, /vidplay/i, /mycloud/i, /rabbitstream/i, /megacloud/i, /dokicloud/i,
-  /moviesjoy/i, /hdtoday/i, /sflix/i, /lookmovie/i, /gogoanime/i, /9anime/i, /aniwatch/i,
-  /hianime/i, /streamwish/i, /vidhide/i, /voe\.sx/i, /uqload/i, /netu\.tv/i, /vembed/i,
-  /embedder\.net/i, /moviebox/i, /vidfast/i, /videasy/i, /rivestream/i, /cinemaos/i,
-];
+// No hosts are blocked. Kept as an empty list so importers/tests that consult it keep working;
+// isBlocked() below always returns false.
+export const BLOCKED_PATTERNS = [];
 
 const YT_HOSTS = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be', 'www.youtube-nocookie.com', 'youtube-nocookie.com'];
-// Sandbox for generic (non-provider) iframes: scripts + same-origin so players work; no popups,
-// no top-level navigation, no downloads — blocks the usual ad/redirect tricks.
-export const GENERIC_SANDBOX = 'allow-scripts allow-same-origin allow-presentation allow-forms';
+// Generic (non-provider) iframes are rendered with NO sandbox attribute, so embedded pages can do
+// anything (popups, top-level navigation, downloads) — embed anything, no restrictions.
+export const GENERIC_SANDBOX = '';
 
 export class SourceError extends Error { constructor(msg) { super(msg); this.status = 400; } }
 
 export const isBlocked = (s) => BLOCKED_PATTERNS.some((re) => re.test(String(s)));
-const BLOCK_MSG = 'Blocked: that host is on GhostFlix’s denylist of unlicensed streaming providers.';
 
 function toUrl(input) {
   let s = String(input || '').trim();
@@ -46,14 +35,12 @@ function toUrl(input) {
   return u;
 }
 
-/** Parse a pasted link / embed code into a normalized, allowlisted source. Throws SourceError. */
+/** Parse a pasted link / embed code into a normalized source. Throws SourceError. */
 export function parseSource(input, env = process.env) {
-  if (isBlocked(input)) throw new SourceError(BLOCK_MSG);
   const u = toUrl(input);
   if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new SourceError('Only http(s) links are supported.');
   const host = u.hostname.toLowerCase().replace(/\.$/, '');
   const path = u.pathname;
-  if (isBlocked(host) || isBlocked(decodeURIComponent(u.href))) throw new SourceError(BLOCK_MSG);
 
   // YouTube
   if (YT_HOSTS.includes(host)) {
@@ -134,7 +121,7 @@ export function playerFor(src, env = process.env) {
     case 'bunny': { const [lib, vid] = src.id.split('/'); return { kind: 'iframe', src: `https://iframe.mediadelivery.net/embed/${enc(lib)}/${enc(vid)}?autoplay=true&preload=true` }; }
     case 'cloudflare': return { kind: 'iframe', src: `https://${src.host || 'iframe.videodelivery.net'}/${enc(src.id)}/iframe?autoplay=true` };
     case 'file': case 'hls': case 'embed': {
-      // Re-validate at play time so the denylist always applies, even to old data.
+      // Re-parse at play time so stored sources always render through the same rules.
       const again = parseSource(src.id, env);
       if (again.provider === 'embed') return { kind: 'iframe', src: again.id, sandbox: GENERIC_SANDBOX };
       if (again.provider === 'hls' || again.provider === 'file') return { kind: again.provider === 'hls' ? 'hls' : 'video', src: again.id };
@@ -152,7 +139,6 @@ const PH = { movie: ['{tmdb_id}'], tv: ['{tmdb_id}', '{season}', '{episode}'] };
 export function validatePattern(type, pattern, env = process.env) {
   const p = String(pattern || '').trim();
   if (!p) return '';
-  if (isBlocked(p)) throw new SourceError(BLOCK_MSG);
   for (const ph of PH[type]) if (!p.includes(ph)) throw new SourceError(`The ${type === 'tv' ? 'series' : 'movie'} pattern must contain ${PH[type].join(', ')}.`);
   const sample = fillPattern(p, { tmdb_id: 12345, season: 1, episode: 2 });
   if (/\{[a-z_]+\}/i.test(sample)) throw new SourceError('Unknown placeholder. Use {tmdb_id}, {season}, {episode}.');
