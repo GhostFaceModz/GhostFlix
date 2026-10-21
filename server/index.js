@@ -36,19 +36,23 @@ async function loadIPTVChannels() {
     'https://iptv-org.github.io/iptv/countries/gb.m3u'
   ];
   const channels = [];
-  for (const url of urls) {
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i];
+    const country = i === 0 ? 'US' : i === 1 ? 'GB' : 'Other';
     try {
       const res = await fetch(url);
       if (!res.ok) continue;
       const text = await res.text();
-      parseM3U(text, channels);
+      parseM3U(text, channels, country);
     } catch {}
   }
-  IPTV_CACHE = { channels, expires: now + 60 * 60 * 1000 }; // 1 hour cache
-  return channels;
+  // Keep only channels with a valid http(s) URL and a non-empty name
+  const valid = channels.filter(c => c.url && /^https?:\/\//i.test(c.url) && c.name.trim());
+  IPTV_CACHE = { channels: valid, expires: now + 60 * 60 * 1000 }; // 1 hour cache
+  return valid;
 }
 
-function parseM3U(text, out) {
+function parseM3U(text, out, country) {
   const lines = text.split('\n');
   let name = '', logo = '', group = '', tvgId = '';
   for (const line of lines) {
@@ -74,7 +78,8 @@ function parseM3U(text, out) {
           url,
           official: '',
           custom: false,
-          iptv: true
+          iptv: true,
+          country: country || 'Other' 
         });
       }
       name = logo = group = tvgId = '';
@@ -182,9 +187,12 @@ app.get('/api/live', async (req, res) => {
   const iptv = await loadIPTVChannels();
   const out = [];
   for (const c of [...CURATED, ...(store.data.channels || []), ...iptv]) {
-    try { const p = playerFor(parseSource(c.url, env), env); out.push({ id: c.id, name: c.name, category: c.category || 'Other', logo: c.logo || '', official: c.official || c.url, custom: !!c.custom, player: p, iptv: !!c.iptv }); } catch {}
+    try { const p = playerFor(parseSource(c.url, env), env); out.push({ id: c.id, name: c.name, category: c.category || 'Other', logo: c.logo || '', official: c.official || c.url, custom: !!c.custom, player: p, iptv: !!c.iptv, country: c.country || 'Other' }); } catch {}
   }
-  res.json({ channels: out });
+  // Navigation data: unique countries and categories from iptv channels
+  const countries = [...new Set(iptv.map(c => c.country).filter(Boolean))];
+  const categories = [...new Set(iptv.map(c => c.category).filter(Boolean))];
+  res.json({ channels: out, countries, categories });
 });
 app.get('/api/genres', wrap(async (req, res) => { cacheFor(res, 3600); res.json(await catalog.genres()); }));
 app.get('/api/list/:type/:category', wrap(async (req, res) => {
