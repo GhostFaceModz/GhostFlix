@@ -441,3 +441,6 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl
   }
   render();
 })();
+
+// Admin link in the menu: only visible when this browser is logged in as admin.
+fetch('/api/admin/me', { credentials: 'same-origin', cache: 'no-store' }).then((r) => r.json()).then((d) => { const a = document.getElementById('adminLink'); if (a && d.admin) a.hidden = false; }).catch(() => {});
