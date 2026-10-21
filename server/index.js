@@ -267,7 +267,7 @@ app.get('/api/subs/:sid.vtt', (req, res) => {
   }
   res.status(404).end();
 });
-app.get('/healthz', (req, res) => res.json({ ok: true, mode: catalog.mode }));
+app.get(['/healthz', '/health'], (req, res) => res.json({ ok: true, mode: catalog.mode }));
 
 // ---- static + SPA ---------------------------------------------------------------
 app.use('/vendor/supabase.js', (req, res) => res.sendFile(path.join(ROOT, 'node_modules/@supabase/supabase-js/dist/umd/supabase.js')));
