@@ -88,6 +88,27 @@ export class Store {
     const { id, title, year, poster, backdrop, overview, genre_ids, rating } = card;
     this.data.titles[`${type}:${id}`] = { id, media_type: type, title, year, poster, backdrop, overview, genre_ids, rating };
   }
+
+  // ---- watch position / resume -------------------------------------------
+  watchPosition(type, id, position) {
+    if (position == null || position < 0) return;
+    const key = `${type}:${id}`;
+    if (!this.data.watchPositions) this.data.watchPositions = {};
+    this.data.watchPositions[key] = Math.round(position * 100) / 100; // seconds, 2dp
+    this.save();
+  }
+
+  getWatchPosition(type, id) {
+    if (!this.data.watchPositions) this.data.watchPositions = {};
+    return this.data.watchPositions[`${type}:${id}`] || 0;
+  }
+
+  clearWatchPosition(type, id) {
+    if (!this.data.watchPositions) this.data.watchPositions = {};
+    delete this.data.watchPositions[`${type}:${id}`];
+    if (Object.keys(this.data.watchPositions).length === 0) this.data.watchPositions = undefined;
+    this.save();
+  }
   playableCards() {
     const seen = new Set();
     return Object.keys(this.data.sources).map((k) => k.split(':').slice(0, 2).join(':')).filter((k) => !seen.has(k) && seen.add(k))

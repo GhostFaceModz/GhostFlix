@@ -10,7 +10,10 @@ export async function viewDiscover(ctx) {
   const d = await api('/api/discover');
   const last = history.all()[0];
   let because = null;
-  if (last) { try { const t = await api(`/api/title/${last.media_type}/${last.id}`); if (t.recommendations?.length) because = { id: 'because', title: `Because you watched ${t.title}`, items: t.recommendations }; } catch {} }
+  if (last) { try { const t = await api(`/api/title/${last.media_type}/${last.id}`); if (t.recommendations?.length) because = { id: 'because', title: `Because you watched ${t.title}`, items: t.recommendations }; } catch {}   // Continue watching / resume positions
+  const moodBar
+  const resume = { id: \"resume\", title: \"Continue Watching\", items: [] };
+  try { const r = await api(\'/api/watch-position\'); if (r && r.positions) { for (const [type, ids] of Object.entries(r.positions)) { for (const [id, pos] of Object.entries(ids)) { const title = store.data.titles[type + \':\' + id]; if (title) { resume.items.push({ id: type + \':\' + id, title: title.title, year: title.year, poster: title.poster, position: pos }); } } } } catch {} 
   const moodBar = `<div class="pills mood-pills" role="tablist">${d.moods.map((m, i) => `<button class="pill ${i === 0 ? 'on' : ''}" role="tab" data-mood="${i}">${esc(m.title)}</button>`).join('')}</div>`;
   $('.disc-rows', main).outerHTML = `<div class="disc-rows">
     ${rowHTML({ id: 'top10', title: 'Top 10 today', top10: true, items: d.top10 }, 'd0')}

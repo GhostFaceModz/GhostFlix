@@ -170,6 +170,16 @@ app.get('/api/site-config', (req, res) => { res.setHeader('Cache-Control', 'no-s
 app.get('/api/home', wrap(async (req, res) => {
   const d = await catalog.home();
   const free = catalog.mode === 'demo' ? [] : store.playableCards();
+  // Build resume positions from store
+  let positions = {};
+  if (store.data.watchPositions) {
+    for (const [key, pos] of Object.entries(store.data.watchPositions)) {
+      const [t, id] = key.split(':', 2);
+      positions[t] = positions[t] || {};
+      positions[t][id] = Math.round(pos * 100) / 100; // seconds
+    }
+  }
+  d.resumePositions = positions;
   if (free.length) d.rows.splice(1, 0, { id: 'free', title: 'Free to watch on GhostFlix', link: '/browse/free/all', items: free.slice(0, 30) });
   d.rows.forEach((r) => (r.items = r.items.map(withPlayable)));
   d.hero = d.hero.map(withPlayable);
@@ -428,6 +438,30 @@ admin.post('/restore', wrap(async (req, res) => {
 
 // External cron hook for the daily re-sync (Render free instances sleep when idle).
 app.post('/api/cron/resync', wrap(async (req, res) => {
+  // Watch position endpoints
+  // POST /api/watch-position: save position
+  // GET /api/watch-position: get saved positions
+  app.post('/api/watch-position', wrap(async (req, res) => {
+    const { type, id, position } = req.body;
+    if (type && id != null) {
+      store.watchPosition(type, id, position != null ? position : 0);
+      res.json({ ok: true, position: store.getWatchPosition(type, id) });
+    } else {
+      res.status(400).json({ error: 'type and id required'); }
+    }
+  });
+  app.get('/api/watch-position', wrap(async (req, res) => {
+    const positions = {};
+    if (store.data.watchPositions) {
+      for (const [key, pos] of Object.entries(store.data.watchPositions)) {
+        const [t, id] = key.split(':', 2);
+        positions[t] = positions[t] || {};
+        positions[t][id] = pos;
+      }
+    }
+    res.json({ positions });
+  });
+
   if (!env.CRON_SECRET || req.get('x-cron-secret') !== env.CRON_SECRET) return res.status(401).json({ error: 'unauthorized' });
   const out = [];
   for (const j of store.data.jobs.filter((x) => x.resync)) { try { out.push({ id: j.id, ...(await runJob(j, ctx)) }); } catch (e) { out.push({ id: j.id, error: e.message }); } }
