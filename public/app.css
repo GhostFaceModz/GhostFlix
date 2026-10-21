@@ -617,3 +617,14 @@ html[data-theme=light] .hero p.ov,html[data-theme=light] .hero .meta{color:#2a34
 @keyframes gfGhostFloat{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-3.5px) rotate(3deg)}}
 @keyframes gfGhostWiggle{0%,100%{transform:rotate(0)}20%{transform:rotate(-10deg)}40%{transform:rotate(9deg)}60%{transform:rotate(-6deg)}80%{transform:rotate(4deg)}}
 }
+/* header wordmark: melting drips (inline SVG under the real text; no layout impact) */
+#nav>.logo .name{position:relative}
+#nav>.logo .drips{position:absolute;left:0;top:.74em;width:100%;height:auto;overflow:visible;pointer-events:none}
+.drips .w{fill:currentColor}.drips .c{fill:var(--acc);filter:drop-shadow(0 0 1.5px var(--acc-glow))}
+.drips .drop{opacity:0}
+@media (prefers-reduced-motion:no-preference){
+.drips .drip{transform-box:fill-box;transform-origin:50% 0;animation:gfDrip var(--t,5s) ease-in-out var(--d,0s) infinite alternate}
+.drips .drop{transform-box:fill-box;animation:gfDrop var(--t,7s) ease-in var(--d,0s) infinite}
+@keyframes gfDrip{0%{transform:scaleY(.7)}100%{transform:scaleY(1.15)}}
+@keyframes gfDrop{0%,72%{opacity:0;transform:translateY(-1.5px)}78%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(5px)}}
+}
