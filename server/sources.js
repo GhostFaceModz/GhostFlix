@@ -158,3 +158,11 @@ export function cinesrcUrl(type, id, season, episode) {
   const base = 'https://cinesrc.st/embed';
   return type === 'tv' ? `${base}/tv/${id}?s=${season ?? 1}&e=${episode ?? 1}` : `${base}/movie/${id}`;
 }
+
+// ---- Vidcore (vidcore.org → edgeone.dev) ------------------------------------------
+// Free TMDB-based embed API, no key required. Clean iframe to edgeone.dev player.
+// Movie: /embed/movie/{tmdb_id}; TV: /embed/tv/{tmdb_id}/{season}/{episode}
+export function vidcoreUrl(type, id, season, episode) {
+  const base = 'https://vidcore.org/embed';
+  return type === 'tv' ? `${base}/tv/${id}/${season ?? 1}/${episode ?? 1}` : `${base}/movie/${id}`;
+}

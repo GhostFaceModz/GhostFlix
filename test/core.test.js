@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSource, playerFor, validatePattern, fillPattern, cinesrcUrl, GENERIC_SANDBOX } from '../server/sources.js';
+import { parseSource, playerFor, validatePattern, fillPattern, cinesrcUrl, vidcoreUrl, GENERIC_SANDBOX } from '../server/sources.js';
 import { parseTitle, detectImport } from '../server/importers.js';
 import { toVtt } from '../server/subtitles.js';
 
@@ -51,6 +51,13 @@ test('CineSrc links', () => {
   assert.equal(cinesrcUrl('tv', 1396, 5, 12), 'https://cinesrc.st/embed/tv/1396?s=5&e=12');
   const p = playerFor(parseSource(cinesrcUrl('movie', 597, null, null)));
   assert.equal(p.kind, 'iframe'); assert.equal(p.src, 'https://cinesrc.st/embed/movie/597');
+});
+test('Vidcore links', () => {
+  assert.equal(vidcoreUrl('movie', 597, null, null), 'https://vidcore.org/embed/movie/597');
+  assert.equal(vidcoreUrl('tv', 1399, 1, 1), 'https://vidcore.org/embed/tv/1399/1/1');
+  assert.equal(vidcoreUrl('tv', 1396, 5, 12), 'https://vidcore.org/embed/tv/1396/5/12');
+  const p = playerFor(parseSource(vidcoreUrl('movie', 597, null, null)));
+  assert.equal(p.kind, 'iframe'); assert.equal(p.src, 'https://vidcore.org/embed/movie/597');
 });
 test('import URL detection', () => {
   assert.deepEqual(detectImport('https://archive.org/details/feature_films'), { kind: 'archive', collection: 'feature_films' });

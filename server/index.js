@@ -6,7 +6,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { TmdbCatalog } from './tmdb.js';
 import { DemoCatalog } from './demo.js';
 import { Store } from './store.js';
-import { parseSource, playerFor, PROVIDER_LABELS, SourceError, validatePattern, fillPattern, cinesrcUrl, isBlocked } from './sources.js';
+import { parseSource, playerFor, PROVIDER_LABELS, SourceError, validatePattern, fillPattern, cinesrcUrl, vidcoreUrl, isBlocked } from './sources.js';
 import { toVtt } from './subtitles.js';
 import { previewImport, commitImport, runJob, startScheduler } from './importers.js';
 
@@ -149,9 +149,13 @@ app.get('/api/play/:type/:id', wrap(async (req, res) => {
     try { list = [{ ...parseSource(fillPattern(patternFor(type), { tmdb_id: id, season: s ?? 1, episode: e ?? 1 }), env), label: 'Pattern', origin: 'pattern' }]; } catch {}
   }
   if (!list.length) {
-    // Built-in catch-all: CineSrc (cinesrc.st) — free, no key, covers movies + series.
-        try { list = [{ ...parseSource(cinesrcUrl(type, id, s, e), env), label: 'CineSrc', origin: 'cinesrc' }]; } catch {}
-  }
+      // Built-in catch-all: CineSrc (cinesrc.st) — free, no key, covers movies + series.
+      try { list = [{ ...parseSource(cinesrcUrl(type, id, s, e), env), label: 'CineSrc', origin: 'cinesrc' }]; } catch {}
+    }
+    if (!list.length) {
+      // Second backup: Vidcore (vidcore.org) — free, no key, clean iframe to edgeone.dev.
+      try { list = [{ ...parseSource(vidcoreUrl(type, id, s, e), env), label: 'Vidcore', origin: 'vidcore' }]; } catch {}
+    }
   const sources = [];
   for (const src of list) { try { sources.push({ ...playerFor(src, env), provider: src.provider, providerName: PROVIDER_LABELS[src.provider], label: src.label || '' }); } catch {} }
   let trailer = null, meta = null;
