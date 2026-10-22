@@ -87,19 +87,18 @@ export class TmdbCatalog {
       ],
     };
   }
-  async discoverPage({ limit = 50, offset = 0 } = {}) {
+  async discoverPage() {
     const moods = [['feelgood', 'Feel-good picks', '35|10751'], ['edge', 'Edge of your seat', '53|80'], ['mind', 'Mind-benders', '878|9648'],
       ['date', 'Date night', '10749'], ['spooky', 'After dark', '27'], ['toons', 'Animated worlds', '16']];
     const [day, week, upcoming, onAir, ...moodRows] = await Promise.all([
       this.get('/trending/all/day'), this.list('all', 'trending'), this.list('movie', 'upcoming'), this.list('tv', 'on_the_air'),
       ...moods.map(([, , g]) => this.get('/discover/movie', { with_genres: g, sort_by: 'popularity.desc', 'vote_count.gte': 200 })),
     ]);
-    const pageItems = (arr) => arr.slice(offset, offset + limit);
     return { top10: cards(day.results).slice(0, 10), rows: [
-      { id: 'trending', title: 'Trending this week', link: '/browse/all/trending', items: pageItems(week.results) },
-      { id: 'upcoming', title: 'Coming soon', link: '/browse/movie/upcoming', items: pageItems(upcoming.results) },
-      { id: 'onair', title: 'New episodes this week', link: '/browse/tv/on_the_air', items: pageItems(onAir.results) },
-    ], moods: moods.map(([id, title], i) => ({ id, title, items: pageItems(cards(moodRows[i].results, 'movie')) })) };
+      { id: 'trending', title: 'Trending this week', link: '/browse/all/trending', items: week.results },
+      { id: 'upcoming', title: 'Coming soon', link: '/browse/movie/upcoming', items: upcoming.results },
+      { id: 'onair', title: 'New episodes this week', link: '/browse/tv/on_the_air', items: onAir.results },
+    ], moods: moods.map(([id, title], i) => ({ id, title, items: cards(moodRows[i].results, 'movie') })) };
   }
   async title(type, id, region = this.region) {
     const d = await this.get(`/${type}/${id}`, { append_to_response: 'credits,videos,watch/providers,recommendations,similar,external_ids,release_dates,content_ratings', include_video_language: 'en,null' }, 6 * 3600e3);

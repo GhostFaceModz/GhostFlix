@@ -6,48 +6,9 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 // ---- Discover ---------------------------------------------------------------------------
 export async function viewDiscover(ctx) {
   const { main, api, rowHTML, wireRows, history } = ctx;
-  let page = 1;
-  const limit = 30;
-  const totalItems = ref(0);
-  let itemsLoaded = ref(0);
-  let isLoading = ref(false);
-  let reachedEnd = ref(false);
-  
-  async function loadPage(p = 1) {
-    if (isLoading.value || reachedEnd.value) return;
-    isLoading.value = true;
-    const d = await api(`/api/discover?limit=${limit}&offset=${(p - 1) * limit}`);
-    itemsLoaded.value = (p - 1) * limit + d.rows.reduce((sum, r) => sum + r.items.length, 0) + d.moods.reduce((sum, m) => sum + m.items.length, 0);
-    totalItems.value = d.top10.length + d.rows.reduce((sum, r) => sum + r.items.length, 0) + d.moods.reduce((sum, m) => sum + m.items.length, 0);
-    
-    const newHTML = `
-      <div class="page disc">
-        <h1>Discover</h1>
-        <p class="lead">What’s hot, what’s next, and picks for your mood.</p>
-        <div class="disc-rows">
-          <div class="row">
-            <div class="track">
-              ${d.top10.map(item => rowHTML({ ...item, id: item.id || item.tmdb_id })).join('')}
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    main.innerHTML = newHTML;
-    
-    // Render mood pills
-    // ... (existing mood pill code adapted)
-    
-    // Infinite scroll listener
-    window.addEventListener('scroll', () => {
-      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 200 && !reachedEnd.value) {
-        page++;
-        loadPage(page);
-      }
-    });
-    
-    const last = history.all()[0];
+  main.innerHTML = `<div class="page disc"><h1>Discover</h1><p class="lead">What’s hot, what’s next, and picks for your mood.</p><div class="disc-rows"><div class="row"><div class="track">${'<div class="card"><div class="pic skel"></div></div>'.repeat(8)}</div></div></div></div>`;
+  const d = await api('/api/discover');
+  const last = history.all()[0];
   let because = null;
   if (last) { try { const t = await api(`/api/title/${last.media_type}/${last.id}`); if (t.recommendations?.length) because = { id: 'because', title: `Because you watched ${t.title}`, items: t.recommendations }; } catch {} }
   // Continue watching / resume positions
@@ -74,16 +35,9 @@ export async function viewDiscover(ctx) {
 export async function viewLive(ctx) {
   const { main, api } = ctx;
   main.innerHTML = `<div class="page live"><h1>Live TV</h1><p class="lead">Free channels from broadcasters’ official live streams.</p><div class="live-top skel" style="aspect-ratio:16/9;border-radius:18px"></div></div>`;
-  const { channels, countries, categories } = await api('/api/live');
+  const { channels } = await api('/api/live');
   const cats = ['All', ...new Set(channels.map((c) => c.category))];
-  const countryFilter = ['All', ...new Set(countries)];
-  function filterChannelsByCountry(country) {
-    const filtered = country === 'All' ? channels : channels.filter(c => c.country === country);
-    // Update the channel grid with filtered channels
-    console.log('Showing', filtered.length, 'channels for', country);
-  }
-  // Apply filter on load
-  filterChannelsByCountry(localStorage.getItem('gf_country') || 'All');\n  const now = new Date(); const start = new Date(now); start.setMinutes(now.getMinutes() < 30 ? 0 : 30, 0, 0);
+  const now = new Date(); const start = new Date(now); start.setMinutes(now.getMinutes() < 30 ? 0 : 30, 0, 0);
   const slots = Array.from({ length: 6 }, (_, i) => new Date(start.getTime() + i * 30 * 60e3));
   const fmt = (d) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const nowPct = ((now - start) / (3 * 3600e3)) * 100;
@@ -187,9 +141,7 @@ export async function viewParty(ctx, room) {
     const [type, id] = key.split(':');
     const d = await api(`/api/play/${type}/${id}`);
     $('#pTitle', main).textContent = d.title + (d.sources.length ? '' : ' · trailer');
-    let srcIndex = 0;
-  const src = d.sources[srcIndex] || (d.trailer ? { kind: 'iframe', src: d.trailer.src, provider: 'youtube' } : null);
-  const srcLabels = { 'cineSrc': 'CineSrc', 'vidcore': 'VidCore', 'tvidlink': 'TVLink', 'superembed': 'Superembed' };
+    const src = d.sources[0] || (d.trailer ? { kind: 'iframe', src: d.trailer.src, provider: 'youtube' } : null);
     const stage = $('#pStage', main); stage.querySelectorAll('video,iframe,.empty').forEach((n) => n.remove());
     if (!src) { stage.insertAdjacentHTML('afterbegin', '<div class="empty"><h2>Nothing to play yet</h2></div>'); return; }
     if (src.kind === 'video' || src.kind === 'hls') {

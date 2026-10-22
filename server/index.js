@@ -189,9 +189,7 @@ app.get('/api/home', wrap(async (req, res) => {
   cacheFor(res, 60); res.json(d);
 }));
 app.get('/api/discover', wrap(async (req, res) => {
-  const limit = parseInt(req.query.limit) || 50;
-  const offset = parseInt(req.query.offset) || 0;
-  const d = await catalog.discoverPage({ limit, offset });
+  const d = await catalog.discoverPage();
   d.top10 = d.top10.map(withPlayable); [...d.rows, ...d.moods].forEach((r) => (r.items = r.items.map(withPlayable)));
   cacheFor(res, 120); res.json(d);
 }));
