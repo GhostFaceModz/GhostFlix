@@ -216,7 +216,7 @@ img{display:block;max-width:100%}
 .player-stage iframe,.player-stage video{width:100%;height:100%;border:0;background:#000}
 .player-msg{max-width:520px;text-align:center;padding:30px}
 .player-msg h2{margin:12px 0 8px}.player-msg p{color:var(--mute);margin-bottom:18px;font-size:14.5px}
-.pop-flag{position:absolute;right:14px;bottom:14px;z-index:3;font-size:12px;padding:6px 10px;border-radius:8px;background:rgba(0,0,0,.6);color:#cfd5de;border:1px solid var(--line);opacity:.75;transition:opacity .2s}.pop-flag:hover,.pop-flag:focus-visible{opacity:1}.pop-flag u{color:var(--acc);text-decoration:none;font-weight:600}
+.pop-flag{position:absolute;left:50%;top:14px;transform:translateX(-50%);white-space:nowrap;z-index:3;font-size:12px;padding:6px 10px;border-radius:8px;background:rgba(0,0,0,.6);color:#cfd5de;border:1px solid var(--line);opacity:.75;transition:opacity .2s}.pop-flag:hover,.pop-flag:focus-visible{opacity:1}.pop-flag.gone{opacity:0;pointer-events:none;transition:opacity .8s}.pop-flag u{color:var(--acc);text-decoration:none;font-weight:600}
 .trailer-flag{position:absolute;left:18px;bottom:18px;z-index:3;font-size:12px;padding:6px 10px;border-radius:8px;background:rgba(0,0,0,.6);color:#cfd5de;pointer-events:none}
 
 /* footer + toast */

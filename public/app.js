@@ -1,8 +1,8 @@
 // GhostFlix front-end — tiny dependency-free SPA.
 import { createAuth, ICONS } from './auth.js?v=20261021c';
 import { applyCosmetics } from './cosmetics.js?v=20261021c';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261022b';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261022b';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261022c';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261022c';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -339,7 +339,7 @@ function openPlayer(o) {
       if (sb && sb !== x.sandbox) {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'pop-flag'; b.innerHTML = 'Pop-ups blocked · Not playing? <u>Allow</u>';
         b.title = 'Allow pop-ups for embedded players (can be changed in Settings › Player)';
-        b.onclick = () => { Settings.set({ blockPopups: false }); toast('Pop-ups allowed · reloading player'); mount(x); }; stage.appendChild(b);
+        b.onclick = () => { Settings.set({ blockPopups: false }); toast('Pop-ups allowed · reloading player'); mount(x); }; stage.appendChild(b); setTimeout(() => b.classList.add('gone'), 6000);
       }
     } else if (x.kind === 'video' || x.kind === 'hls') {
       const v = document.createElement('video'); v.controls = true; v.autoplay = Settings.get().autoplay; v.playsInline = true; v.poster = o.card?.backdrop || ''; v.crossOrigin = 'anonymous';
@@ -466,7 +466,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261022b').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261022c').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
