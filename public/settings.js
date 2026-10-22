@@ -11,7 +11,7 @@ export const ACCENTS = {
 };
 const DEFAULTS = {
   theme: 'dark', accent: 'ghost', cardLayout: 'poster', cardSize: 'm', motion: 'full',
-  autoplayHero: true, region: '', autoplay: true, rememberPosition: true, preferProvider: 'any',
+  autoplayHero: true, region: '', autoplay: true, rememberPosition: true, preferProvider: 'any', blockPopups: true,
   subs: { enabled: true, lang: 'en', size: 100, color: '#ffffff', bg: 'rgba(0,0,0,.6)', font: 'sans', edge: 'shadow' },
 };
 export const Settings = {
@@ -34,6 +34,14 @@ export function applySettings(s = Settings.get()) {
   st.textContent = `video::cue{${subtitleCSS(s.subs)}}`;
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', { amoled: '#000000', dim: '#10141d', light: '#f4f6fa' }[s.theme] || '#04050a');
   const tb = document.getElementById('themeTgl'); if (tb) { const l = s.theme === 'light'; tb.setAttribute('aria-label', l ? 'Switch to dark theme' : 'Switch to light theme'); tb.setAttribute('aria-pressed', String(l)); }
+}
+// Pop-up blocking for third-party embed players: sandbox without allow-popups / allow-top-navigation / allow-modals.
+export const POPUP_SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-presentation allow-orientation-lock allow-pointer-lock';
+const OFFICIAL_EMBED = /(^|\.)(youtube\.com|youtube-nocookie\.com|vimeo\.com|archive\.org|dailymotion\.com|mediadelivery\.net|cloudflarestream\.com|videodelivery\.net)$/i;
+/** Sandbox to apply to an iframe player: POPUP_SANDBOX for third-party embeds while "Block pop-ups" is on, else the fallback (current behaviour). */
+export function embedSandbox(src, fallback = '') {
+  let host = ''; try { host = new URL(src, location.href).hostname; } catch {}
+  return Settings.get().blockPopups && host && !OFFICIAL_EMBED.test(host) ? POPUP_SANDBOX : fallback || '';
 }
 function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
 
@@ -154,6 +162,7 @@ export function renderSettings(main, ctx, sub) {
     main.innerHTML = `<div class="page settings">${header('Player')}<div class="set-group pad">
       ${row('Autoplay', toggle('autoplay', s.autoplay), 'Start playing as soon as the player opens')}
       ${row('Remember position', toggle('rememberPosition', s.rememberPosition), 'Resume MP4/HLS where you left off')}
+      ${row('Block pop-ups', toggle('blockPopups', s.blockPopups), 'Stops players opening ads in new tabs. Turn off if a movie won’t play.')}
       ${row('Preferred source', `<div class="select"><select data-sel="preferProvider">${[['any', 'Best available'], ['archive', 'Internet Archive'], ['youtube', 'YouTube'], ['vimeo', 'Vimeo'], ['file', 'Direct / own hosting']].map(([v, l]) => `<option value="${v}" ${s.preferProvider === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`, 'When a title has several legit sources')}
       ${row('Keyboard', '<span class="dim" style="font-size:13px">Esc closes · Space plays/pauses · ←/→ seek 10s</span>')}
     </div></div>`;

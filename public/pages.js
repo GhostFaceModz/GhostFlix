@@ -1,4 +1,5 @@
 // Discover, Live TV and Watch Parties pages.
+import { embedSandbox } from './settings.js?v=20261022b';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -73,7 +74,7 @@ export async function viewLive(ctx) {
         }
       } else {
         const f = document.createElement('iframe'); f.src = p.src; f.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media'; f.allowFullscreen = true; f.title = sel.name;
-        f.referrerPolicy = 'unsafe-url';
+        f.referrerPolicy = 'unsafe-url'; const sb = embedSandbox(p.src, p.sandbox); if (sb) f.setAttribute('sandbox', sb);
         el.appendChild(f);
       }
     };
@@ -155,6 +156,7 @@ export async function viewParty(ctx, room) {
       const f = document.createElement('iframe'); f.allow = 'autoplay; fullscreen; encrypted-media; picture-in-picture'; f.allowFullscreen = true;
       f.referrerPolicy = 'unsafe-url';
       f.src = isYT ? src.src.replace('autoplay=1', 'autoplay=0') + `&enablejsapi=1&origin=${encodeURIComponent(location.origin)}` : src.src.replace(/([?&])autoplay=(1|true)/, '$1autoplay=0');
+      { const sb = embedSandbox(f.src, src.sandbox); if (sb) f.setAttribute('sandbox', sb); }
       stage.prepend(f);
       if (isYT) {
         const cmd = (func, args = []) => f.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args }), '*');
