@@ -460,6 +460,25 @@ burger.onclick = () => setDrawer(true); $('#drawerX').onclick = () => setDrawer(
 drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin],[data-signout]')) setDrawer(false); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
+// ---- installable app (PWA) ----
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261022a').catch(() => {}));
+const installEl = $('#drawerInstall');
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let installPrompt = null;
+if (!standalone() && isIOS) installEl.hidden = false;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; if (!standalone()) installEl.hidden = false; });
+window.addEventListener('appinstalled', () => { installPrompt = null; installEl.hidden = true; toast('GhostFlix installed'); });
+installEl.addEventListener('click', async (e) => {
+  e.preventDefault();
+  if (installPrompt) { installPrompt.prompt(); const { outcome } = await installPrompt.userChoice.catch(() => ({})); if (outcome === 'accepted') installEl.hidden = true; installPrompt = null; return; }
+  const m = document.createElement('div'); m.className = 'authm open'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-label', 'Install GhostFlix');
+  m.innerHTML = `<div class="bx"><button class="x" type="button" aria-label="Close">×</button><img class="gh" src="/icons/icon-192.png" alt="" style="border-radius:16px"><h2>Install GhostFlix</h2>
+    <p>${isIOS ? 'In Safari, tap the <b>Share</b> button <span aria-hidden="true">(□↑)</span>, then choose <b>Add to Home Screen</b>.' : 'Open your browser menu and choose <b>Install app</b> or <b>Add to Home screen</b>.'}</p><button class="pb pd" type="button" data-ok>Got it</button></div>`;
+  m.addEventListener('click', (ev) => { if (ev.target === m || ev.target.closest('.x,[data-ok]')) m.remove(); });
+  document.body.appendChild(m);
+});
+
 (async () => {
   try { SITE = await api('/api/site-config'); } catch {} applySite();
   try { CONFIG = await api('/api/config'); GENRES = await api('/api/genres'); } catch {} document.querySelectorAll('[data-feature=parties]').forEach((el) => (el.hidden = !CONFIG.parties));

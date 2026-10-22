@@ -119,7 +119,7 @@ const authOrigin = AUTH ? new URL(AUTH.url).origin : '';
 app.use((req, res, next) => {
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com", "img-src 'self' data: https://image.tmdb.org https://archive.org https://*.archive.org https://i.ytimg.com https://*.googleusercontent.com https://cdn.discordapp.com",
+    "font-src 'self' https://fonts.gstatic.com", "img-src 'self' data: https:", // https: so Live TV channel logos (imgur, wikimedia, pluto, plex…) load
     // Any http(s) player may be framed — no host restrictions.
     "media-src 'self' blob: https: http:", `connect-src 'self' https: http:${authOrigin ? ` ${authOrigin.replace('https://', 'wss://')}` : ''}`,
     'frame-src https: http:', "object-src 'none'", "base-uri 'self'", "frame-ancestors 'self'",
@@ -479,6 +479,9 @@ app.get(['/healthz', '/health'], (req, res) => res.json({ ok: true, mode: catalo
 // ---- static + SPA ---------------------------------------------------------------
 app.use('/vendor/supabase.js', (req, res) => res.sendFile(path.join(ROOT, 'node_modules/@supabase/supabase-js/dist/umd/supabase.js')));
 app.use('/vendor/hls.min.js', (req, res) => res.sendFile(path.join(ROOT, 'node_modules/hls.js/dist/hls.min.js')));
+// PWA: service worker from root scope (never HTTP-cached so new deploys are picked up) + manifest with its proper type.
+app.get('/sw.js', (req, res) => { res.set({ 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/' }); res.type('application/javascript'); res.sendFile(path.join(ROOT, 'public/sw.js')); });
+app.get('/manifest.webmanifest', (req, res) => { res.set('Cache-Control', 'public, max-age=3600'); res.type('application/manifest+json'); res.sendFile(path.join(ROOT, 'public/manifest.webmanifest')); });
 app.use(express.static(path.join(ROOT, 'public'), { maxAge: '1h', index: false }));
 app.get('/admin', (req, res) => res.sendFile(path.join(ROOT, 'public/admin.html')));
 app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(ROOT, 'public/index.html')));
