@@ -476,10 +476,19 @@ html[data-cards=landscape] .card:not(.top){width:62vw}
 }
 @media (max-width:760px){
 .nav .search{display:flex;flex:1 1 auto;min-width:0;max-width:none;margin-left:4px}
-.nav .logo .wm{display:none}
 .hero.lowres{padding-top:78px}
 .hero.lowres .hero-poster{width:40vw;max-width:180px;margin:0 auto 18px}
 }
+/* phones keep the animated ghost + melting title from desktop, scaled to fit; search shrinks to a tap-to-open pill that spans the header while typing */
+@media (max-width:430px){
+.nav .logo{gap:6px}.nav .logo>img{width:30px;height:30px}.nav .logo .wm-img{zoom:.8}
+.nav .search{position:relative;flex:1 1 0;min-width:36px;padding:0;margin-left:2px}
+.nav .search svg{position:absolute;left:10px;top:50%;margin-top:-8px;pointer-events:none}
+.nav .search input{position:absolute;inset:0;width:100%;box-sizing:border-box;padding:0 10px 0 33px;border-radius:inherit}
+.nav .search:not(:focus-within) input::placeholder{color:transparent}
+.nav .search:focus-within{position:absolute;left:var(--pad);right:calc(var(--pad) + 46px);top:50%;margin:-18px 0 0;z-index:5;background:var(--bg)}.nav .search:focus-within+.theme-tgl{margin-left:auto}
+}
+@media (max-width:380px){.nav{gap:6px}.nav .logo .wm-img{zoom:.68}}
 
 /* header SSO buttons */
 .sso-wrap{display:flex;gap:8px}
