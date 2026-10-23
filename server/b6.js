@@ -48,7 +48,7 @@ export function badgesOf(sum) {
   ];
 }
 // OWNER / MODERATOR badges are granted only by tagOf (Discord ID / live mod role), never by stats. The owner gets every item.
-const UNLOCK_ALL = new Set(['owner']); // add 'mod' to also unlock everything for moderators
+const UNLOCK_ALL = new Set(['owner', 'mod']);
 const STAFF = { owner: { id: 'owner', icon: '👑', name: 'Owner', desc: 'Creator of GhostFlix', got: true, prog: 0 }, mod: { id: 'mod', icon: '🛡️', name: 'Moderator', desc: 'GhostFlix moderator', got: true, prog: 0 } };
 const badgesFor = (sum, tag) => [...(STAFF[tag] ? [STAFF[tag]] : []), ...badgesOf(sum).map((b) => (UNLOCK_ALL.has(tag) ? { ...b, got: true } : b))];
 const statsOf = (sum) => {
