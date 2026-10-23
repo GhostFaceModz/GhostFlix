@@ -1,8 +1,8 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023ja';
-import { applyCosmetics } from './cosmetics.js?v=20261023ja';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023ja';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023ja';
+import { createAuth, ICONS } from './auth.js?v=20261023jb';
+import { applyCosmetics } from './cosmetics.js?v=20261023jb';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023jb';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023jb';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -49,12 +49,49 @@ const Continue = {
     // A different episode starts fresh: don't carry the old episode's position/progress over.
     if ('s' in extra && (prev.s ?? null) != (extra.s ?? null) || 'e' in extra && (prev.e ?? null) != (extra.e ?? null)) { const { time, progress, dur, done, next, approx, ...rest } = prev; prev = rest; }
     const entry = { ...prev, ...slim(c), ...extra, at: Date.now() };
-    l.unshift(entry); LS.set('continue', l.slice(0, 200)); AUTH?.onHistory(entry);
+    l.unshift(entry); LS.set('continue', l.slice(0, 200)); AUTH?.onHistory(entry); EpLog.note(entry);
   },
   remove(c) { LS.set('continue', Continue.all().filter((x) => keyOf(x) !== keyOf(c))); AUTH?.onHistoryRemove(c); },
   clear() { LS.set('continue', []); AUTH?.onHistoryClear(); },
   replace(arr) { LS.set('continue', arr.slice(0, 200)); },
 };
+
+// Per-episode progress for ticks/bars on episode lists: gf.eps {tv:id: {"s:e": [pct, done, at]}}.
+const EpLog = {
+  all: () => LS.get('eps', {}),
+  of: (c) => EpLog.all()[keyOf(c)] || {},
+  note(x) {
+    if (x.media_type !== 'tv' || x.s == null || x.e == null || !(x.progress > 0 || x.done)) return;
+    const a = EpLog.all(), k = keyOf(x), m = (a[k] ||= {}), id = `${x.s}:${x.e}`, old = m[id];
+    m[id] = [Math.round(Math.max(x.progress || 0, x.done ? 100 : 0)), x.done || old?.[1] ? 1 : 0, Date.now()];
+    const ks = Object.keys(a); if (ks.length > 300) delete a[ks[0]];
+    LS.set('eps', a);
+  },
+};
+// "Remind me" for titles that aren't out yet: gf.remind [{...card, date, label, told}].
+const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const fmtDate = (iso) => { try { return new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: iso.slice(0, 4) === todayISO().slice(0, 4) ? undefined : 'numeric' }); } catch { return iso; } };
+const Remind = {
+  all: () => LS.get('remind', []),
+  has: (c) => Remind.all().some((x) => keyOf(x) === keyOf(c)),
+  toggle(c, date, label = '') {
+    const on = Remind.has(c); let l = Remind.all().filter((x) => keyOf(x) !== keyOf(c));
+    if (!on) l = [{ ...slim(c), date, label, at: Date.now() }, ...l].slice(0, 200);
+    LS.set('remind', l); toast(on ? 'Reminder removed' : `We’ll remind you when “${c.title}” is out (${fmtDate(date)})`);
+    window.dispatchEvent(new CustomEvent('gf:remind', { detail: { card: slim(c), date, on: !on } })); return !on;
+  },
+  /** Reminders whose date has arrived and haven't been shown yet. */
+  due() { const t = todayISO(), l = Remind.all(), due = l.filter((x) => x.date && x.date <= t && !x.told); if (due.length) LS.set('remind', l.map((x) => (due.includes(x) ? { ...x, told: 1 } : x))); return due; },
+};
+const remindBtn = (c, date, label = '', cls = 'btn dark') => `<button class="${cls} remind${Remind.has(c) ? ' on' : ''}" type="button" data-remind="${keyOf(c)}" data-date="${esc(date)}" data-label="${esc(label)}" aria-pressed="${Remind.has(c)}">${Remind.has(c) ? '🔔 Reminder set' : '🔔 Remind me'}</button>`;
+/** Release date in the future for a title (movie release, or a series' next episode/premiere), else null. */
+function upcoming(c) {
+  const t = todayISO();
+  if (c.media_type === 'movie' && c.release_date > t) return { date: c.release_date, label: 'Out' };
+  if (c.media_type === 'tv' && c.next_episode?.air_date > t) return { date: c.next_episode.air_date, label: c.next_episode.e === 1 ? `Season ${c.next_episode.s}` : `S${c.next_episode.s} E${c.next_episode.e}` };
+  if (c.media_type === 'tv' && c.release_date > t) return { date: c.release_date, label: 'Premieres' };
+  return null;
+}
 
 // ---- resume -----------------------------------------------------------------------
 // Each title keeps one history entry: last season/episode, seconds in (time), duration (dur),
@@ -85,7 +122,16 @@ function resumeInfo(c) {
 }
 
 // ---- helpers --------------------------------------------------------------------
-async function api(path) {
+// Prefetched responses (hover/touch on a title link): used once, within 2 minutes.
+const PREF = new Map();
+function prefetch(path) {
+  if (PREF.has(path)) return PREF.get(path).p;
+  const p = api(path, true); PREF.set(path, { p, at: Date.now() }); p.catch(() => PREF.delete(path));
+  if (PREF.size > 40) PREF.delete(PREF.keys().next().value);
+  return p;
+}
+async function api(path, noCache) {
+  const h = !noCache && PREF.get(path); if (h) { PREF.delete(path); if (Date.now() - h.at < 120e3) return h.p; }
   const r = await fetch(path, { headers: { accept: 'application/json' } });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error(d.error || `Request failed (${r.status})`), { status: r.status });
@@ -110,7 +156,7 @@ function cardHTML(c, opts = {}) {
     : `<img src="${esc(land ? c.backdrop : c.poster)}" alt="" loading="lazy" decoding="async">`;
   const prog = opts.progress != null ? `<div class="prog"><i style="width:${Math.max(4, Math.min(100, opts.progress))}%"></i></div>` : '';
   const g = (c.genre_ids || []).slice(0, 2).map(genreName).filter(Boolean).join(' · ');
-  const inner = `<div class="pic${art ? ' art' : ''}"${art ? ` style="--h:${hue}"` : ''}>${pic}${opts.s != null ? `<span class="ep-badge">S${esc(opts.s)} E${esc(opts.e)}</span>` : ''}${prog}
+  const inner = `<div class="pic${art ? ' art' : ''}"${art ? ` style="--h:${hue}"` : ''}>${pic}${opts.s != null ? `<span class="ep-badge">S${esc(opts.s)} E${esc(opts.e)}</span>` : ''}${opts.tag ? `<span class="nb">${esc(opts.tag)}</span>` : ''}${prog}
     <div class="info"><b>${esc(c.title)}</b><span>${c.rating ? `<i class="rt">${c.rating}</i>` : ''}${c.year ? `<i>${c.year}</i>` : ''}${c.media_type === 'tv' ? '<i>Series</i>' : ''}</span>
     ${g ? `<span style="margin-top:3px">${esc(g)}</span>` : ''}
     <div class="acts"><a class="p" href="${opts.play || watchHref(c, opts.s, opts.e)}" data-link aria-label="Play ${esc(c.title)}">${ICON.play}</a>
@@ -129,8 +175,8 @@ function contOpts(c) { const r = resumeInfo(c); return r ? { progress: r.pct > 0
 function rowHTML(r, i) {
   if (!r.items?.length) return '';
   remember(r.items);
-  const items = r.items.map((c, n) => cardHTML(c, r.top10 ? { rank: n + 1 } : r.cont ? contOpts(c) : {})).join('');
-  return `<section class="row"${r.cont ? ' data-cont' : ''} aria-labelledby="rh${i}"><div class="row-h"><h2 id="rh${i}">${esc(r.title)}</h2>${r.link ? `<a href="${r.link}" data-link>Explore all ›</a>` : ''}</div>
+  const items = r.items.map((c, n) => cardHTML(c, r.top10 ? { rank: n + 1 } : r.cont ? contOpts(c) : r.soon && c.release_date ? { tag: fmtDate(c.release_date) } : {})).join('');
+  return `<section class="row"${r.cont ? ' data-cont' : ''} data-row="${esc(r.id || '')}" aria-labelledby="rh${i}"><div class="row-h"><h2 id="rh${i}">${esc(r.title)}</h2>${r.link ? `<a href="${r.link}" data-link>Explore all ›</a>` : ''}</div>
     <div class="track-wrap"><button class="arrow l" aria-label="Scroll left" disabled>${ICON.left}</button><div class="track">${items}</div><button class="arrow r" aria-label="Scroll right">${ICON.right}</button></div></section>`;
 }
 function wireRows(root = main) {
@@ -144,6 +190,10 @@ function wireRows(root = main) {
 }
 function skeleton() {
   main.innerHTML = `<div class="hero skel" style="min-height:70vh"></div><div class="rows">${[0, 1].map(() => `<div class="row"><div class="row-h"><h2 class="skel" style="width:180px;height:20px;border-radius:6px"></h2></div><div class="track">${'<div class="card"><div class="pic skel"></div></div>'.repeat(8)}</div></div>`).join('')}</div>`;
+}
+function titleSkeleton() {
+  main.innerHTML = `<section class="hero detail-hero skel-hero"><div class="hero-in"><div class="skel sk-line" style="width:90px;height:14px"></div><div class="skel sk-line" style="width:min(520px,80%);height:48px;margin-top:14px"></div><div class="skel sk-line" style="width:240px;height:18px;margin-top:16px"></div><div class="skel sk-line" style="width:min(600px,92%);height:62px;margin-top:16px"></div><div style="display:flex;gap:10px;margin-top:20px"><div class="skel sk-line" style="width:140px;height:46px;border-radius:999px"></div><div class="skel sk-line" style="width:46px;height:46px;border-radius:50%"></div></div></div></section>
+  <div class="dwrap"><div><div class="skel sk-line" style="width:140px;height:22px;margin:8px 0 16px"></div>${'<div class="ep skel" style="height:96px;margin-bottom:10px"></div>'.repeat(3)}</div><aside class="facts">${'<div class="skel sk-line" style="height:14px;margin:10px 0"></div>'.repeat(6)}</aside></div>`;
 }
 function errorView(e) {
   main.innerHTML = `<div class="page"><div class="empty"><img src="/img/logo.svg" alt=""><h2>${e.status === 404 ? 'Nothing haunts this page' : 'Something went bump'}</h2><p>${esc(e.message)}</p><p style="margin-top:18px"><a class="btn ghost sm" href="/" data-link>Back home</a></p></div></div>`;
@@ -173,7 +223,7 @@ function heroHTML(c, { detail = false, items = [] } = {}) {
       <p class="ov">${esc(c.overview)}</p>
       <div class="btns">
         <a class="btn cta${rs ? ' resume' : ''}" href="${rs ? rs.href : watchHref(c)}" data-link>${ICON.play}${esc(rs ? rs.label : 'Play')}</a>
-        ${detail ? `<button class="btn icon ${List.has(c) ? 'on' : ''}" data-list="${keyOf(c)}" aria-label="My List">${List.has(c) ? ICON.check : ICON.plus}</button>${CONFIG.parties ? `<a class="btn dark" href="/party/${Math.random().toString(36).slice(2, 8)}?t=${keyOf(c)}" data-link>👻 Watch together</a>` : ''}`
+        ${detail ? `<button class="btn icon ${List.has(c) ? 'on' : ''}" data-list="${keyOf(c)}" aria-label="My List">${List.has(c) ? ICON.check : ICON.plus}</button>${upcoming(c) ? remindBtn(c, upcoming(c).date, upcoming(c).label) : ''}${CONFIG.parties ? `<a class="btn dark" href="/party/${Math.random().toString(36).slice(2, 8)}?t=${keyOf(c)}" data-link>👻 Watch together</a>` : ''}`
           : `<a class="btn dark" href="${href(c)}" data-link>${ICON.info}Details</a>`}
       </div>
       ${rs && (rs.pct > 0 || rs.sub) ? `<div class="resume-bar"${rs.approx ? ' title="Approximate — this player doesn’t report its exact position"' : ''}>${rs.pct > 0 ? `<span class="rb"><i style="width:${Math.max(3, rs.pct).toFixed(1)}%"></i></span>` : ''}<small>${rs.sub ? esc(rs.sub) : `${Math.round(rs.pct)}% watched${rs.approx ? ' (approx.)' : ''}`}${detail && rs.t ? ` · <a href="${rs.href.replace('r=1', 'r=0')}" data-link>Start over</a>` : ''}</small></div>` : ''}
@@ -208,7 +258,36 @@ async function viewHome() {
   const shown = rows.filter((r) => SITE.rows?.[r.id] !== false);
   main.innerHTML = `<div class="rows">${shown.map(rowHTML).join('')}</div>`;
   mountHero(d.hero.length ? d.hero : shown[0]?.items.slice(0, 5) || []);
-  wireRows();
+  wireRows(); markNewEpisodes($('[data-row="mylist"]', main));
+  const rowsEl = $('.rows', main), after = (id) => $(`[data-row="${id}"]`, rowsEl);
+  if (SITE.rows?.collections !== false) api('/api/collections/featured').then((c) => {
+    if (!rowsEl.isConnected || !c.items?.length) return;
+    const tmp = document.createElement('div'); tmp.innerHTML = collRowHTML(c.items);
+    const ref = after('top10') || after('pop-tv'); ref ? ref.after(tmp.firstElementChild) : rowsEl.append(tmp.firstElementChild); wireRows(rowsEl);
+  }).catch(() => {});
+  if (SITE.rows?.soon !== false) api(`/api/coming-soon/movie?region=${region()}`).then((c) => {
+    if (!rowsEl.isConnected || !c.results?.length) return;
+    const tmp = document.createElement('div'); tmp.innerHTML = rowHTML({ id: 'soon', title: 'Coming soon', link: '/coming-soon', items: c.results.slice(0, 20), soon: true }, 'soon');
+    const ref = after('now') || after('top-tv'); ref ? ref.after(tmp.firstElementChild) : rowsEl.append(tmp.firstElementChild); wireRows(rowsEl);
+  }).catch(() => {});
+}
+function collRowHTML(items) {
+  return `<section class="row colls" data-row="collections" aria-labelledby="rhcoll"><div class="row-h"><h2 id="rhcoll">Collections</h2></div>
+    <div class="track-wrap"><button class="arrow l" aria-label="Scroll left" disabled>${ICON.left}</button><div class="track">${items.map((c) => `<a class="coll" href="/collection/${c.id}" data-link style="--h:${(c.id * 47) % 360}"><img src="${esc(c.backdrop)}" alt="" loading="lazy" decoding="async"><span class="coll-t"><b>${esc(c.name)}</b><small>${c.count} films${c.years?.length === 2 && c.years[0] !== c.years[1] ? ` · ${c.years[0]}–${c.years[1]}` : ''}</small></span></a>`).join('')}</div><button class="arrow r" aria-label="Scroll right">${ICON.right}</button></div></section>`;
+}
+// "New episode" badges on saved series (My List): latest episode aired in the last 21 days and not watched yet.
+async function markNewEpisodes(root) {
+  if (!root) return;
+  const els = $$('.card[data-key^="tv:"]', root).filter((el) => List.all().some((x) => keyOf(x) === el.dataset.key)); if (!els.length) return;
+  const ids = [...new Set(els.map((el) => el.dataset.key.split(':')[1]))].slice(0, 60);
+  let st; try { st = await api(`/api/tv-status?ids=${ids.join(',')}`); } catch { return; }
+  const t0 = Date.parse(st.today), seen = (id, ep) => { const m = EpLog.all()[`tv:${id}`]; return !!m?.[`${ep.s}:${ep.e}`]?.[1]; };
+  for (const sh of st.shows || []) {
+    const ep = sh.last; if (!ep?.air_date) continue;
+    const age = (t0 - Date.parse(ep.air_date)) / 864e5; if (age < 0 || age > 21 || seen(sh.id, ep)) continue;
+    const tag = ep.e === 1 ? 'New season' : 'New episode';
+    els.filter((el) => el.dataset.key === `tv:${sh.id}`).forEach((el) => { const pic = $('.pic', el); if (pic && !$('.nb', pic)) { pic.insertAdjacentHTML('beforeend', `<span class="nb" title="S${ep.s} E${ep.e} · ${esc(ep.name)} — aired ${esc(fmtDate(ep.air_date))}">${tag}</span>`); el.classList.add('has-new'); } });
+  }
 }
 async function viewBrowse(type, category, title) {
   const cats = type === 'tv' ? [['trending', 'Trending'], ['popular', 'Popular'], ['top_rated', 'Top rated'], ['on_the_air', 'On the air'], ['airing_today', 'Airing today']]
@@ -222,23 +301,52 @@ async function viewBrowse(type, category, title) {
     url: (p) => `/api/list/${type}/${category}?page=${p}`, infinite: type === 'movie' || type === 'tv',
   });
 }
+// Year / rating / runtime filters (URL: yr=2010-2019, r=7, rt=90-120). Runtime = episode length for series.
+const FILTERS = {
+  yr: [['', 'Any year'], [`${new Date().getFullYear()}-`, 'This year'], ['2020-', '2020s'], ['2010-2019', '2010s'], ['2000-2009', '2000s'], ['1990-1999', '1990s'], ['1980-1989', '1980s'], ['-1979', 'Before 1980']],
+  r: [['', 'Any rating'], ['6', '6+ ★'], ['7', '7+ ★'], ['8', '8+ ★']],
+  rt: { movie: [['', 'Any length'], ['-90', 'Under 90 min'], ['90-120', '90–120 min'], ['120-', 'Over 2 hours']], tv: [['', 'Any length'], ['-30', 'Episodes under 30 min'], ['30-60', '30–60 min episodes'], ['60-', 'Episodes 60+ min']] },
+};
+function readFilters() {
+  const q = new URLSearchParams(location.search), pick = (k, opts) => (opts.some(([v]) => v === q.get(k)) ? q.get(k) : '');
+  return { yr: pick('yr', FILTERS.yr), r: pick('r', FILTERS.r), rt: q.get('rt') && /^\d*-\d*$/.test(q.get('rt')) ? q.get('rt') : '' };
+}
+/** API query string for the active filters ('' when none). */
+function filterQS(f) {
+  const o = new URLSearchParams(), [yf, yt] = f.yr.split('-'), [a, b] = f.rt.split('-');
+  if (yf) o.set('yf', yf); if (yt) o.set('yt', yt); if (f.r) o.set('rmin', f.r); if (a) o.set('rtmin', a); if (b) o.set('rtmax', b);
+  return o.toString();
+}
+function filterBar(type, f) {
+  const sel = (k, opts, label) => `<label class="fsel"><span class="sr">${label}</span><select data-f="${k}" aria-label="${label}">${opts.map(([v, n]) => `<option value="${v}"${f[k] === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>`;
+  const any = f.yr || f.r || f.rt;
+  return `<div class="fbar" role="group" aria-label="Filters">${sel('yr', FILTERS.yr, 'Year')}${sel('r', FILTERS.r, 'Rating')}${sel('rt', FILTERS.rt[type === 'tv' ? 'tv' : 'movie'], type === 'tv' ? 'Episode length' : 'Runtime')}${any ? '<button class="fclear" type="button" data-fclear>Clear filters</button>' : ''}</div>`;
+}
+function wireFilters() {
+  const apply = (f) => { const q = new URLSearchParams(location.search); for (const k of ['yr', 'r', 'rt']) f[k] ? q.set(k, f[k]) : q.delete(k); const qs = q.toString(); go(location.pathname + (qs ? '?' + qs : '')); };
+  $$('[data-f]', main).forEach((el) => (el.onchange = () => apply({ ...readFilters(), [el.dataset.f]: el.value })));
+  const c = $('[data-fclear]', main); if (c) c.onclick = () => apply({ yr: '', r: '', rt: '' });
+}
 const GENRE_SORTS = [['popular', 'Popular'], ['top_rated', 'Top rated'], ['newest', 'Newest']];
 async function viewGenre(type, id) {
   const g = GENRES[type]?.find((x) => x.id === +id);
   const sort = GENRE_SORTS.some(([k]) => k === new URLSearchParams(location.search).get('sort')) ? new URLSearchParams(location.search).get('sort') : 'popular';
-  const sq = sort === 'popular' ? '' : `?sort=${sort}`;
+  const f = readFilters(), fq = filterQS(f), keep = (base) => { const q = new URLSearchParams(location.search); q.delete('sort'); if (base) q.set('sort', base); const s = q.toString(); return s ? `?${s}` : ''; };
+  const sq = keep(sort === 'popular' ? '' : sort);
   const head = `<div class="g-bar"><a class="g-back" href="/genres${type === 'tv' ? '?type=tv' : ''}" data-link>‹ All genres</a>
-    <div class="seg" role="group" aria-label="Sort">${GENRE_SORTS.map(([k, n]) => `<a href="/genre/${type}/${id}${k === 'popular' ? '' : `?sort=${k}`}" data-link class="${k === sort ? 'on' : ''}"${k === sort ? ' aria-current="true"' : ''}>${n}</a>`).join('')}</div></div>`;
+    <div class="seg" role="group" aria-label="Sort">${GENRE_SORTS.map(([k, n]) => `<a href="/genre/${type}/${id}${keep(k === 'popular' ? '' : k)}" data-link class="${k === sort ? 'on' : ''}"${k === sort ? ' aria-current="true"' : ''}>${n}</a>`).join('')}</div></div>${filterBar(type, f)}`;
   await gridView({ title: `${g?.name || 'Genre'} ${type === 'tv' ? 'series' : 'movies'}`, head, pills: [{ href: `/browse/${type}/popular`, name: 'All' }, ...(GENRES[type] || []).map((x) => ({ href: `/genre/${type}/${x.id}${sq}`, name: x.name, on: x.id === +id }))],
-    url: (p) => `/api/discover/${type}/${id}?page=${p}&sort=${sort}`, infinite: true });
+    url: (p) => (fq ? `/api/filter/${type}?genre=${id}&page=${p}&sort=${sort}&${fq}` : `/api/discover/${type}/${id}?page=${p}&sort=${sort}`), infinite: true,
+    empty: '<div class="empty"><img src="/img/logo.svg" alt=""><h2>Nothing matches those filters</h2><p>Try a wider year range or a lower rating.</p></div>', after: wireFilters });
 }
 let gridObserver;
-async function gridView({ title, lead = '', head = '', pills = [], url, empty, infinite = false }) {
+async function gridView({ title, lead = '', head = '', pills = [], url, empty, infinite = false, after }) {
   gridObserver?.disconnect(); gridObserver = null;
   main.innerHTML = `<div class="page"><h1>${esc(title)}</h1>${lead ? `<p class="lead">${esc(lead)}</p>` : ''}${head}
     ${pills.length ? `<div class="pills">${pills.map((p) => `<a class="pill ${p.on ? 'on' : ''}" href="${p.href}" data-link>${esc(p.name)}</a>`).join('')}</div>` : ''}
     <div class="grid">${'<div class="card"><div class="pic skel"></div></div>'.repeat(12)}</div><div class="more"></div></div>`;
   const grid = $('.grid', main), more = $('.more', main);
+  after?.();
   let page = 1;
   const load = async () => {
     const d = await api(url(page)); remember(d.results);
@@ -272,11 +380,11 @@ async function viewSearch(q) {
     $('#pageSearch').onsubmit = (e) => { e.preventDefault(); const v = e.target.q.value.trim(); if (v) go(`/search?q=${encodeURIComponent(v)}`); };
     return;
   }
-  const gm = matchGenres(q);
-  const head = `<div class="sx">${gm.length ? `<div class="sx-genres" aria-label="Genres">${gm.map(({ type, g }) => `<a class="gchip" href="/genre/${type}/${g.id}" data-link style="--gh:${genreHue(g.id)}"><small>Genre</small>${esc(g.name)} <span>${type === 'tv' ? 'Series' : 'Movies'}</span></a>`).join('')}</div>` : ''}<div class="sx-people" hidden></div></div>`;
+  const gm = matchGenres(q), f = readFilters(), fq = filterQS(f);
+  const head = `${filterBar('movie', f).replace('aria-label="Runtime"', 'aria-label="Runtime (episode length for series)"')}<div class="sx">${gm.length ? `<div class="sx-genres" aria-label="Genres">${gm.map(({ type, g }) => `<a class="gchip" href="/genre/${type}/${g.id}" data-link style="--gh:${genreHue(g.id)}"><small>Genre</small>${esc(g.name)} <span>${type === 'tv' ? 'Series' : 'Movies'}</span></a>`).join('')}</div>` : ''}<div class="sx-people" hidden></div></div>`;
   const people = api(`/api/search/people?q=${encodeURIComponent(q)}`).catch(() => ({ results: [] }));
-  const grid = gridView({ title: `Results for “${q}”`, head, url: (p) => `/api/search?q=${encodeURIComponent(q)}&page=${p}`,
-    empty: `<div class="empty"><img src="/img/logo.svg" alt=""><h2>No title matches for “${esc(q)}”</h2><p>Check the spelling or try a different title.</p></div>` });
+  const grid = gridView({ title: `Results for “${q}”`, head, url: (p) => (fq ? `/api/search-filtered?q=${encodeURIComponent(q)}&page=${p}&${fq}` : `/api/search?q=${encodeURIComponent(q)}&page=${p}`), after: wireFilters,
+    empty: `<div class="empty"><img src="/img/logo.svg" alt=""><h2>No title matches for “${esc(q)}”${fq ? ' with those filters' : ''}</h2><p>${fq ? 'Try clearing a filter.' : 'Check the spelling or try a different title.'}</p></div>` });
   const pr = await people; const box = location.pathname === '/search' && new URLSearchParams(location.search).get('q') === q ? $('.sx-people', main) : null; // ignore stale results while typing
   const nq = normQ(q), words = nq.split(' ').filter(Boolean);
   // TMDB person search is fuzzy; only show people whose name actually matches what was typed.
@@ -321,11 +429,13 @@ async function viewPerson(id) {
   }));
 }
 function viewMyList() {
-  const list = List.all(), cont = Continue.all();
-  remember([...list, ...cont]);
+  const list = List.all(), cont = Continue.all(), rem = Remind.all();
+  remember([...list, ...cont, ...rem]);
   main.innerHTML = `<div class="page"><h1>My List</h1><p class="lead">Saved on this device.</p>
     ${list.length ? `<div class="grid">${list.map((c) => cardHTML(c)).join('')}</div>` : `<div class="empty"><img src="/img/logo.svg" alt=""><h2>Your list is empty</h2><p>Tap <b>+</b> on any title to save it here.</p></div>`}
+    ${rem.length ? `<h1 id="reminders" style="margin-top:46px;font-size:24px">Reminders</h1><p class="lead"><a class="pill" href="/coming-soon" data-link>Coming soon ›</a></p><div class="grid">${rem.map((c) => cardHTML(c, { tag: c.date <= todayISO() ? 'Out now' : fmtDate(c.date) })).join('')}</div>` : ''}
     ${cont.length ? `<h1 id="continue" style="margin-top:46px;font-size:24px">Continue watching</h1><p class="lead"><a class="pill" href="/settings/history" data-link>Manage history</a></p><div class="grid">${cont.map((c) => cardHTML(c, contOpts(c))).join('')}</div>` : ''}</div>`;
+  markNewEpisodes($('.grid', main));
 }
 
 async function viewGenres() {
@@ -339,6 +449,38 @@ async function viewGenres() {
     const box = $('.gtiles', main); if (box && d.tiles?.length) box.innerHTML = d.tiles.map(tile).join('');
   } catch {}
 }
+async function viewCollection(id) {
+  titleSkeleton();
+  const d = await api(`/api/collection/${id}`);
+  document.title = `${d.name} — GhostFlix`;
+  remember(d.parts);
+  const t = todayISO(), out = d.parts.filter((c) => !c.release_date || c.release_date <= t);
+  const next = out.find((c) => !Continue.get(c)?.done) || out[0];
+  const h = Continue.get(next || {});
+  main.innerHTML = `<section class="hero detail-hero coll-hero"><div class="hero-bg"><img src="${esc(d.backdrop || d.poster || '')}" alt="" fetchpriority="high"></div>
+    ${d.poster ? `<div class="hero-poster"><img src="${esc(d.poster)}" alt=""></div>` : ''}
+    <div class="hero-in"><div class="kicker"><img src="/img/logo.svg" alt="">Collection</div><h1>${esc(d.name)}</h1>
+    <div class="meta"><span class="gen">${out.length} film${out.length === 1 ? '' : 's'}${out.length ? ` <span class="dotsep">·</span> ${out[0].year || ''}${out.length > 1 ? `–${out[out.length - 1].year || ''}` : ''}` : ''}${d.parts.length > out.length ? ` <span class="dotsep">·</span> ${d.parts.length - out.length} upcoming` : ''}</span></div>
+    <p class="ov">${esc(d.overview)}</p>
+    ${next ? `<div class="btns"><a class="btn cta" href="${watchHref(next)}" data-link>${ICON.play}${esc(h && !h.done ? `Resume ${next.title}` : next === out[0] ? `Start with ${next.title}` : `Next: ${next.title}`)}</a></div>` : ''}</div></section>
+    <div class="page" style="padding-top:10px"><h2 class="sech">In order</h2><div class="grid coll-grid">${d.parts.map((c, i) => `<div class="cpart">${cardHTML(c, Continue.get(c)?.done ? { tag: '✓ Watched' } : c.release_date > t ? { tag: fmtDate(c.release_date) } : {})}<small>${i + 1}. ${c.release_date > t ? `Coming ${esc(fmtDate(c.release_date))}` : c.year || ''}</small></div>`).join('')}</div></div>`;
+}
+async function viewComingSoon() {
+  const type = new URLSearchParams(location.search).get('type') === 'tv' ? 'tv' : 'movie';
+  main.innerHTML = `<div class="page"><div class="g-top"><div><h1>Coming soon</h1><p class="lead">${type === 'tv' ? 'New series premiering in the next six months.' : `Films opening in cinemas (${esc(region())}) in the next six months.`} Tap <b>Remind me</b> and we’ll tell you when it’s out.</p></div>
+    <div class="seg" role="group" aria-label="Type"><a href="/coming-soon" data-link class="${type === 'movie' ? 'on' : ''}">Movies</a><a href="/coming-soon?type=tv" data-link class="${type === 'tv' ? 'on' : ''}">Series</a></div></div>
+    <div class="grid cs-grid">${'<div class="card"><div class="pic skel"></div></div>'.repeat(12)}</div><div class="more"></div></div>`;
+  const grid = $('.cs-grid', main), more = $('.more', main); let page = 1;
+  const item = (c) => `<div class="cs-item">${cardHTML(c, { tag: fmtDate(c.release_date) })}<div class="cs-meta"><span>${type === 'tv' ? 'Premieres' : 'Out'} <b>${esc(fmtDate(c.release_date))}</b></span>${remindBtn(c, c.release_date, type === 'tv' ? 'Premieres' : 'Out', 'pill remind')}</div></div>`;
+  const load = async () => {
+    const d = await api(`/api/coming-soon/${type}?page=${page}&region=${region()}`); remember(d.results);
+    if (page === 1) grid.innerHTML = d.results.length ? '' : '<div class="empty"><h2>Nothing scheduled yet</h2></div>';
+    grid.insertAdjacentHTML('beforeend', d.results.map(item).join(''));
+    more.innerHTML = page < d.total_pages ? '<button class="btn ghost sm">Load more</button>' : '';
+    const b = $('button', more); if (b) b.onclick = async () => { b.disabled = true; b.textContent = 'Loading…'; page++; await load(); };
+  };
+  await load();
+}
 let previewCache = null;
 async function previewCards(el) {
   try { previewCache ||= (await api('/api/list/all/trending')).results.slice(0, 6); } catch { previewCache = []; }
@@ -347,7 +489,7 @@ async function previewCards(el) {
 const pageCtx = () => ({ main, api, rowHTML, wireRows, history: Continue, list: List, go, auth: AUTH, toast, config: CONFIG });
 const settingsCtx = () => ({ auth: AUTH, list: List, history: Continue, toast, watchHref, previewCards, discordUrl: CONFIG.discordUrl, githubUrl: CONFIG.githubUrl });
 async function viewTitle(type, id) {
-  skeleton();
+  if (!PREF.has(`/api/title/${type}/${id}?region=${region()}`)) titleSkeleton();
   const d = await api(`/api/title/${type}/${id}?region=${region()}`);
   remember([d]); CARDS.set(keyOf(d), d);
   document.title = `${d.title} — GhostFlix`;
@@ -359,8 +501,9 @@ async function viewTitle(type, id) {
   main.innerHTML = `${heroHTML(d, { detail: true })}
   <div class="dwrap"><div>
     ${d.media_type === 'tv' && d.seasons?.length ? `<section class="sec" id="episodes"><h2>Episodes</h2><div class="season-bar"><div class="select"><select id="seasonSel" aria-label="Season">${d.seasons.map((s) => `<option value="${s.season_number}">${esc(s.name)}${s.episode_count ? ` (${s.episode_count})` : ''}</option>`).join('')}</select></div></div><div class="eps" id="eps"></div></section>` : ''}
+    ${d.collection ? `<a class="coll-banner" href="/collection/${d.collection.id}" data-link>${d.collection.backdrop ? `<img src="${esc(d.collection.backdrop)}" alt="" loading="lazy">` : ''}<span><small>Part of</small><b>${esc(d.collection.name)}</b><i>View the collection ›</i></span></a>` : ''}
     ${d.trailers?.length ? `<section class="sec"><h2>Trailers & videos</h2><div class="trailers">${d.trailers.map((t) => `<div class="trailer" role="button" tabindex="0" data-yt="${esc(t.key)}"><div class="th"><img src="https://i.ytimg.com/vi/${esc(t.key)}/mqdefault.jpg" alt="" loading="lazy"></div><b>${esc(t.name)}</b></div>`).join('')}</div></section>` : ''}
-    ${d.cast?.length ? `<section class="sec"><h2>Cast</h2><div class="cast">${d.cast.map((c) => `<div class="person"><div class="ph">${c.profile ? `<img src="${esc(c.profile)}" alt="" loading="lazy">` : initials(c.name)}</div><b>${esc(c.name)}</b><span>${esc(c.character)}</span></div>`).join('')}</div></section>` : ''}
+    ${d.cast?.length ? `<section class="sec"><h2>Cast</h2><div class="cast">${d.cast.map((c) => `<a class="person" href="/person/${c.id}" data-link><div class="ph">${c.profile ? `<img src="${esc(c.profile)}" alt="" loading="lazy">` : initials(c.name)}</div><b>${esc(c.name)}</b><span>${esc(c.character)}</span></a>`).join('')}</div></section>` : ''}
     ${d.recommendations?.length ? `<section class="sec" style="margin-left:calc(-1 * var(--pad));margin-right:calc(-1 * var(--pad))">${rowHTML({ title: 'More like this', items: d.recommendations }, 'rec')}</section>` : ''}
   </div>
   <aside class="facts"><dl>
@@ -368,6 +511,7 @@ async function viewTitle(type, id) {
     ${d.created_by?.length ? `<dt>Created by</dt><dd>${esc(d.created_by.join(', '))}</dd>` : ''}
     ${d.release_date ? `<dt>${type === 'tv' ? 'First aired' : 'Released'}</dt><dd>${esc(d.release_date)}</dd>` : ''}
     ${d.status ? `<dt>Status</dt><dd>${esc(d.status)}</dd>` : ''}
+    ${d.next_episode?.air_date ? `<dt>Next episode</dt><dd>S${d.next_episode.s} E${d.next_episode.e} · ${esc(fmtDate(d.next_episode.air_date))}</dd>` : ''}
     ${d.languages?.length ? `<dt>Languages</dt><dd>${esc(d.languages.slice(0, 4).join(', '))}</dd>` : ''}
     ${d.license ? `<dt>License</dt><dd>${esc(d.license)}</dd>` : ''}
     ${d.cast?.length ? `<dt>Starring</dt><dd>${esc(d.cast.slice(0, 4).map((c) => c.name).join(', '))}</dd>` : ''}
@@ -382,9 +526,16 @@ async function viewTitle(type, id) {
       const eps = $('#eps'); eps.innerHTML = '<div class="ep skel" style="height:110px"></div>'.repeat(3);
       try {
         const s = await api(`/api/tv/${id}/season/${sel.value}`);
-        eps.innerHTML = s.episodes.map((e) => `<a class="ep" href="${watchHref(d, s.season_number, e.episode_number)}" data-link><div class="n">${e.episode_number}</div>
-          <div class="st">${e.still ? `<img src="${esc(e.still)}" alt="" loading="lazy">` : ''}<div class="pl">${ICON.play}</div></div>
-          <div><div class="t"><b>${e.episode_number}. ${esc(e.name)}${e.playable ? '<span class="free">Free</span>' : ''}</b><span>${fmtRuntime(e.runtime)}</span></div><p>${esc(e.overview || 'No description yet.')}</p></div></a>`).join('') || '<p class="empty">No episodes listed yet.</p>';
+        const log = EpLog.of(d), cur = Continue.get(d), t = todayISO();
+        eps.innerHTML = s.episodes.map((e) => {
+          const w = log[`${s.season_number}:${e.episode_number}`], isCur = cur && +cur.s === s.season_number && +cur.e === e.episode_number;
+          const pct = w ? (w[1] ? 100 : w[0]) : isCur && cur.progress > 0 ? cur.progress : 0, done = w?.[1] || (isCur && cur.done);
+          const future = e.air_date && e.air_date > t;
+          return `<a class="ep${done ? ' watched' : ''}${isCur ? ' current' : ''}${future ? ' unaired' : ''}" href="${watchHref(d, s.season_number, e.episode_number)}" data-link><div class="n">${e.episode_number}</div>
+          <div class="st">${e.still ? `<img src="${esc(e.still)}" alt="" loading="lazy">` : ''}<div class="pl">${ICON.play}</div>${done ? `<span class="tick" title="Watched">${ICON.check}</span>` : ''}${pct > 0 && !done ? `<div class="prog"><i style="width:${Math.max(4, Math.min(100, pct))}%"></i></div>` : ''}</div>
+          <div><div class="t"><b>${e.episode_number}. ${esc(e.name)}${e.playable ? '<span class="free">Free</span>' : ''}</b><span>${future ? `Airs ${esc(fmtDate(e.air_date))}` : [done ? 'Watched' : pct > 0 ? `${Math.round(pct)}% watched` : '', fmtRuntime(e.runtime)].filter(Boolean).join(' · ')}</span></div><p>${esc(e.overview || (future ? 'Not aired yet.' : 'No description yet.'))}</p></div></a>`;
+        }).join('') || '<p class="empty">No episodes listed yet.</p>';
+        $('.ep.current', eps)?.scrollIntoView?.({ block: 'nearest' });
       } catch (e) { eps.innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
     };
     sel.onchange = load; load();
@@ -675,6 +826,8 @@ const routes = [
   [/^\/settings\/(history|appearance|subtitles|player|preferences|account|connections|tv|profiles|profile)$/, (m) => renderSettings(main, settingsCtx(), m[1]), 'settings'],
   [/^\/title\/(movie|tv)\/(\d+)$/, (m) => viewTitle(m[1], m[2]), null],
   [/^\/person\/(\d+)$/, (m) => viewPerson(m[1]), 'search'],
+  [/^\/collection\/(\d+)$/, (m) => viewCollection(m[1]), 'movies'],
+  [/^\/coming-soon$/, () => viewComingSoon(), 'movies'],
 ];
 let lastPage = null;
 // After closing the player the page underneath isn't re-rendered, so refresh its Resume buttons/progress bars.
@@ -730,10 +883,23 @@ document.addEventListener('click', (e) => {
     $$(`[data-list="${lb.dataset.list}"]`).forEach((b) => { b.innerHTML = on ? ICON.check : ICON.plus; b.classList.toggle('on', on); });
     return;
   }
+  const rb = e.target.closest('[data-remind]');
+  if (rb) {
+    e.preventDefault(); e.stopPropagation();
+    const c = CARDS.get(rb.dataset.remind) || Remind.all().find((x) => keyOf(x) === rb.dataset.remind); if (!c) return;
+    const on = Remind.toggle(c, rb.dataset.date, rb.dataset.label);
+    $$(`[data-remind="${rb.dataset.remind}"]`).forEach((b) => { b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '🔔 Reminder set' : '🔔 Remind me'; });
+    return;
+  }
   const a = e.target.closest('a[data-link]');
   if (a && !e.metaKey && !e.ctrlKey && !e.shiftKey && a.origin === location.origin) { e.preventDefault(); go(a.pathname + a.search); }
 });
 window.addEventListener('popstate', render);
+// Preload title pages on hover (after a short pause) or touch, so opening them is instant.
+let pfT;
+const pfFor = (a) => { const m = a?.pathname?.match(/^\/title\/(movie|tv)\/(\d+)$/); if (!m || a.origin !== location.origin) return; prefetch(`/api/title/${m[1]}/${m[2]}?region=${region()}`).then((d) => { if (d?.backdrop) new Image().src = d.backdrop; }).catch(() => {}); };
+document.addEventListener('pointerover', (e) => { if (e.pointerType !== 'mouse') return; const a = e.target.closest?.('a[href^="/title/"]'); clearTimeout(pfT); if (a) pfT = setTimeout(() => pfFor(a), 120); }, { passive: true });
+document.addEventListener('touchstart', (e) => pfFor(e.target.closest?.('a[href^="/title/"]')), { passive: true });
 document.addEventListener('error', (e) => { if (e.target.tagName === 'IMG' && e.target.closest('.pic,.hero-poster,.st,.ph')) e.target.style.visibility = 'hidden'; }, true);
 document.addEventListener('load', (e) => { if (e.target.matches?.('.hero-bg img')) e.target.classList.add('in'); }, true);
 new MutationObserver(() => $$('.hero-bg img:not(.in)').forEach((i) => i.complete && i.naturalWidth && i.classList.add('in'))).observe(main, { childList: true, subtree: true });
@@ -754,7 +920,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023ja').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023jb').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -786,6 +952,8 @@ installEl.addEventListener('click', async (e) => {
     $('#banner .x').onclick = () => { sessionStorage.setItem('gf.nb', 1); $('#banner').innerHTML = ''; };
   }
   render();
+  const due = Remind.due();
+  if (due.length) setTimeout(() => toast(due.length === 1 ? `🔔 “${due[0].title}” is out now` : `🔔 ${due.length} reminders are out now: ${due.slice(0, 3).map((x) => x.title).join(', ')}`), 1200);
 })();
 
 // Admin link in the menu: only visible when this browser is logged in as admin.

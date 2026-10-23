@@ -346,7 +346,7 @@ app.post('/api/admin/logout', (req, res) => { res.setHeader('Set-Cookie', 'gf_ad
 const admin = express.Router();
 admin.use((req, res, next) => (isAdmin(req) ? next() : res.status(401).json({ error: 'Not signed in.' })));
 app.use('/api/admin', admin);
-const B3 = mountB3(app, { env, wrap, cacheFor, isAdmin, admin, store, catalog });
+const B3 = mountB3(app, { env, wrap, cacheFor, isAdmin, admin, store, catalog, markList });
 
 admin.get('/state', (req, res) => res.json({ mode: catalog.mode, backend: store.backend, sources: store.allSources().reverse(),
   subs: Object.entries(store.data.subs || {}).flatMap(([key, list]) => list.map(({ vtt, ...t }) => ({ key, ...t, title: store.data.titles[key.split(':').slice(0, 2).join(':')]?.title || key }))), unmatched: store.data.unmatched, jobs: store.data.jobs,

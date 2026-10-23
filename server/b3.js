@@ -2,6 +2,7 @@
 // Mounted from index.js. Server-side Supabase access uses SUPABASE_URL + SUPABASE_SERVICE_KEY (RLS bypass);
 // the tables here have RLS on with no anon/authenticated grants, so only this server can read/write them.
 import crypto from 'node:crypto';
+import { mountCatalog } from './b3-catalog.js';
 
 export function supa(env) {
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_KEY) return null;
@@ -26,8 +27,9 @@ export function limiter(max, windowMs) {
 
 export const deviceOf = (ua = '') => (/ipad|tablet/i.test(ua) ? 'tablet' : /mobi|iphone|android/i.test(ua) ? 'mobile' : 'desktop');
 
-export function mountB3(app, { env, wrap, cacheFor }) {
+export function mountB3(app, { env, wrap, cacheFor, catalog, markList }) {
   const sb = supa(env);
+  mountCatalog(app, { env, wrap, cacheFor, catalog, markList });
 
   // ---- skip intro / recap: TheIntroDB (api.theintrodb.org, free, no key, community-verified) ----
   const SEG = new Map(); // key -> { at, data }

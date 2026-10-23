@@ -15,7 +15,8 @@ export function card(x, forcedType) {
     genre_ids: x.genre_ids || (x.genres || []).map((g) => g.id), popularity: x.popularity || 0,
   };
 }
-const cards = (arr, t) => (arr || []).map((x) => card(x, t)).filter((c) => c && (c.poster || c.backdrop));
+export const epInfo = (x) => (x ? { s: x.season_number, e: x.episode_number, name: x.name || '', air_date: x.air_date || null } : null);
+export const cards = (arr, t) => (arr || []).map((x) => card(x, t)).filter((c) => c && (c.poster || c.backdrop));
 
 export class TmdbCatalog {
   constructor(env = process.env) {
@@ -131,7 +132,7 @@ export class TmdbCatalog {
     ]);
     return { top10: cards(day.results).slice(0, 10), rows: [
       { id: 'trending', title: 'Trending this week', link: '/browse/all/trending', items: week.results },
-      { id: 'upcoming', title: 'Coming soon', link: '/browse/movie/upcoming', items: upcoming.results },
+      { id: 'upcoming', title: 'Coming soon', link: '/coming-soon', items: upcoming.results },
       { id: 'onair', title: 'New episodes this week', link: '/browse/tv/on_the_air', items: onAir.results },
     ], moods: moods.map(([id, title], i) => ({ id, title, items: cards(moodRows[i].results, 'movie') })) };
   }
@@ -157,6 +158,8 @@ export class TmdbCatalog {
       trailers: vids.sort((a, b) => rank(a) - rank(b)).slice(0, 6).map((v) => ({ key: v.key, name: v.name, type: v.type })),
       providers: prov ? { region: d['watch/providers'].results[region] ? region : 'US', link: prov.link, flatrate: logo(prov.flatrate), free: logo(prov.free), ads: logo(prov.ads), rent: logo(prov.rent), buy: logo(prov.buy) } : null,
       seasons: type === 'tv' ? (d.seasons || []).filter((s) => s.season_number > 0 || (d.seasons || []).length === 1).map((s) => ({ season_number: s.season_number, name: s.name, episode_count: s.episode_count, poster: img(s.poster_path, 'w185'), air_date: s.air_date })) : null,
+      collection: d.belongs_to_collection ? { id: d.belongs_to_collection.id, name: d.belongs_to_collection.name, poster: img(d.belongs_to_collection.poster_path, 'w342'), backdrop: img(d.belongs_to_collection.backdrop_path, 'w780') } : null,
+      last_episode: epInfo(d.last_episode_to_air), next_episode: epInfo(d.next_episode_to_air),
       number_of_seasons: d.number_of_seasons || null, number_of_episodes: d.number_of_episodes || null,
       recommendations: cards(d.recommendations?.results?.length ? d.recommendations.results : d.similar?.results, type).slice(0, 18),
     };
