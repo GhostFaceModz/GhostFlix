@@ -86,6 +86,8 @@ export class TmdbCatalog {
     const d = await this.get(`/person/${id}`, { append_to_response: 'combined_credits' }, 6 * 3600e3);
     const seen = new Set(); const credits = [];
     for (const x of [...(d.combined_credits?.cast || []), ...(d.combined_credits?.crew || [])]) {
+      // Skip talk/news/reality guest spots and "Self" appearances so their actual movies and series come first.
+      if ((x.genre_ids || []).some((g) => g === 10767 || g === 10763 || g === 10764) || /^(self|himself|herself|themselves)\b/i.test(x.character || '')) continue;
       const c = card(x); const k = c && `${c.media_type}:${c.id}`;
       if (!c || !(c.poster || c.backdrop) || seen.has(k)) continue;
       seen.add(k); credits.push(c);
