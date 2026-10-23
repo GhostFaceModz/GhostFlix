@@ -451,3 +451,77 @@ begin
 end $$;
 revoke all on function public.ghostflix_top10(int), public.ghostflix_hours(int), public.ghostflix_health() from public, anon, authenticated;
 grant execute on function public.ghostflix_top10(int), public.ghostflix_hours(int), public.ghostflix_health() to service_role;
+
+-- ===== Stage G: profile flair, rank, stats, follows, shared lists (migration: ghostflix_stage_g_profiles, applied 2026-10-23) =====
+-- Additive only. RLS on, no policies: these tables are read/written only by the server (service key) after it validates
+-- the caller's Supabase token, so one user can never read another user's rows directly. GhostBot's tables
+-- (ghostflix_discord_links, ghostflix_watch_days) are only READ, by a service-only function.
+create table if not exists public.ghostflix_flair (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  profile_id text not null default 'main',
+  border text not null default 'none',
+  mascot text,
+  name_fx text,
+  seasonal boolean not null default true,
+  banner jsonb,
+  tagline text not null default '' check (char_length(tagline) <= 80),
+  fav4 jsonb not null default '[]'::jsonb,
+  show_stats boolean not null default true,
+  show_watching boolean not null default false,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, profile_id)
+);
+create table if not exists public.ghostflix_follows (
+  follower uuid not null references auth.users(id) on delete cascade,
+  followee uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (follower, followee),
+  check (follower <> followee)
+);
+create index if not exists ghostflix_follows_followee on public.ghostflix_follows (followee);
+create table if not exists public.ghostflix_shared_lists (
+  id bigint generated always as identity primary key,
+  a uuid not null references auth.users(id) on delete cascade,
+  b uuid not null references auth.users(id) on delete cascade,
+  name text not null check (char_length(name) between 1 and 60),
+  items jsonb not null default '[]'::jsonb,
+  created_by uuid not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (a < b)
+);
+create index if not exists ghostflix_shared_lists_a on public.ghostflix_shared_lists (a);
+create index if not exists ghostflix_shared_lists_b on public.ghostflix_shared_lists (b);
+alter table public.ghostflix_flair enable row level security;
+alter table public.ghostflix_follows enable row level security;
+alter table public.ghostflix_shared_lists enable row level security;
+revoke all on public.ghostflix_flair, public.ghostflix_follows, public.ghostflix_shared_lists from anon, authenticated;
+
+-- One user's watch summary, computed exactly like GhostBot's /flixrank (sum of ghostflix_watch_days, same title filter).
+-- Service role only: the server calls it with the id from the caller's validated token (or a public profile owner who
+-- opted in to showing stats). Never callable by anon/authenticated.
+create or replace function public.ghostflix_watch_summary(p_uid uuid, p_profile text default 'main') returns jsonb
+language sql stable security definer set search_path = '' as $$
+  with wd as (select d.day, d.seconds from public.ghostflix_watch_days d where d.user_id = p_uid and d.seconds > 0),
+  isl as (select wd.day, wd.day - (row_number() over (order by wd.day))::int g from wd),
+  runs as (select count(*)::int n from isl group by g),
+  mstart as (select date_trunc('month', now() at time zone 'Europe/London')::date m),
+  h as (select h.* from public.ghostflix_history h where h.user_id = p_uid and h.time is not null
+        and not coalesce((h.data->>'approx')::boolean, false) and (h.time >= 300 or coalesce((h.data->>'done')::boolean, false))),
+  g as (select k, sum(case when jsonb_typeof(v) = 'number' then (v::text)::numeric else 0 end)::int n
+        from public.ghostflix_activity a, jsonb_each(a.genres) as e(k, v) where a.user_id = p_uid and a.profile_id = p_profile group by k),
+  rt as (select r.data from public.ghostflix_profile_data r where r.user_id = p_uid and r.profile_id = p_profile and r.kind = 'ratings' limit 1)
+  select jsonb_build_object(
+    'watch_seconds', coalesce((select sum(seconds) from wd), 0)::int,
+    'month_seconds', coalesce((select sum(seconds) from wd, mstart where wd.day >= mstart.m), 0)::int,
+    'month_days', coalesce((select jsonb_agg(jsonb_build_object('d', wd.day, 's', wd.seconds) order by wd.day) from wd, mstart where wd.day >= mstart.m), '[]'::jsonb),
+    'best_day', (select jsonb_build_object('d', wd.day, 's', wd.seconds) from wd order by wd.seconds desc, wd.day desc limit 1),
+    'best_run', coalesce((select max(n) from runs), 0),
+    'titles', (select count(*) from h)::int,
+    'night', (select count(*) from h where extract(hour from h.watched_at at time zone 'Europe/London') < 5)::int,
+    'genres', coalesce((select jsonb_object_agg(k, n) from g where n > 0), '{}'::jsonb),
+    'ratings', coalesce((select case jsonb_typeof(rt.data) when 'object' then (select count(*) from jsonb_object_keys(rt.data)) when 'array' then jsonb_array_length(rt.data) else 0 end from rt), 0)::int,
+    'discord', exists (select 1 from auth.identities i where i.user_id = p_uid and i.provider = 'discord'));
+$$;
+revoke all on function public.ghostflix_watch_summary(uuid, text) from public, anon, authenticated;
+grant execute on function public.ghostflix_watch_summary(uuid, text) to service_role;

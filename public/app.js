@@ -1,11 +1,12 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023zg';
-import { applyCosmetics } from './cosmetics.js?v=20261023zg';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023zg';
-import { createPush } from './push.js?v=20261023zg';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023zg';
-import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023zg';
-import { createCommunity } from './community.js?v=20261023zg';
+import { createAuth, ICONS } from './auth.js?v=20261023zh';
+import { applyCosmetics } from './cosmetics.js?v=20261023zh';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023zh';
+import { createPush } from './push.js?v=20261023zh';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023zh';
+import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023zh';
+import { createCommunity } from './community.js?v=20261023zh';
+import { createFlair } from './flair.js?v=20261023zh';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -28,7 +29,7 @@ const region = () => Settings.get().region || (navigator.language || 'en-US').sp
 
 // ---- storage (watchlist + continue watching) ----------------------------------
 // list/continue/eps/remind/ratings are per viewer profile (see profiles.js); everything else is per device.
-let PROF = null, PUSH = null, COMM = null;
+let PROF = null, PUSH = null, COMM = null, FLAIR = null;
 const LS = {
   get(k, d) { try { return JSON.parse(localStorage.getItem(lsKey(k))) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(lsKey(k), JSON.stringify(v)); } catch {} PROF?.touched(k); if (k === 'list' || k === 'continue' || k === 'remind') PUSH?.sync(); },
@@ -326,7 +327,7 @@ async function viewHome() {
     const tmp = document.createElement('div'); tmp.innerHTML = rowHTML({ id: 'halloween', title: h.title, items: h.items, link: h.kids == null ? '/genre/movie/27' : '' }, 'halloween');
     const ref = after('mylist') || after('continue'); ref ? ref.after(tmp.firstElementChild) : rowsEl.prepend(tmp.firstElementChild); wireRows(rowsEl);
   }).catch(() => {});
-  if (!kids) COMM?.homeExtras(rowsEl, after);
+  if (!kids) { COMM?.homeExtras(rowsEl, after); FLAIR?.homeStrip(rowsEl, after); }
   if (kids) return;
   if (SITE.rows?.collections !== false) api('/api/collections/featured').then((c) => {
     if (!rowsEl.isConnected || !c.items?.length) return;
@@ -561,7 +562,7 @@ PUSH = createPush({
   reminders: () => Remind.all().filter((x) => x.date).map((x) => ({ key: keyOf(x), title: x.title, date: x.date, label: x.label || '' })).slice(0, 200),
   toast,
 });
-const settingsCtx = () => ({ community: COMM, push: PUSH, auth: AUTH, list: List, history: Continue, toast, watchHref, previewCards, discordUrl: CONFIG.discordUrl, githubUrl: CONFIG.githubUrl });
+const settingsCtx = () => ({ community: COMM, flair: FLAIR, push: PUSH, auth: AUTH, list: List, history: Continue, toast, watchHref, previewCards, discordUrl: CONFIG.discordUrl, githubUrl: CONFIG.githubUrl });
 async function viewTitle(type, id) {
   if (!PREF.has(`/api/title/${type}/${id}?region=${region()}`)) titleSkeleton();
   const d = await api(`/api/title/${type}/${id}?region=${region()}`);
@@ -922,7 +923,8 @@ const routes = [
   [/^\/collection\/(\d+)$/, (m) => viewCollection(m[1]), 'movies'],
   [/^\/coming-soon$/, () => viewComingSoon(), 'movies'],
   [/^\/friends$/, () => COMM.viewFriends(), 'friends'],
-  [/^\/u\/([a-z0-9]{10})$/, (m) => COMM.viewPublic(m[1]), null],
+  [/^\/shared\/(\d{1,12})$/, (m) => FLAIR.viewShared(m[1]), 'friends'],
+  [/^\/u\/([a-z0-9]{10})$/, (m) => COMM.viewPublic(m[1]).then(() => FLAIR.publicPage(m[1])), null],
   [/^\/request$/, () => { const q = new URLSearchParams(location.search).get('q') || ''; history.replaceState({}, '', '/'); render(); setTimeout(() => COMM.openRequest(q), 300); }, 'home'],
 ];
 let lastPage = null;
@@ -1029,7 +1031,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023zg').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023zh').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -1053,13 +1055,14 @@ installEl.addEventListener('click', async (e) => {
   { const st = Settings.get(); if (SITE.features?.themes === false) applySettings({ ...st, season: 'normal' }); else if (SITE.theme?.name && !st.seasonPicked) applySettings({ ...st, season: SITE.theme.name }); }
   try { CONFIG = await api('/api/config'); GENRES = await api('/api/genres'); } catch {} document.querySelectorAll('[data-feature=parties]').forEach((el) => (el.hidden = !CONFIG.parties));
   AUTH = createAuth({ config: CONFIG, list: MainList, history: MainHistory, toast, onChange: () => { if (/^\/(my-list|settings.*)?$/.test(location.pathname)) { lastPage = null; render(); } } });
-  AUTH.subscribe(() => { if (location.pathname.startsWith('/settings')) { lastPage = null; render(); } });
+  AUTH.subscribe(() => { if (/^\/(settings|profile$)/.test(location.pathname)) { lastPage = null; render(); } });
   PROF = createProfiles({ auth: AUTH, toast, onSwitch: () => {
     PREF.clear(); lastPage = null; PUSH.sync();
     if (Profiles.kidsAge() != null && /^\/(live|party|profiles|settings\/profiles)(\/|$)/.test(location.pathname)) history.replaceState({}, '', '/');
     render();
   } });
-  COMM = createCommunity({ api, auth: () => AUTH, toast, rowHTML, wireRows, cardHTML, remember, keyOf, genreName, profiles: Profiles, list: () => List.all(), history: () => Continue.all(), site: () => SITE, genres: () => GENRES, main });
+  COMM = createCommunity({ api, auth: () => AUTH, toast, rowHTML, wireRows, cardHTML, remember, keyOf, genreName, profiles: Profiles, list: () => List.all(), history: () => Continue.all(), site: () => SITE, genres: () => GENRES, main, afterFriends: () => FLAIR?.friends() });
+  FLAIR = createFlair({ api, comm: COMM, auth: () => AUTH, toast, cardHTML, remember, genreName, profiles: Profiles, list: () => List.all(), history: () => Continue.all(), main });
   COMM.applyFeatures(); AUTH.subscribe(() => { COMM.refreshMe(); COMM.pullActivity(); }); setTimeout(() => { COMM.refreshMe(); COMM.pullActivity(); }, 1500);
   if (CONFIG.discordUrl) {
     const b = $('#dcBubble'); b.href = CONFIG.discordUrl; b.innerHTML = ICONS.DISCORD_SVG; b.hidden = false; $('#drawerDiscord').href = CONFIG.discordUrl;

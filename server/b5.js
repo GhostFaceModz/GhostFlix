@@ -132,7 +132,7 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
     needFeat('publicProfiles'); const u = await needUser(req); const pid = clip(req.params.pid, 20); if (!/^[a-z0-9]{1,20}$/i.test(pid)) throw err(400, 'Bad profile');
     const b = req.body || {}; const cur = (await sb(`ghostflix_public_profiles?user_id=eq.${u.id}&profile_id=eq.${encodeURIComponent(pid)}&select=slug`))?.[0];
     const row = { user_id: u.id, profile_id: pid, slug: cur?.slug || rid(10), enabled: !!b.enabled, name: clip(b.name, 40) || 'Viewer', color: /^#[0-9a-f]{6}$/i.test(b.color || '') ? b.color : '#5fe3ff',
-      avatar: /^https:\/\//.test(b.avatar || '') ? clip(b.avatar, 400) : null, bio: clip(b.bio, 300), genres: (Array.isArray(b.genres) ? b.genres : []).map((g) => parseInt(g, 10)).filter((g) => g > 0 && g < 1e6).slice(0, 8),
+      avatar: /^https:\/\//.test(b.avatar || '') ? clip(b.avatar, 400) : null, bio: clip(b.bio, 300).replace(/[\u202a-\u202e\u2066-\u2069\ufeff]/g, ''), genres: (Array.isArray(b.genres) ? b.genres : []).map((g) => parseInt(g, 10)).filter((g) => g > 0 && g < 1e6).slice(0, 8),
       lists: listOf(b.lists, 60), show_history: !!b.show_history, history: b.show_history ? listOf(b.history, 30) : [], badges: badgesOf(b.badges), updated_at: new Date().toISOString() };
     const r = (await sb('ghostflix_public_profiles?on_conflict=user_id,profile_id', { method: 'POST', body: row, prefer: 'resolution=merge-duplicates,return=representation' }))?.[0];
     res.json({ ...r, user_id: undefined });
@@ -478,6 +478,7 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
     const { q, log, u } = await needMod(req); const b = req.body || {}; const kind = FLAG_KINDS.includes(b.kind) ? b.kind : null; if (!kind) throw err(400, 'Bad flag');
     const data = {}; if (KEY_RE.test(b.key || '')) data.key = b.key; if (UUID.test(b.user_id || '')) data.user_id = b.user_id; if (+b.message_id > 0) data.message_id = +b.message_id; if (+b.inbox_id > 0) data.inbox_id = +b.inbox_id;
     if ((kind === 'flag_title' || kind === 'flag_kids') && !data.key) throw err(400, 'Pick a title');
+    if (kind === 'flag_user' && /^[a-z0-9]{10}$/.test(b.slug || '') && sb) { const p = (await sb(`ghostflix_public_profiles?slug=eq.${b.slug}&select=user_id`))?.[0]; if (p) Object.assign(data, { user_id: p.user_id, slug: b.slug, what: b.what === 'bio' ? 'bio' : 'profile' }); } // flag a public profile's bio/tagline
     if (kind === 'flag_user' && !data.user_id) throw err(400, 'Pick a user');
     const title = clip(b.title, 200) || kind.replace('flag_', 'Flag: ');
     await q('ghostflix_inbox', { method: 'POST', body: { kind, title, body: clip(b.body, 1000), data, by_mod: u.id }, prefer: 'return=minimal' });
@@ -497,5 +498,5 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
   app.get('/api/mod/log', wrap(async (req, res) => { const { q } = await needMod(req); res.set('Cache-Control', 'no-store').json({ items: (await q('ghostflix_mod_log?select=action,target,detail,created_at&order=created_at.desc&limit=100')) || [] }); }));
   app.get('/api/mod/title', wrap(async (req, res) => { await needMod(req); const s = String(req.query.q || '').trim().slice(0, 80); res.json(s ? await catalog.search(s, 1) : { results: [] }); }));
 
-  return { hidden, pins, feat, userOf };
+  return { hidden, pins, feat, userOf, needUser, bannedNow, sb };
 }

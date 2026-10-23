@@ -286,6 +286,7 @@ export function createCommunity(ctx) {
     $$('[data-acc],[data-dec]').forEach((b) => (b.onclick = async () => { try { await call('/api/friends/respond', { method: 'POST', body: { id: b.dataset.acc || b.dataset.dec, accept: !!b.dataset.acc } }); re(); } catch (err) { ctx.toast(err.message); } }));
     $$('[data-rm]').forEach((b) => (b.onclick = async () => { if (!confirm('Remove this friend?')) return; try { await fetch(`/api/friends/${b.dataset.rm}`, { method: 'DELETE', headers: { Authorization: `Bearer ${await token()}` } }); re(); } catch {} }));
     if (addCode && d.on) fa?.requestSubmit?.();
+    ctx.afterFriends?.(); // Stage G: follows + shared lists (flair.js)
   }
 
   // ---- Public profile (view) + settings
@@ -312,14 +313,18 @@ export function createCommunity(ctx) {
     if (!signedIn()) { box.innerHTML = '<p class="set-note">Sign in to create a public profile link. It’s off by default.</p>'; return; }
     const pr = ctx.profiles.active(); let cur = {};
     try { cur = await call(`/api/me/public/${pr.id}`); } catch (e) { box.innerHTML = `<p class="set-note">${esc(e.message)}</p>`; return; }
+    let fl = { show_stats: true, show_watching: false }; try { fl = (await call(`/api/me/flair/${pr.id}`)).flair || fl; } catch {} // Stage G privacy toggles
     const G = ctx.genres(); const all = [...new Map([...G.movie, ...G.tv].map((g) => [g.id, g])).values()];
     const picked = new Set(cur.genres || []); const m = ctx.auth().meta?.() || {};
     box.innerHTML = `<label class="tg"><span><b>Public profile for “${esc(pr.name)}”</b><small>Anyone with the link sees your avatar, name, bio, favourite genres, badges and the lists you choose. Never your history unless you tick it.</small></span><input type="checkbox" id="pbOn" ${cur.enabled ? 'checked' : ''}></label>
       <div class="gff pb-fields"><label>Display name<input id="pbName" maxlength="40" value="${esc(cur.name || pr.name || m.name || '')}"></label>
       <label>Bio<textarea id="pbBio" maxlength="300" rows="2" placeholder="A line about what you like to watch">${esc(cur.bio || '')}</textarea></label>
       <div><small class="dim">Favourite genres (up to 8)</small><div class="pb-g">${all.map((g) => `<button type="button" class="pill${picked.has(g.id) ? ' on' : ''}" data-g="${g.id}">${esc(g.name)}</button>`).join('')}</div></div>
+      <div><small class="dim">Privacy — what this link shows</small></div>
       <label class="chk"><input type="checkbox" id="pbList" ${cur.lists?.length || !cur.slug ? 'checked' : ''}> Show My List</label>
       <label class="chk"><input type="checkbox" id="pbHist" ${cur.show_history ? 'checked' : ''}> Show recently watched <span class="dim">(off by default)</span></label>
+      <label class="chk"><input type="checkbox" id="pbStats" ${fl.show_stats ? 'checked' : ''}> Show my rank, watch stats &amp; badges</label>
+      <label class="chk"><input type="checkbox" id="pbWatch" ${fl.show_watching ? 'checked' : ''}> Show what I’m watching now <span class="dim">(off by default · also needs Friends › Share what I’m watching)</span></label>
       <label class="chk"><input type="checkbox" id="pbAv" ${cur.avatar || !cur.slug ? 'checked' : ''}> Show my account avatar</label></div>
       <div class="pb-act"><button class="btn cta sm" id="pbSave" type="button">Save</button>${cur.enabled && cur.slug ? `<a class="btn dark sm" href="/u/${cur.slug}" data-link>View</a><button class="btn dark sm" id="pbCopy" type="button">Copy link</button>` : ''}</div>`;
     $$('[data-g]', box).forEach((b) => (b.onclick = () => { const id = +b.dataset.g; if (picked.has(id)) picked.delete(id); else if (picked.size < 8) picked.add(id); b.classList.toggle('on', picked.has(id)); }));
@@ -328,7 +333,7 @@ export function createCommunity(ctx) {
       try {
         const body = { enabled: $('#pbOn', box).checked, name: $('#pbName', box).value, bio: $('#pbBio', box).value, color: pr.color, genres: [...picked], avatar: $('#pbAv', box).checked ? m.av || null : null,
           lists: $('#pbList', box).checked ? ctx.list().slice(0, 60) : [], show_history: $('#pbHist', box).checked, history: $('#pbHist', box).checked ? ctx.history().slice(0, 30) : [], badges: feat('achievements') ? earned() : [] };
-        const r = await call(`/api/me/public/${pr.id}`, { method: 'PUT', body }); ctx.toast(r.enabled ? 'Public profile saved' : 'Public profile is off'); profileExtras(el);
+        const r = await call(`/api/me/public/${pr.id}`, { method: 'PUT', body }); await call(`/api/me/flair/${pr.id}`, { method: 'PUT', body: { show_stats: $('#pbStats', box).checked, show_watching: $('#pbWatch', box).checked } }).catch(() => {}); ctx.toast(r.enabled ? 'Public profile saved' : 'Public profile is off'); profileExtras(el);
       } catch (err) { ctx.toast(err.message); e.target.disabled = false; }
     };
     const cp = $('#pbCopy', box); if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(`${location.origin}/u/${cur.slug}`); ctx.toast('Link copied'); } catch {} };
