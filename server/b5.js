@@ -141,7 +141,7 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
     if (!feat('publicProfiles') || !sb || !/^[a-z0-9]{10}$/.test(req.params.slug)) throw err(404, 'This profile isn’t public.');
     const r = (await sb(`ghostflix_public_profiles?slug=eq.${req.params.slug}&enabled=is.true&select=slug,name,color,avatar,bio,genres,lists,show_history,history,badges,updated_at,user_id`))?.[0];
     if (!r || (await bannedNow(r.user_id))) throw err(404, 'This profile isn’t public.');
-    delete r.user_id; if (!r.show_history) r.history = [];
+    r.tag = await tagOf(r.user_id); delete r.user_id; if (!r.show_history) r.history = [];
     res.set('Cache-Control', 'no-store').json(r);
   }));
 
@@ -153,8 +153,9 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
     const other = (r) => (r.a === u.id ? r.b : r.a);
     const ids = rows.map(other); const prof = {};
     if (ids.length) for (const s of (await sb(`ghostflix_social?user_id=in.(${ids.join(',')})&select=user_id,display_name,friends_on,share_watching,watching,watching_at,last_seen`)) || []) prof[s.user_id] = s;
+    const tags = await tagsOf(ids);
     const view = (r) => { const p = prof[other(r)] || {}; const fresh = p.watching_at && Date.now() - Date.parse(p.watching_at) < 6 * 3600e3;
-      return { id: other(r), name: p.display_name || 'Viewer', since: r.created_at, watching: r.status === 'accepted' && p.friends_on && p.share_watching && fresh ? { ...p.watching, at: p.watching_at } : null }; };
+      return { id: other(r), name: p.display_name || 'Viewer', tag: tags[other(r)] || null, since: r.created_at, watching: r.status === 'accepted' && p.friends_on && p.share_watching && fresh ? { ...p.watching, at: p.watching_at } : null }; };
     res.set('Cache-Control', 'no-store').json({ on: me.friends_on, code: me.friend_code, share_watching: me.share_watching,
       friends: rows.filter((r) => r.status === 'accepted').map(view), incoming: rows.filter((r) => r.status === 'pending' && r.requested_by !== u.id).map(view), outgoing: rows.filter((r) => r.status === 'pending' && r.requested_by === u.id).map(view) });
   }));
@@ -192,7 +193,7 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
   app.get('/api/chat/:room', wrap(async (req, res) => {
     needFeat('chat'); const u = await needUser(req); const room = req.params.room; if (!ROOM.test(room)) throw err(400, 'Bad room');
     const rows = (await asUser(u.token)(`ghostflix_chat?room=eq.${room}&select=id,user_id,name,body,created_at&order=created_at.desc&limit=60`)) || [];
-    res.set('Cache-Control', 'no-store').json({ me: u.id, messages: rows.reverse() });
+    res.set('Cache-Control', 'no-store').json({ me: u.id, messages: rows.reverse(), tags: await tagsOf([u.id, ...rows.map((m) => m.user_id)]) });
   }));
   app.post('/api/chat/:room', wrap(async (req, res) => {
     needFeat('chat'); const u = await needUser(req); const room = req.params.room; if (!ROOM.test(room)) throw err(400, 'Bad room');
@@ -200,7 +201,7 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
     if (!okChatShort(u.id) || !okChatLong(u.id)) throw err(429, 'You’re sending messages too fast — wait a few seconds.');
     const me = await socialRow(u, true); if (!me.friends_on) throw err(400, 'Turn on Friends to chat with them.');
     const r = (await sb('ghostflix_chat', { method: 'POST', body: { room, user_id: u.id, name: me.display_name || u.name, body }, prefer: 'return=representation' }))?.[0];
-    res.json({ id: r.id, user_id: r.user_id, name: r.name, body: r.body, created_at: r.created_at });
+    res.json({ id: r.id, user_id: r.user_id, name: r.name, body: r.body, created_at: r.created_at, tag: await tagOf(u.id) });
   }));
 
   // ---------------------------------------------------------------- Reports inbox: requests, bug reports, chat reports
@@ -306,6 +307,16 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
     const r = await authAdmin(`users/${uid}`); if (!r.ok) return false; const u = await r.json();
     return (u.identities || []).some((i) => i.provider === 'discord' && adminIds.includes(String(i.id || i.identity_data?.provider_id || i.identity_data?.sub)));
   }
+  // OWNER tag = the ADMIN_DISCORD_ID account only; MODERATOR tag = live ghostflix_roles row (goes when the role is removed).
+  const ownCache = new Map(), roleCache = new Map();
+  async function tagOf(uid) {
+    if (!sb || !UUID.test(uid || '')) return null;
+    let o = ownCache.get(uid); if (!o || Date.now() - o.at > 3600e3) { o = { at: Date.now(), v: adminIds.length ? await isAdminUser(uid).catch(() => false) : false }; ownCache.set(uid, o); }
+    if (o.v) return 'owner';
+    let r = roleCache.get(uid); if (!r || Date.now() - r.at > 60e3) { r = { at: Date.now(), v: (await sb(`ghostflix_roles?select=role&user_id=eq.${uid}`).catch(() => []))?.[0]?.role === 'moderator' }; roleCache.set(uid, r); }
+    return r.v ? 'mod' : null;
+  }
+  const tagsOf = async (ids) => Object.fromEntries(await Promise.all([...new Set(ids)].map(async (id) => [id, await tagOf(id)])));
   admin.post('/users/:uid/ban', wrap(async (req, res) => {
     needSb(); const uid = UUIDp(req.params.uid); if (await isAdminUser(uid)) throw err(400, 'You can’t ban the admin account.');
     await sb('ghostflix_bans?on_conflict=user_id', { method: 'POST', body: { user_id: uid, reason: clip(req.body?.reason, 200), banned_by: 'admin' }, prefer: 'resolution=merge-duplicates,return=minimal' });
@@ -346,6 +357,7 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
     if (!me || !me.discord.some((d) => adminIds.includes(d))) throw err(403, 'Only the GhostFlix admin’s Discord account can change roles. Sign in on the main site with Discord, then try again.');
     if (req.body?.role === 'moderator') await sb('ghostflix_roles?on_conflict=user_id', { method: 'POST', body: { user_id: uid, role: 'moderator', granted_by: `discord:${me.discord[0]}` }, prefer: 'resolution=merge-duplicates,return=minimal' });
     else await sb(`ghostflix_roles?user_id=eq.${uid}`, { method: 'DELETE', prefer: 'return=minimal' });
+    roleCache.delete(uid);
     res.json({ ok: true });
   }));
   // Reports inbox + Flags (admin view of everything)
@@ -498,5 +510,5 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
   app.get('/api/mod/log', wrap(async (req, res) => { const { q } = await needMod(req); res.set('Cache-Control', 'no-store').json({ items: (await q('ghostflix_mod_log?select=action,target,detail,created_at&order=created_at.desc&limit=100')) || [] }); }));
   app.get('/api/mod/title', wrap(async (req, res) => { await needMod(req); const s = String(req.query.q || '').trim().slice(0, 80); res.json(s ? await catalog.search(s, 1) : { results: [] }); }));
 
-  return { hidden, pins, feat, userOf, needUser, bannedNow, sb };
+  return { hidden, pins, feat, userOf, needUser, bannedNow, sb, tagOf };
 }

@@ -47,6 +47,10 @@ export function badgesOf(sum) {
     { id: 'h100', icon: '💯', name: '100 Hours', desc: 'Watch 100 hours (same clock as /flixrank)', got: (s.watch_seconds || 0) >= 360000, prog: Math.min(1, (s.watch_seconds || 0) / 360000) },
   ];
 }
+// OWNER / MODERATOR badges are granted only by tagOf (Discord ID / live mod role), never by stats. The owner gets every item.
+const UNLOCK_ALL = new Set(['owner']); // add 'mod' to also unlock everything for moderators
+const STAFF = { owner: { id: 'owner', icon: '👑', name: 'Owner', desc: 'Creator of GhostFlix', got: true, prog: 0 }, mod: { id: 'mod', icon: '🛡️', name: 'Moderator', desc: 'GhostFlix moderator', got: true, prog: 0 } };
+const badgesFor = (sum, tag) => [...(STAFF[tag] ? [STAFF[tag]] : []), ...badgesOf(sum).map((b) => (UNLOCK_ALL.has(tag) ? { ...b, got: true } : b))];
 const statsOf = (sum) => {
   const g = Object.entries(sum?.genres || {}).map(([id, n]) => ({ id: +id, n: +n })).filter((x) => x.id > 0 && x.n > 0).sort((a, b) => b.n - a.n).slice(0, 6);
   return { month_hours: +((sum?.month_seconds || 0) / 3600).toFixed(1), month_days: (sum?.month_days || []).map((x) => ({ d: x.d, h: +(x.s / 3600).toFixed(2) })), best_day: sum?.best_day ? { d: sum.best_day.d, hours: +(sum.best_day.s / 3600).toFixed(1) } : null, best_run: sum?.best_run || 0, titles: sum?.titles || 0, genres: g };
@@ -59,15 +63,15 @@ function bannerOf(b) {
   return null;
 }
 const DEF = { border: 'none', mascot: null, name_fx: null, seasonal: true, banner: null, tagline: '', fav4: [], show_stats: true, show_watching: false };
-const viewFlair = (f, rank) => {
-  const r = { ...DEF, ...(f || {}) }; delete r.user_id; delete r.updated_at;
+const viewFlair = (f, rank, all) => {
+  const r = { ...DEF, ...(f || {}) }; delete r.user_id; delete r.updated_at; if (all) return r;
   // a lock re-applies if the tier ever drops (e.g. data reset): never show what isn't unlocked
   if (RANK_BORDERS[r.border] != null && RANK_BORDERS[r.border] > rank.tier.i) r.border = 'none';
   if (r.name_fx && !(NAME_FX[r.name_fx] <= rank.tier.i)) r.name_fx = null;
   return r;
 };
 
-export function mountB6(app, { env, wrap, sb, needUser, bannedNow, feat, ROOT, catalog }) {
+export function mountB6(app, { env, wrap, sb, needUser, bannedNow, feat, tagOf = async () => null, ROOT, catalog }) {
   const needFeat = (k) => { if (!feat(k)) throw err(403, 'This feature is switched off right now.'); };
   const needSb = () => { if (!sb) throw err(503, 'Accounts aren’t set up on this server.'); };
   const pidOf = (p) => { const s = String(p || 'main'); if (!/^[a-z0-9]{1,20}$/i.test(s)) throw err(400, 'Bad profile'); return s; };
@@ -86,28 +90,28 @@ export function mountB6(app, { env, wrap, sb, needUser, bannedNow, feat, ROOT, c
 
   // ---------------------------------------------------------------- my rank, stats, badges, flair
   app.get('/api/me/rank', wrap(async (req, res) => {
-    needSb(); const u = await needUser(req); const pid = pidOf(req.query.pid); const s = await summary(u.id, pid);
-    res.set('Cache-Control', 'no-store').json({ rank: rankOf(s), stats: statsOf(s), badges: badgesOf(s), tiers: TIERS });
+    needSb(); const u = await needUser(req); const pid = pidOf(req.query.pid); const [s, tag] = await Promise.all([summary(u.id, pid), tagOf(u.id)]);
+    res.set('Cache-Control', 'no-store').json({ rank: rankOf(s), stats: statsOf(s), badges: badgesFor(s, tag), tiers: TIERS, tag });
   }));
   app.get('/api/me/flair/:pid', wrap(async (req, res) => {
     needSb(); const u = await needUser(req); const pid = pidOf(req.params.pid);
-    const [f, s] = await Promise.all([flairRow(u.id, pid), summary(u.id, pid)]); const rank = rankOf(s);
-    res.set('Cache-Control', 'no-store').json({ flair: viewFlair(f, rank), rank, stats: statsOf(s), badges: badgesOf(s), tiers: TIERS, unlocks: { borders: RANK_BORDERS, name_fx: NAME_FX }, mascots: MASCOTS });
+    const [f, s, tag] = await Promise.all([flairRow(u.id, pid), summary(u.id, pid), tagOf(u.id)]); const rank = rankOf(s); const all = UNLOCK_ALL.has(tag);
+    res.set('Cache-Control', 'no-store').json({ flair: viewFlair(f, rank, all), rank, stats: statsOf(s), badges: badgesFor(s, tag), tiers: TIERS, tag, unlock_all: all, unlocks: { borders: RANK_BORDERS, name_fx: NAME_FX }, mascots: MASCOTS });
   }));
   app.put('/api/me/flair/:pid', wrap(async (req, res) => {
     needSb(); const u = await needUser(req); const pid = pidOf(req.params.pid); const b = req.body || {};
-    const rank = rankOf(await summary(u.id, pid)); const cur = { ...DEF, ...((await flairRow(u.id, pid)) || {}) };
+    const rank = rankOf(await summary(u.id, pid)); const all = UNLOCK_ALL.has(await tagOf(u.id)); const ti = all ? TIERS.length - 1 : rank.tier.i; const cur = { ...DEF, ...((await flairRow(u.id, pid)) || {}) };
     const row = { user_id: u.id, profile_id: pid, updated_at: new Date().toISOString() };
     for (const k of ['border', 'mascot', 'name_fx', 'seasonal', 'banner', 'tagline', 'fav4', 'show_stats', 'show_watching']) row[k] = k in b ? undefined : cur[k];
     if ('border' in b) {
       const v = String(b.border || 'none');
-      if (RANK_BORDERS[v] != null) { if (RANK_BORDERS[v] > rank.tier.i) throw err(403, `That border unlocks at ${TIERS[RANK_BORDERS[v]].emoji} ${TIERS[RANK_BORDERS[v]].name} (${TIERS[RANK_BORDERS[v]].hours} h).`); row.border = v; }
+      if (RANK_BORDERS[v] != null) { if (RANK_BORDERS[v] > ti) throw err(403, `That border unlocks at ${TIERS[RANK_BORDERS[v]].emoji} ${TIERS[RANK_BORDERS[v]].name} (${TIERS[RANK_BORDERS[v]].hours} h).`); row.border = v; }
       else row.border = FREE_BORDERS.has(v) ? v : 'none';
     }
     if ('name_fx' in b) {
       const v = b.name_fx ? String(b.name_fx) : null;
       if (v && NAME_FX[v] == null) throw err(400, 'Unknown name effect');
-      if (v && NAME_FX[v] > rank.tier.i) throw err(403, `That name effect unlocks at ${TIERS[NAME_FX[v]].emoji} ${TIERS[NAME_FX[v]].name} (${TIERS[NAME_FX[v]].hours} h).`);
+      if (v && NAME_FX[v] > ti) throw err(403, `That name effect unlocks at ${TIERS[NAME_FX[v]].emoji} ${TIERS[NAME_FX[v]].name} (${TIERS[NAME_FX[v]].hours} h).`);
       row.name_fx = v;
     }
     if ('mascot' in b) row.mascot = MASCOTS.includes(b.mascot) ? b.mascot : null;
@@ -118,7 +122,7 @@ export function mountB6(app, { env, wrap, sb, needUser, bannedNow, feat, ROOT, c
     if ('show_stats' in b) row.show_stats = !!b.show_stats;
     if ('show_watching' in b) row.show_watching = !!b.show_watching;
     const r = (await sb('ghostflix_flair?on_conflict=user_id,profile_id', { method: 'POST', body: row, prefer: 'resolution=merge-duplicates,return=representation' }))?.[0];
-    res.json({ flair: viewFlair(r, rank), rank });
+    res.json({ flair: viewFlair(r, rank, all), rank });
   }));
 
   // ---------------------------------------------------------------- public profile extras (opt-in only)
@@ -127,9 +131,9 @@ export function mountB6(app, { env, wrap, sb, needUser, bannedNow, feat, ROOT, c
     const p = (await sb(`ghostflix_public_profiles?slug=eq.${slug}&enabled=is.true&select=user_id,profile_id,name,bio,color,avatar`))?.[0];
     if (!p || (await bannedNow(p.user_id))) return null;
     const [f, s, soc] = await Promise.all([flairRow(p.user_id, p.profile_id), summary(p.user_id, p.profile_id), sb(`ghostflix_social?user_id=eq.${p.user_id}&select=friends_on,share_watching,watching,watching_at`).then((x) => x?.[0])]);
-    const rank = rankOf(s); const fl = viewFlair(f, rank);
-    const out = { profile: { name: p.name, bio: p.bio, color: p.color, avatar: p.avatar }, flair: { border: fl.border, mascot: fl.mascot, name_fx: fl.name_fx, seasonal: fl.seasonal, banner: fl.banner, tagline: fl.tagline, fav4: fl.fav4 } };
-    if (fl.show_stats) { out.rank = { ...rank, seconds: undefined, discord: undefined }; out.stats = statsOf(s); out.badges = badgesOf(s); }
+    const tag = await tagOf(p.user_id); const rank = rankOf(s); const fl = viewFlair(f, rank, UNLOCK_ALL.has(tag));
+    const out = { tag, profile: { name: p.name, bio: p.bio, color: p.color, avatar: p.avatar }, flair: { border: fl.border, mascot: fl.mascot, name_fx: fl.name_fx, seasonal: fl.seasonal, banner: fl.banner, tagline: fl.tagline, fav4: fl.fav4 } };
+    if (fl.show_stats) { out.rank = { ...rank, seconds: undefined, discord: undefined }; out.stats = statsOf(s); out.badges = badgesFor(s, tag); }
     if (fl.show_watching && fresh(soc)) out.watching = { title: soc.watching.title, sub: soc.watching.sub, href: soc.watching.href, at: soc.watching_at };
     return out;
   }
@@ -169,7 +173,7 @@ export function mountB6(app, { env, wrap, sb, needUser, bannedNow, feat, ROOT, c
     if (ids.length) {
       const fr = new Set(((await sb(`ghostflix_friends?status=eq.accepted&or=(and(a.eq.${u.id},b.in.(${ids.join(',')})),and(b.eq.${u.id},a.in.(${ids.join(',')})))&select=a,b`)) || []).map((r) => (r.a === u.id ? r.b : r.a)));
       const soc = (await sb(`ghostflix_social?user_id=in.(${[...fr].join(',') || '00000000-0000-0000-0000-000000000000'})&select=user_id,display_name,friends_on,share_watching,watching,watching_at`)) || [];
-      out = soc.map((s) => ({ id: s.user_id, name: s.display_name || 'Viewer', watching: fresh(s) ? { title: s.watching.title, sub: s.watching.sub, href: s.watching.href, at: s.watching_at } : null }));
+      out = await Promise.all(soc.map(async (s) => ({ id: s.user_id, name: s.display_name || 'Viewer', tag: await tagOf(s.user_id), watching: fresh(s) ? { title: s.watching.title, sub: s.watching.sub, href: s.watching.href, at: s.watching_at } : null })));
     }
     res.set('Cache-Control', 'no-store').json({ ids: out.map((x) => x.id), following: out });
   }));

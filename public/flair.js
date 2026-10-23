@@ -3,6 +3,7 @@
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+import { tagHTML } from './community.js?v=20261023zk';
 const keyOf = (c) => `${c.media_type}:${c.id}`;
 
 // Original ghost mascots (drawn here; no third-party characters). viewBox 0 0 64 64, idle animation in CSS.
@@ -94,9 +95,9 @@ export function createFlair(ctx) {
     el.innerHTML = '<div class="set-label">Rank &amp; flair</div><div class="set-group pad"><div class="skel" style="height:120px;border-radius:14px"></div></div>';
     const P = pid(); let d;
     try { d = await call(`/api/me/flair/${encodeURIComponent(P)}`); } catch (e) { el.innerHTML = `<div class="set-label">Rank &amp; flair</div><div class="set-group pad"><p class="dim">${esc(e.message)}</p></div>`; return; }
-    let f = { ...d.flair }; const ti = d.rank.tier.i; const tierAt = (i) => d.tiers[i];
+    let f = { ...d.flair }; const ti = d.unlock_all ? d.tiers.length - 1 : d.rank.tier.i; const tierAt = (i) => d.tiers[i];
     const lockNote = (i) => `🔒 ${tierAt(i).emoji} ${esc(tierAt(i).name)} · ${tierAt(i).hours} h`;
-    const preview = () => `<div class="fl-card" style="${bannerStyle(f.banner)}"><div class="fl-card-in">${avatarHTML({ img: me?.av, name: me?.name, mascot: f.mascot, border: f.border, seasonal: f.seasonal, size: 84 })}<div><b class="fl-pn">${nameHTML(me?.name || 'Viewer', f.name_fx)}</b>${f.tagline ? `<small class="fl-tag">${esc(f.tagline)}</small>` : ''}<span class="fl-chip" style="--tc:${esc(d.rank.tier.color)}">${d.rank.tier.emoji} ${esc(d.rank.tier.name)}</span></div></div></div>`;
+    const preview = () => `<div class="fl-card" style="${bannerStyle(f.banner)}"><div class="fl-card-in">${avatarHTML({ img: me?.av, name: me?.name, mascot: f.mascot, border: f.border, seasonal: f.seasonal, size: 84 })}<div><b class="fl-pn">${nameHTML(me?.name || 'Viewer', f.name_fx)}${tagHTML(d.tag)}</b>${f.tagline ? `<small class="fl-tag">${esc(f.tagline)}</small>` : ''}<span class="fl-chip" style="--tc:${esc(d.rank.tier.color)}">${d.rank.tier.emoji} ${esc(d.rank.tier.name)}</span></div></div></div>`;
     const favs = () => `<div class="fav4 ed">${[0, 1, 2, 3].map((i) => { const c = f.fav4[i]; return c ? `<div class="fv"><img src="${esc(c.poster || '')}" alt=""><span>${esc(c.title)}</span><button type="button" class="fv-x" data-fvx="${i}" aria-label="Remove ${esc(c.title)}">×</button></div>` : `<button type="button" class="fv add" data-fvadd="${i}" aria-label="Add a favourite"><span>＋</span></button>`; }).join('')}</div>`;
     const bannerEd = () => { const b = f.banner; const g = b?.type === 'gradient' ? b : { a: '#2a0845', b: '#e50914', angle: 135 };
       return `<div class="fl-ban"><div class="seg" role="group" aria-label="Banner"><button type="button" class="pill ${!b ? 'on' : ''}" data-ban="none">None</button><button type="button" class="pill ${b?.type === 'gradient' ? 'on' : ''}" data-ban="gradient">Gradient</button><button type="button" class="pill ${b?.type === 'backdrop' ? 'on' : ''}" data-ban="backdrop">Film backdrop</button></div>
@@ -145,11 +146,11 @@ export function createFlair(ctx) {
     const root = $('.pubp', ctx.main); if (!root) return;
     let x; try { x = await ctx.api(`/api/u/${slug}/extra`); } catch { return; }
     if (!root.isConnected) return;
-    const fl = x.flair || {}; const h = $('.pubp-h', root); const name = $('h1', root)?.textContent || '';
+    const fl = x.flair || {}; const h = $('.pubp-h', root); const name = $('h1', root)?.firstChild?.textContent || '';
     if (fl.banner) { const b = document.createElement('div'); b.className = 'fl-banner'; b.setAttribute('style', bannerStyle(fl.banner)); root.prepend(b); root.classList.add('has-ban'); }
     const av = $('.pubp-av', root);
     if (av) { const img = $('img', av)?.getAttribute('src'); const color = getComputedStyle(av).getPropertyValue('--pc').trim(); const w = document.createElement('div'); w.className = 'pubp-fav'; w.innerHTML = avatarHTML({ img, name, color, mascot: fl.mascot, border: fl.border, seasonal: fl.seasonal, size: 96 }); av.replaceWith(w); }
-    const h1 = $('h1', root); if (h1 && fl.name_fx) h1.innerHTML = nameHTML(name, fl.name_fx);
+    const h1 = $('h1', root); if (h1 && fl.name_fx) h1.innerHTML = nameHTML(name, fl.name_fx) + tagHTML(x.tag);
     if (h1 && fl.tagline) h1.insertAdjacentHTML('afterend', `<p class="fl-tag">${esc(fl.tagline)}</p>`);
     if (h1 && x.rank) h1.insertAdjacentHTML('beforebegin', `<span class="fl-chip" style="--tc:${esc(x.rank.tier.color)}">${x.rank.tier.emoji} ${esc(x.rank.tier.name)}</span>`);
     let html = '';
@@ -181,7 +182,7 @@ export function createFlair(ctx) {
       try { await call('/api/me/follow', { method: 'POST', body: { id: b.dataset.fol, on } }); b.setAttribute('aria-pressed', String(on)); b.className = `btn ${on ? 'cta' : 'dark'} sm fl-fol`; b.textContent = on ? '✓ Following' : '+ Follow'; toast(on ? 'Following — you’ll see what they watch on Home (if they share it)' : 'Unfollowed'); } catch (e) { toast(e.message); } }));
     const watching = fo.following.filter((f) => f.watching);
     const box = document.createElement('div'); box.className = 'fl-friends';
-    box.innerHTML = `<h2 class="fr-h">Following <small class="dim">${fo.following.length}</small></h2><div class="set-group pad">${fo.following.length ? (watching.length ? watching.map((f) => `<a class="fl-watch" href="${esc(f.watching.href || '#')}" data-link><b>${esc(f.name)}</b> ▶ ${esc(f.watching.title)}${f.watching.sub ? ` · ${esc(f.watching.sub)}` : ''}</a>`).join('') : '<p class="dim">Nobody you follow is watching right now (or they haven’t turned on sharing).</p>') : '<p class="dim">Follow friends to see what they’re watching on your Home page. Off by default — they only show up if they turned on <b>Share what I’m watching</b>.</p>'}</div>
+    box.innerHTML = `<h2 class="fr-h">Following <small class="dim">${fo.following.length}</small></h2><div class="set-group pad">${fo.following.length ? (watching.length ? watching.map((f) => `<a class="fl-watch" href="${esc(f.watching.href || '#')}" data-link><b>${esc(f.name)}${tagHTML(f.tag)}</b> ▶ ${esc(f.watching.title)}${f.watching.sub ? ` · ${esc(f.watching.sub)}` : ''}</a>`).join('') : '<p class="dim">Nobody you follow is watching right now (or they haven’t turned on sharing).</p>') : '<p class="dim">Follow friends to see what they’re watching on your Home page. Off by default — they only show up if they turned on <b>Share what I’m watching</b>.</p>'}</div>
       <h2 class="fr-h">Shared lists <small class="dim">${sl.lists.length}</small></h2><div class="set-group pad">${sl.lists.map((l) => `<a class="shl" href="/shared/${l.id}" data-link><span class="shl-p">${l.preview.map((p) => `<img src="${esc(p)}" alt="" loading="lazy">`).join('') || '🎬'}</span><span><b>${esc(l.name)}</b><small class="dim">with ${esc(l.friend.name)} · ${l.count} title${l.count === 1 ? '' : 's'}</small></span></a>`).join('')}
       ${fr.friends.length ? `<form class="shl-new" id="shlNew"><input id="shlName" maxlength="60" placeholder="New list, e.g. Movie night 🍿" aria-label="List name" required><select id="shlFr" aria-label="Build it with">${fr.friends.map((f) => `<option value="${esc(f.id)}">with ${esc(f.name)}</option>`).join('')}</select><button class="btn cta sm" type="submit">Create</button></form>` : '<p class="dim">Add a friend to build a list together.</p>'}</div>`;
     const anchor = $$('.fr-h', root).find((t) => /^Your friends/.test(t.textContent)); anchor ? anchor.before(box) : root.append(box);
@@ -209,7 +210,7 @@ export function createFlair(ctx) {
     let fo; try { fo = await call('/api/me/following'); } catch { return; }
     const w = (fo.following || []).filter((f) => f.watching); if (!w.length || !rowsEl.isConnected || after('gf-fwatch')) return;
     const sec = document.createElement('section'); sec.className = 'row fl-home'; sec.dataset.row = 'gf-fwatch';
-    sec.innerHTML = `<div class="row-h"><h2>Friends watching now</h2><a class="more" href="/friends" data-link>Friends ›</a></div><div class="fl-chips">${w.map((f) => `<a class="fl-watch" href="${esc(f.watching.href || '#')}" data-link><b>${esc(f.name)}</b> ▶ ${esc(f.watching.title)}${f.watching.sub ? ` · ${esc(f.watching.sub)}` : ''}</a>`).join('')}</div>`;
+    sec.innerHTML = `<div class="row-h"><h2>Friends watching now</h2><a class="more" href="/friends" data-link>Friends ›</a></div><div class="fl-chips">${w.map((f) => `<a class="fl-watch" href="${esc(f.watching.href || '#')}" data-link><b>${esc(f.name)}${tagHTML(f.tag)}</b> ▶ ${esc(f.watching.title)}${f.watching.sub ? ` · ${esc(f.watching.sub)}` : ''}</a>`).join('')}</div>`;
     const ref = after('continue') || after('mylist'); ref ? ref.after(sec) : rowsEl.prepend(sec);
   }
   return { mountProfile, publicPage, friends, viewShared, homeStrip };

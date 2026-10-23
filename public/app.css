@@ -1098,3 +1098,9 @@ html[data-theme=light] .rkc{background:linear-gradient(135deg,color-mix(in srgb,
 .shl-acts{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 18px}
 .shl-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}.shl-i{position:relative;display:flex;flex-direction:column;gap:4px}.shl-i .card{width:100%}
 @media (max-width:560px){.shl-g{grid-template-columns:repeat(2,1fr)}.fl-card-in{gap:12px}.fl-pn{font-size:17px}}
+/* OWNER / MODERATOR name tags (server-decided) */
+.gf-tag{display:inline-flex;align-items:center;gap:.25em;margin-left:.45em;padding:.12em .55em;border-radius:999px;font:800 .62em/1.4 system-ui,sans-serif;letter-spacing:.08em;vertical-align:middle;white-space:nowrap;-webkit-text-fill-color:currentColor}
+.gf-tag.own{color:#1a1200;background:linear-gradient(135deg,#fff3b0,#ffc83d 45%,#ff9f1c);box-shadow:0 0 10px rgba(255,200,61,.75),0 0 22px rgba(255,159,28,.45);animation:gfTagGlow 2.4s ease-in-out infinite}
+.gf-tag.mod{color:#e9fbff;background:linear-gradient(135deg,#7b2ff7,#00d4ff);box-shadow:0 0 10px rgba(0,212,255,.6),0 0 20px rgba(123,47,247,.45)}
+@keyframes gfTagGlow{50%{box-shadow:0 0 16px rgba(255,200,61,.95),0 0 32px rgba(255,159,28,.6)}}
+@media (prefers-reduced-motion:reduce){.gf-tag.own{animation:none}}

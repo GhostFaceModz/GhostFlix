@@ -7,6 +7,8 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const dayISO = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const ago = (iso) => { const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000); return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)}m ago` : s < 86400 ? `${Math.floor(s / 3600)}h ago` : `${Math.floor(s / 86400)}d ago`; };
+// OWNER / MODERATOR tag next to names — the server decides (Discord ID / live mod role); it's never stored by the client.
+export const tagHTML = (t) => (t === 'owner' ? ' <span class="gf-tag own" title="GhostFlix owner">👑 OWNER</span>' : t === 'mod' ? ' <span class="gf-tag mod" title="GhostFlix moderator">🛡️ MOD</span>' : '');
 const GENRE_BADGE = { 27: ['🎃', 'Horror hound'], 35: ['😂', 'Comedy connoisseur'], 28: ['💥', 'Action hero'], 878: ['🚀', 'Sci-fi voyager'], 18: ['🎭', 'Drama devotee'], 16: ['✏️', 'Animation addict'], 10749: ['💘', 'Hopeless romantic'], 53: ['🔪', 'Thrill seeker'], 99: ['🧠', 'Documentary buff'], 80: ['🕵️', 'Crime solver'], 9648: ['🔎', 'Mystery maven'], 14: ['🧙', 'Fantasy fan'], 10765: ['🛸', 'Sci-fi & fantasy fan'], 10759: ['⚔️', 'Adventure seeker'], 10751: ['🏡', 'Family favourite'] };
 
 export function createCommunity(ctx) {
@@ -231,11 +233,11 @@ export function createCommunity(ctx) {
     wrap.innerHTML = head(`${eps.length ? `<div class="select chat-room"><select aria-label="Chat room"><option value="${base}">Whole ${card.media_type === 'tv' ? 'series' : 'film'}</option>${eps.map((x) => `<option value="${base}:${x.s}:${x.e}"${x.sel ? ' selected' : ''}>S${x.s} E${x.e}</option>`).join('')}</select></div>` : ''}
       <div class="chat-log" aria-live="polite"></div><form class="chat-f"><input maxlength="300" placeholder="Message your friends…" aria-label="Chat message" autocomplete="off"><button class="btn cta sm" type="submit">Send</button></form><p class="dim small">Only friends see your messages. Be kind — reports go to the GhostFlix team.</p>`);
     const log = $('.chat-log', wrap), form = $('.chat-f', wrap), inp = $('input', form), sel = $('select', wrap);
-    let room = sel ? sel.value : base, me = null, chan = null, poll = null; const seen = new Set();
-    const line = (m) => `<div class="cm${m.user_id === me ? ' me' : ''}" data-id="${m.id}"><b>${esc(m.user_id === me ? 'You' : m.name)}</b><span>${esc(m.body)}</span><time>${esc(ago(m.created_at))}</time>${m.user_id !== me ? `<button type="button" class="cm-r" data-report="${m.id}" title="Report this message" aria-label="Report message">⚑</button>` : ''}</div>`;
+    let room = sel ? sel.value : base, me = null, chan = null, poll = null; const seen = new Set(), tags = {};
+    const line = (m) => `<div class="cm${m.user_id === me ? ' me' : ''}" data-id="${m.id}"><b>${esc(m.user_id === me ? 'You' : m.name)}${tagHTML(m.tag || tags[m.user_id])}</b><span>${esc(m.body)}</span><time>${esc(ago(m.created_at))}</time>${m.user_id !== me ? `<button type="button" class="cm-r" data-report="${m.id}" title="Report this message" aria-label="Report message">⚑</button>` : ''}</div>`;
     const add = (m) => { if (seen.has(m.id)) return; seen.add(m.id); const empty = $('.chat-empty', log); empty?.remove(); log.insertAdjacentHTML('beforeend', line(m)); log.scrollTop = log.scrollHeight; };
     async function load() {
-      try { const d = await call(`/api/chat/${room}`); me = d.me; seen.clear(); log.innerHTML = d.messages.length ? '' : '<p class="dim small chat-empty">No messages yet. Say hi 👋</p>'; d.messages.forEach(add); }
+      try { const d = await call(`/api/chat/${room}`); me = d.me; Object.assign(tags, d.tags); seen.clear(); log.innerHTML = d.messages.length ? '' : '<p class="dim small chat-empty">No messages yet. Say hi 👋</p>'; d.messages.forEach(add); }
       catch (e) { log.innerHTML = `<p class="dim small">${esc(e.message)}</p>`; }
     }
     async function subscribe() {
@@ -269,7 +271,7 @@ export function createCommunity(ctx) {
     let d; try { d = await call('/api/friends'); } catch (e) { main.innerHTML = `<div class="page narrow"><h1>Friends</h1><p class="lead">${esc(e.message)}</p></div>`; return; }
     state.social = null;
     const link = `${location.origin}/friends?add=${d.code}`;
-    const person = (f, act) => `<div class="fr"><span class="fr-av" style="--h:${(parseInt(f.id.slice(0, 6), 16) % 360)}">${esc((f.name || '?')[0])}</span><div class="fr-t"><b>${esc(f.name)}</b>${f.watching ? `<a href="${esc(f.watching.href || '#')}" data-link class="fr-w">▶ Watching <b>${esc(f.watching.title)}</b>${f.watching.sub ? ` · ${esc(f.watching.sub)}` : ''} <small>${esc(ago(f.watching.at))}</small></a>` : '<small class="dim">Friend since ' + new Date(f.since).toLocaleDateString() + '</small>'}</div>${act}</div>`;
+    const person = (f, act) => `<div class="fr"><span class="fr-av" style="--h:${(parseInt(f.id.slice(0, 6), 16) % 360)}">${esc((f.name || '?')[0])}</span><div class="fr-t"><b>${esc(f.name)}${tagHTML(f.tag)}</b>${f.watching ? `<a href="${esc(f.watching.href || '#')}" data-link class="fr-w">▶ Watching <b>${esc(f.watching.title)}</b>${f.watching.sub ? ` · ${esc(f.watching.sub)}` : ''} <small>${esc(ago(f.watching.at))}</small></a>` : '<small class="dim">Friend since ' + new Date(f.since).toLocaleDateString() + '</small>'}</div>${act}</div>`;
     main.innerHTML = `<div class="page narrow friends"><h1>Friends</h1><p class="lead">Add friends with a code or link. Totally optional — nobody can find you unless you share your code.</p>
       <div class="set-group pad"><label class="tg"><span><b>Friends</b><small>Let people add you with your code, and chat with friends on title pages</small></span><input type="checkbox" id="frOn" ${d.on ? 'checked' : ''}></label>
       <label class="tg" ${d.on ? '' : 'hidden'}><span><b>Share what I’m watching</b><small>Friends see the title you’re currently watching. Off by default.</small></span><input type="checkbox" id="frShare" ${d.share_watching ? 'checked' : ''}></label></div>
@@ -296,7 +298,7 @@ export function createCommunity(ctx) {
     document.title = `${p.name} — GhostFlix`;
     ctx.remember([...(p.lists || []), ...(p.history || [])]);
     const gn = (p.genres || []).map((g) => ctx.genreName(g)).filter(Boolean);
-    main.innerHTML = `<div class="page pubp"><div class="pubp-h" style="--pc:${esc(p.color)}"><span class="pubp-av">${p.avatar ? `<img src="${esc(p.avatar)}" alt="" referrerpolicy="no-referrer">` : esc((p.name || '?')[0])}</span><div><h1>${esc(p.name)}</h1>${p.bio ? `<p class="lead">${esc(p.bio)}</p>` : ''}${gn.length ? `<div class="pubp-g">${gn.map((g) => `<span class="pill">${esc(g)}</span>`).join('')}</div>` : ''}</div></div>
+    main.innerHTML = `<div class="page pubp"><div class="pubp-h" style="--pc:${esc(p.color)}"><span class="pubp-av">${p.avatar ? `<img src="${esc(p.avatar)}" alt="" referrerpolicy="no-referrer">` : esc((p.name || '?')[0])}</span><div><h1>${esc(p.name)}${tagHTML(p.tag)}</h1>${p.bio ? `<p class="lead">${esc(p.bio)}</p>` : ''}${gn.length ? `<div class="pubp-g">${gn.map((g) => `<span class="pill">${esc(g)}</span>`).join('')}</div>` : ''}</div></div>
       ${p.badges?.length ? `<h2 class="fr-h">Badges</h2>${badgesHTML(p.badges)}` : ''}
       ${p.lists?.length ? `<h2 class="fr-h">Their list</h2><div class="grid">${p.lists.map((c) => ctx.cardHTML(c)).join('')}</div>` : ''}
       ${p.show_history && p.history?.length ? `<h2 class="fr-h">Recently watched</h2><div class="grid">${p.history.map((c) => ctx.cardHTML(c)).join('')}</div>` : ''}

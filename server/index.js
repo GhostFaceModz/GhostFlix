@@ -393,7 +393,7 @@ app.use('/api/admin', admin);
 const B3 = mountB3(app, { env, wrap, cacheFor, isAdmin, admin, store, catalog, markList });
 const STATS = mountStats(app, { env, wrap, admin, catalog, store }); // first-party stats + web push (Stage D)
 const B5 = mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catalog, stats: STATS, siteCfg }); // community, admin tools, moderators (Stages E/F)
-mountB6(app, { env, wrap, sb: B5.sb, needUser: B5.needUser, bannedNow: B5.bannedNow, feat: B5.feat, ROOT, catalog }); // profile flair, rank, stats, follows, shared lists, OG cards (Stage G)
+mountB6(app, { env, wrap, sb: B5.sb, needUser: B5.needUser, bannedNow: B5.bannedNow, feat: B5.feat, tagOf: B5.tagOf, ROOT, catalog }); // profile flair, rank, stats, follows, shared lists, OG cards (Stage G)
 
 admin.get('/state', (req, res) => res.json({ mode: catalog.mode, backend: store.backend, sources: store.allSources().reverse(),
   subs: Object.entries(store.data.subs || {}).flatMap(([key, list]) => list.map(({ vtt, ...t }) => ({ key, ...t, title: store.data.titles[key.split(':').slice(0, 2).join(':')]?.title || key }))), unmatched: store.data.unmatched, jobs: store.data.jobs,
