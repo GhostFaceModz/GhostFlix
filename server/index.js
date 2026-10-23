@@ -9,6 +9,7 @@ import { Store } from './store.js';
 import { parseSource, playerFor, PROVIDER_LABELS, SourceError, validatePattern, fillPattern, cinesrcUrl, vidcoreUrl, isBlocked } from './sources.js';
 import { toVtt } from './subtitles.js';
 import { previewImport, commitImport, runJob, startScheduler } from './importers.js';
+import { mountB3 } from './b3.js';
 
 import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -280,6 +281,8 @@ app.get('/api/play/:type/:id', wrap(async (req, res) => {
   if (!list.length) {
       // Built-in catch-all: CineSrc (cinesrc.st) — free, no key, covers movies + series.
       try { list = [{ ...parseSource(cinesrcUrl(type, id, s, e), env), label: 'CineSrc', origin: 'cinesrc' }]; } catch {}
+      // Offer the existing Vidcore backup as a second choice so the player's source switcher has somewhere to go.
+      if (list.length) try { list.push({ ...parseSource(vidcoreUrl(type, id, s, e), env), label: 'Vidcore', origin: 'vidcore' }); } catch {}
     }
     if (!list.length) {
       // Second backup: Vidcore (vidcore.org) — free, no key, clean iframe to edgeone.dev.
@@ -343,6 +346,7 @@ app.post('/api/admin/logout', (req, res) => { res.setHeader('Set-Cookie', 'gf_ad
 const admin = express.Router();
 admin.use((req, res, next) => (isAdmin(req) ? next() : res.status(401).json({ error: 'Not signed in.' })));
 app.use('/api/admin', admin);
+const B3 = mountB3(app, { env, wrap, cacheFor, isAdmin, admin, store, catalog });
 
 admin.get('/state', (req, res) => res.json({ mode: catalog.mode, backend: store.backend, sources: store.allSources().reverse(),
   subs: Object.entries(store.data.subs || {}).flatMap(([key, list]) => list.map(({ vtt, ...t }) => ({ key, ...t, title: store.data.titles[key.split(':').slice(0, 2).join(':')]?.title || key }))), unmatched: store.data.unmatched, jobs: store.data.jobs,

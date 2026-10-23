@@ -57,6 +57,24 @@ create policy "ghostflix watchlist: own rows" on public.ghostflix_watchlist as p
 revoke all on public.ghostflix_watchlist from anon, authenticated;
 grant delete, insert, references, select, trigger, truncate, update on public.ghostflix_watchlist to authenticated;
 
+-- ===== public.ghostflix_source_reports (player "Report broken"; written/read only by the server via the service key) =====
+create table if not exists public.ghostflix_source_reports (
+  id bigserial primary key,
+  created_at timestamp with time zone not null default now(),
+  media_type text not null check (media_type in ('movie','tv')),
+  tmdb_id bigint not null,
+  season integer,
+  episode integer,
+  source text not null,
+  reason text,
+  device text,
+  visitor text  -- anonymous daily hash, not an IP
+);
+create index if not exists ghostflix_source_reports_created on public.ghostflix_source_reports (created_at desc);
+alter table public.ghostflix_source_reports enable row level security;  -- no policies: anon/authenticated can't touch it
+revoke all on public.ghostflix_source_reports from anon, authenticated;
+revoke all on sequence public.ghostflix_source_reports_id_seq from anon, authenticated;
+
 -- ===== GhostFlix-related functions / triggers =====
 -- None found in the live project (checked public functions and triggers referencing 'ghostflix').
 

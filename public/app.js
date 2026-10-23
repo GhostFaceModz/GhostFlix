@@ -1,8 +1,8 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023i';
-import { applyCosmetics } from './cosmetics.js?v=20261023i';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023i';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023i';
+import { createAuth, ICONS } from './auth.js?v=20261023ja';
+import { applyCosmetics } from './cosmetics.js?v=20261023ja';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023ja';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023ja';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -406,7 +406,8 @@ async function viewWatch(type, id, s, e, r) {
     const startAt = Settings.get().rememberPosition && r !== '0' && same && !prev.done && prev.time >= 30 ? prev.time : 0;
     const approxStart = !!(startAt && prev.approx); // estimated time only: never seek to it
     Continue.put(c, { s: s != null ? +s : null, e: e != null ? +e : null, ...(same && !prev.done ? {} : { time: 0, progress: 0, done: false, next: null, approx: false }) });
-    const pref = Settings.get().preferProvider; const srcs = [...d.sources].sort((a, b) => (b.provider === pref) - (a.provider === pref));
+    const srcs = SrcMem.order(c, d.sources);
+    if (type === 'tv' && !CARDS.get(keyOf(c))?.seasons) api(`/api/title/tv/${id}`).then((t) => { if (t?.seasons) CARDS.set(keyOf(c), { ...(CARDS.get(keyOf(c)) || {}), ...t }); }).catch(() => {});
     openPlayer({ ...srcs[0], title: d.title, sub, all: srcs, card: c, s: s != null ? +s : null, e: e != null ? +e : null, subs: d.subtitles || [], startAt: approxStart ? 0 : startAt, approxStart: approxStart ? startAt : 0, resume: r === '1' });
   } else if (d.trailer) {
     openPlayer({ kind: 'iframe', src: d.trailer.src, title: d.title, sub: d.trailer.name || 'Trailer', trailer: true });
@@ -419,7 +420,10 @@ async function viewWatch(type, id, s, e, r) {
 // common PLAYER_EVENT/MEDIA_DATA shapes too) give exact positions. Others only get season/episode plus an
 // estimate of time spent with the player open (approx).
 const START_PARAMS = [[/(^|\.)cinesrc\.st$/i, 't', { continueprompt: 'false' }]]; // host -> start-time URL param
-function withStart(src, t, direct) {
+const isCineSrc = (src) => { try { return /(^|\.)cinesrc\.st$/i.test(new URL(src).hostname); } catch { return false; } };
+function withStart(src, t, direct, tv) {
+  // Series on CineSrc: our own Up next countdown (+ Still watching?) replaces CineSrc's built-in auto-next.
+  if (tv && isCineSrc(src)) { try { const u = new URL(src); u.searchParams.set('autonext', 'false'); src = u.toString(); } catch {} }
   if (!(t >= 30)) return src;
   try {
     const u = new URL(src); const m = START_PARAMS.find(([re]) => re.test(u.hostname)); if (!m) return src;
@@ -443,27 +447,33 @@ window.addEventListener('message', (ev) => { if (TRACK?.frame && fromFrame(ev.so
 function startTracker(o) {
   const c = o.card; if (!c) return null;
   const prev = Continue.get(c);
-  const runtime = (CARDS.get(keyOf(c)) || c).runtime; // minutes (TMDB); per-episode estimate for series
-  const T = { frame: null, label: '', real: false, s: o.s ?? null, e: o.e ?? null, last: 0, time: 0, dur: 0,
+  const rt = () => T.epRt || (CARDS.get(keyOf(c)) || c).runtime; // minutes (TMDB); per-episode estimate for series (may arrive after open)
+  const T = { frame: null, label: '', real: false, open: 0, ok: false, s: o.s ?? null, e: o.e ?? null, last: 0, time: 0, dur: 0,
     approx: prev?.approx && !prev.done && (prev.s ?? null) == (o.s ?? null) && (prev.e ?? null) == (o.e ?? null) ? prev.time || 0 : 0 };
   const save = (force) => {
     if (!force && Date.now() - T.last < 8000) return; T.last = Date.now();
     const real = T.real && T.dur > 0;
-    const time = real ? T.time : T.approx, dur = real ? T.dur : runtime ? runtime * 60 : 0;
+    const runtime = rt(); const time = real ? T.time : T.approx, dur = real ? T.dur : runtime ? runtime * 60 : 0;
     if (!real && time < 15) return;
     const pct = dur ? Math.min(100, (time / dur) * 100) : null, done = pct != null && pct >= DONE_PCT;
     Continue.put(c, { s: T.s, e: T.e, time: Math.round(time), dur: Math.round(dur) || null, progress: pct != null ? Math.round(pct * 10) / 10 : null, done, next: done && c.media_type === 'tv' ? nextEpisode(c, T.s, T.e) : null, approx: !real, src: T.label || null });
   };
   T.onMsg = (m) => {
-    if (m.type === 'nextepisode' && m.s != null && m.e != null) { save(true); T.s = m.s; T.e = m.e; T.time = 0; T.approx = 0; T.last = 0; Continue.put(c, { s: m.s, e: m.e, time: 0, progress: 0, done: false, next: null }); const sp = $('.player-top span'); if (sp) sp.textContent = `S${m.s} · E${m.e}`; return; }
+    if (m.type === 'nextepisode' && m.s != null && m.e != null) { save(true); T.s = m.s; T.e = m.e; T.time = 0; T.dur = 0; T.approx = 0; T.last = 0; Continue.put(c, { s: m.s, e: m.e, time: 0, progress: 0, done: false, next: null }); const sp = $('.player-top .psub'); if (sp) sp.textContent = `S${m.s} · E${m.e}`; T.onUpdate?.(m); return; }
     if (m.dur > 0) T.dur = m.dur;
-    if (m.time != null && T.dur > 0) { T.real = true; T.time = m.time; }
-    if (m.type === 'ended') { T.real = true; if (T.dur) T.time = T.dur; save(true); return; }
+    if (m.time != null && T.dur > 0) { T.real = true; T.time = m.time; if (m.time > 1) T.worked(); }
+    if (m.type === 'play' || m.type === 'ready') T.worked(m.type === 'play');
+    if (m.type === 'ended') { T.real = true; if (T.dur) T.time = T.dur; save(true); T.onUpdate?.(m); return; }
     if (T.real) save(/^(pause|seeked)$/.test(m.type));
+    T.onUpdate?.(m);
   };
-  T.setFrame = (f, label) => { T.frame = f; T.label = label || ''; };
-  T.video = (v) => { T.real = true; T.time = v.currentTime; T.dur = v.duration || 0; save(v.paused || v.ended); };
-  T.tick = setInterval(() => { if (!T.real && document.visibilityState === 'visible') { T.approx += 5; save(); } }, 5000);
+  // A source "worked" once it reports real playback (or ~3 min open for players that report nothing): remember it for this show.
+  T.worked = (sure = true) => { if (sure && !T.ok && T.label) { T.ok = true; SrcMem.setPref(c, T.label); } };
+  T.setFrame = (f, label) => { T.frame = f; T.label = label || ''; T.ok = false; T.open = 0; };
+  T.video = (v) => { T.real = true; T.time = v.currentTime; T.dur = v.duration || 0; if (v.currentTime > 1) T.worked(); save(v.paused || v.ended); T.onUpdate?.({ type: v.ended ? 'ended' : 'timeupdate' }); };
+  T.tick = setInterval(() => { if (!T.real && document.visibilityState === 'visible') { T.approx += 5; T.open += 5; if (T.open >= 180) T.worked(); save(); } }, 5000);
+  T.finish = () => { if (T.real && T.dur) T.time = T.dur; else if (rt()) T.approx = Math.max(T.approx, rt() * 60); T.last = 0; save(true); };
+  T.runtime = rt;
   T.stop = () => { clearInterval(T.tick); save(true); if (TRACK === T) TRACK = null; };
   return T;
 }
@@ -473,21 +483,49 @@ function closePlayer() {
   const v = $('video', p); if (v) v.pause();
   p.remove(); document.body.style.overflow = '';
 }
+// ---- per-show source memory (per device) -------------------------------------------
+// gf.srcpref {type:id: label} = the source that last played this title; gf.broken {type:id: [labels]} = reported broken (tried last).
+const srcLabel = (x) => x.label || x.providerName || 'Source';
+const SrcMem = {
+  pref: (c) => LS.get('srcpref', {})[keyOf(c)] || null,
+  broken: (c) => LS.get('broken', {})[keyOf(c)] || [],
+  setPref(c, label) {
+    const m = LS.get('srcpref', {}); const k = keyOf(c);
+    if (m[k] !== label) { delete m[k]; m[k] = label; const ks = Object.keys(m); ks.slice(0, Math.max(0, ks.length - 400)).forEach((x) => delete m[x]); LS.set('srcpref', m); }
+    const b = LS.get('broken', {}); if (b[k]?.includes(label)) { b[k] = b[k].filter((x) => x !== label); if (!b[k].length) delete b[k]; LS.set('broken', b); }
+  },
+  addBroken(c, label) {
+    const b = LS.get('broken', {}); const k = keyOf(c); b[k] = [...new Set([...(b[k] || []), label])]; const ks = Object.keys(b); ks.slice(0, Math.max(0, ks.length - 400)).forEach((x) => delete b[x]); LS.set('broken', b);
+    const m = LS.get('srcpref', {}); if (m[k] === label) { delete m[k]; LS.set('srcpref', m); }
+  },
+  order(c, list) {
+    const pref = SrcMem.pref(c), br = SrcMem.broken(c), gp = Settings.get().preferProvider;
+    const score = (x) => (br.includes(srcLabel(x)) ? 100 : 0) - (srcLabel(x) === pref ? 10 : 0) - (x.provider === gp ? 1 : 0);
+    return list.map((x, i) => [x, i]).sort((p, q) => score(p[0]) - score(q[0]) || p[1] - q[1]).map((p) => p[0]);
+  },
+};
+// Up next / Still watching? state: consecutive countdown-driven autoplays this session (any interaction resets it).
+const AutoRun = { get: () => +sessionStorage.getItem('gf.autoplays') || 0, set: (n) => sessionStorage.setItem('gf.autoplays', String(n)) };
+const STILL_AFTER = 3, UPNEXT_SECS = 10;
 function openPlayer(o) {
   closePlayer();
   const el = document.createElement('div'); el.className = 'player'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', `Playing ${o.title}`);
-  const srcBtns = o.all?.length > 1 ? `<div class="srcs">${o.all.map((x, i) => `<button class="pill ${i === 0 ? 'on' : ''}" data-src="${i}">${esc(x.label || x.providerName)}</button>`).join('')}</div>` : '';
-  el.innerHTML = `<div class="player-top"><button class="back" aria-label="Close player"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div><b>${esc(o.title)}</b> <span>${esc(o.sub || '')}</span></div>${srcBtns}</div><div class="player-stage"></div>${o.trailer ? '<div class="trailer-flag">Trailer · full title not available on GhostFlix</div>' : ''}`;
+  const playable = !o.trailer && /^(iframe|video|hls)$/.test(o.kind);
+  const tools = playable && o.card ? `<div class="ptools">${o.all?.length > 1 ? `<div class="srcs" role="group" aria-label="Video source">${o.all.map((x, i) => `<button class="pill" data-src="${i}">${esc(srcLabel(x))}</button>`).join('')}</div>` : ''}<button class="ptool" data-report title="Report this source as broken"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 0h11l-2 4 2 4H5"/></svg><span>Report broken</span></button></div>` : '';
+  el.innerHTML = `<div class="player-top"><button class="back" aria-label="Close player"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div class="ptitle"><b>${esc(o.title)}</b> <span class="psub">${esc(o.sub || '')}</span></div>${tools}</div><div class="player-stage"></div><button class="skipseg" hidden></button><div class="upnext" hidden></div>${o.trailer ? '<div class="trailer-flag">Trailer · full title not available on GhostFlix</div>' : ''}`;
   document.body.appendChild(el); document.body.style.overflow = 'hidden';
   const stage = $('.player-stage', el);
-  TRACK = !o.trailer && /^(iframe|video|hls)$/.test(o.kind) ? startTracker(o) : null;
+  TRACK = playable ? startTracker(o) : null;
+  const T = TRACK;
   if (o.approxStart) toast(`Resuming ${o.sub || ''} — you watched about ${fmtPos(o.approxStart)} last time`);
-  let startAt = o.startAt || 0;
+  let startAt = o.startAt || 0, cur = 0, vid = null;
+  const tv = o.card?.media_type === 'tv' && o.s != null;
+  if (tv && T) api(`/api/tv/${o.card.id}/season/${o.s}`).then((sd) => { const ep = sd.episodes?.find((x) => x.episode_number === o.e); if (ep?.runtime) T.epRt = ep.runtime; }).catch(() => {});
   const mount = async (x) => {
-    stage.innerHTML = '';
+    stage.innerHTML = ''; vid = null;
     if (x.kind === 'iframe') {
-      const f = document.createElement('iframe'); const base = Settings.get().autoplay ? x.src : x.src.replace(/([?&])autoplay=(1|true)&?/, '$1').replace(/[?&]$/, ''); f.src = withStart(base, startAt, o.resume); f.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media'; f.allowFullscreen = true;
-      f.referrerPolicy = 'unsafe-url'; f.title = o.title; const sb = embedSandbox(x.src, x.sandbox); if (sb) f.setAttribute('sandbox', sb); stage.appendChild(f); TRACK?.setFrame(f, x.label || x.providerName);
+      const f = document.createElement('iframe'); const base = Settings.get().autoplay ? x.src : x.src.replace(/([?&])autoplay=(1|true)&?/, '$1').replace(/[?&]$/, ''); f.src = withStart(base, startAt, o.resume, tv); f.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media'; f.allowFullscreen = true;
+      f.referrerPolicy = 'unsafe-url'; f.title = o.title; const sb = embedSandbox(x.src, x.sandbox); if (sb) f.setAttribute('sandbox', sb); stage.appendChild(f); T?.setFrame(f, srcLabel(x));
       if (startAt >= 30 && !supportsStart(x.src)) toast(`Last time you got to ${fmtPos(startAt)} — this player can’t jump there automatically`);
       if (sb && sb !== x.sandbox) {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'pop-flag'; b.innerHTML = 'Pop-ups blocked · Not playing? <u>Allow</u>';
@@ -495,7 +533,7 @@ function openPlayer(o) {
         b.onclick = () => { Settings.set({ blockPopups: false }); toast('Pop-ups allowed · reloading player'); mount(x); }; stage.appendChild(b); setTimeout(() => b.classList.add('gone'), 6000);
       }
     } else if (x.kind === 'video' || x.kind === 'hls') {
-      const v = document.createElement('video'); v.controls = true; v.autoplay = Settings.get().autoplay; v.playsInline = true; v.poster = o.card?.backdrop || ''; v.crossOrigin = 'anonymous';
+      const v = document.createElement('video'); vid = v; v.controls = true; v.autoplay = Settings.get().autoplay; v.playsInline = true; v.poster = o.card?.backdrop || ''; v.crossOrigin = 'anonymous';
       const S = Settings.get().subs;
       (o.subs || []).forEach((t, i) => { const tr = document.createElement('track'); tr.kind = 'subtitles'; tr.src = t.url; tr.srclang = t.lang || 'und'; tr.label = t.label || t.lang || `Track ${i + 1}`; v.appendChild(tr); });
       stage.appendChild(v);
@@ -507,16 +545,100 @@ function openPlayer(o) {
         const h = new hlsLib(); h.loadSource(x.src); h.attachMedia(v);
       } else v.src = x.src;
       if (startAt >= 30) v.addEventListener('loadedmetadata', () => { if (startAt < v.duration - 30) v.currentTime = startAt; }, { once: true });
-      TRACK?.setFrame(null, x.label || x.providerName);
-      ['timeupdate', 'pause', 'ended'].forEach((ev) => v.addEventListener(ev, () => v.duration && TRACK?.video(v)));
+      T?.setFrame(null, srcLabel(x));
+      ['timeupdate', 'pause', 'ended'].forEach((ev) => v.addEventListener(ev, () => v.duration && T?.video(v)));
+      ['seeking', 'volumechange', 'ratechange'].forEach((ev) => v.addEventListener(ev, () => AutoRun.set(0)));
     } else {
       const p = o.providers; const any = p && (p.flatrate?.length || p.free?.length || p.rent?.length || p.buy?.length);
       stage.innerHTML = `<div class="player-msg"><img src="/img/logo.svg" alt="" width="64" style="margin:0 auto;filter:drop-shadow(0 0 14px var(--acc-glow))"><h2>Not streaming on GhostFlix yet</h2><p>There’s no trailer or stream added for this one yet.${any ? ' Check where it’s streaming instead:' : ''}</p>${any ? `<a class="btn glow sm" href="${esc(p.link)}" target="_blank" rel="noopener">Where to watch</a>` : ''}</div>`;
     }
+    const br = o.card ? SrcMem.broken(o.card) : [];
+    $$('[data-src]', el).forEach((b) => { const sx = o.all[+b.dataset.src], on = +b.dataset.src === cur; b.classList.toggle('on', on); b.classList.toggle('bad', br.includes(srcLabel(sx))); b.setAttribute('aria-pressed', String(on)); b.title = br.includes(srcLabel(sx)) ? 'You reported this source as broken' : ''; });
   };
+  const switchTo = (i) => { cur = i; if (T?.real) startAt = T.time; segKey = ''; segs = null; hideSkip(); mount(o.all[i]); };
   mount(o);
-  $$('[data-src]', el).forEach((b) => (b.onclick = () => { $$('[data-src]', el).forEach((x) => x.classList.remove('on')); b.classList.add('on'); if (TRACK?.real) startAt = TRACK.time; mount(o.all[+b.dataset.src]); }));
-  $('.back', el).onclick = () => (location.pathname.startsWith('/watch/') ? (history.length > 1 ? history.back() : go('/')) : closePlayer());
+  $$('[data-src]', el).forEach((b) => (b.onclick = () => { AutoRun.set(0); switchTo(+b.dataset.src); }));
+
+  // ---- Report broken: per device it moves this source to the back for this title, and it's sent to the admin. ----
+  const rep = $('[data-report]', el);
+  if (rep) rep.onclick = () => {
+    const x = o.all?.[cur] || o; const label = srcLabel(x); const c = o.card;
+    SrcMem.addBroken(c, label);
+    fetch('/api/report-source', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: c.media_type, id: c.id, s: T?.s ?? o.s, e: T?.e ?? o.e, source: label }) }).catch(() => {});
+    const br = SrcMem.broken(c); const nextI = (o.all || []).findIndex((y, i) => i !== cur && !br.includes(srcLabel(y)));
+    if (nextI >= 0) { switchTo(nextI); toast(`Thanks — reported ${label}. Trying ${srcLabel(o.all[nextI])}…`); }
+    else { mount(o.all?.[cur] || o); toast(`Thanks — reported ${label}${o.all?.length > 1 ? '. No other working sources for this title right now' : ''}.`); }
+  };
+
+  // ---- Skip intro / recap: only with TheIntroDB timings, only for players that report time and can seek. ----
+  const skipBtn = $('.skipseg', el); let segs = null, segKey = '', skipAt = null;
+  const canSeek = () => !!(vid || (T?.frame && isCineSrc(T.frame.src)));
+  const seekTo = (t) => { if (vid) vid.currentTime = t; else if (T?.frame) try { T.frame.contentWindow.postMessage({ type: 'cinesrc:command', command: 'seek', args: [t] }, new URL(T.frame.src).origin); } catch {} };
+  const sendCmd = (command) => { if (vid) { if (command === 'pause') vid.pause(); return; } try { T.frame.contentWindow.postMessage({ type: 'cinesrc:command', command, args: [] }, new URL(T.frame.src).origin); } catch {} };
+  function hideSkip() { skipBtn.hidden = true; skipAt = null; }
+  skipBtn.onclick = () => { if (skipAt != null) { seekTo(skipAt); AutoRun.set(0); hideSkip(); } };
+  const loadSegs = () => {
+    const k = `${T.s}:${T.e}`; if (segKey === k) return; segKey = k; segs = null;
+    const q = o.card.media_type === 'tv' ? `s=${T.s}&e=${T.e}&` : '';
+    fetch(`/api/segments/${o.card.media_type}/${o.card.id}?${q}dur=${Math.round(T.dur)}`).then((r) => (r.ok ? r.json() : null)).then((d) => { if (segKey === k) segs = d?.reliable === false ? null : d; }).catch(() => {});
+  };
+  const updateSkip = () => {
+    if (!segs || !T.real || !canSeek()) return hideSkip();
+    const t = T.time; let hit = null;
+    for (const [kind, label] of [['recap', 'Skip recap'], ['intro', 'Skip intro']]) for (const g of segs[kind] || []) { const end = g.end ?? null; if (end != null && t >= g.start && t < end - 2) hit = { label, end }; }
+    if (!hit) return hideSkip();
+    skipAt = hit.end; skipBtn.textContent = hit.label; skipBtn.hidden = false;
+  };
+  const creditsAt = () => { const cr = (segs?.credits || []).find((g) => g.end == null || g.end >= T.dur - 90); return cr && cr.start > T.dur * 0.6 ? cr.start : null; };
+
+  // ---- Up next countdown + Still watching? ----
+  const up = $('.upnext', el); let upState = null; // { n, mode, timer }
+  const nextOf = () => (tv && T ? nextEpisode(o.card, T.s, T.e) : null);
+  const hideUp = () => { if (upState?.timer) clearInterval(upState.timer); upState = null; up.hidden = true; up.innerHTML = ''; };
+  const playNext = (n, auto) => {
+    AutoRun.set(auto ? AutoRun.get() + 1 : 0); hideUp(); T?.finish();
+    history.replaceState(history.state, '', watchHref(o.card, n.s, n.e)); render();
+  };
+  const reallyClose = () => (location.pathname.startsWith('/watch/') ? (history.length > 1 ? history.back() : go('/')) : closePlayer());
+  const showStill = (n) => {
+    sendCmd('pause'); upState = { n, mode: 'still' }; up.hidden = false; up.className = 'upnext still';
+    up.innerHTML = `<div class="un-box" role="alertdialog" aria-label="Are you still watching?"><h3>Are you still watching <em>${esc(o.title)}</em>?</h3><p>We’ve played ${STILL_AFTER} episodes in a row without hearing from you.</p><div class="un-btns"><button class="btn glow sm" data-un="go">Continue watching</button><button class="btn ghost sm" data-un="stop">Back to browsing</button></div></div>`;
+    $('[data-un="go"]', up).onclick = () => playNext(n, false); $('[data-un="stop"]', up).onclick = () => { hideUp(); reallyClose(); };
+    $('[data-un="go"]', up).focus();
+  };
+  const showUp = (mode) => {
+    if (upState) return; const n = nextOf(); if (!n) return false;
+    if (mode !== 'close' && AutoRun.get() >= STILL_AFTER) { showStill(n); return true; }
+    let left = UPNEXT_SECS; upState = { n, mode }; up.hidden = false; up.className = 'upnext';
+    up.innerHTML = `<div class="un-box" role="alertdialog" aria-label="Next episode"><div class="un-th"><span class="un-n">${left}</span></div><div class="un-txt"><small>Next episode in <b class="un-s">${left}</b>s</small><h3>S${n.s}:E${n.e}<span class="un-name"></span></h3><div class="un-btns"><button class="btn glow sm" data-un="go">${ICON.play} Play now</button><button class="btn ghost sm" data-un="stop">${mode === 'close' ? 'Close' : 'Cancel'}</button></div></div></div>`;
+    api(`/api/tv/${o.card.id}/season/${n.s}`).then((sd) => { const ep = sd.episodes?.find((x) => x.episode_number === n.e); if (!ep || upState?.n !== n) return; $('.un-name', up).textContent = ` · ${ep.name}`; if (ep.still) $('.un-th', up).style.backgroundImage = `url("${ep.still}")`; }).catch(() => {});
+    $('[data-un="go"]', up).onclick = () => playNext(n, false);
+    $('[data-un="stop"]', up).onclick = () => { AutoRun.set(0); const m = upState?.mode; hideUp(); if (m === 'close') reallyClose(); };
+    upState.timer = setInterval(() => { left--; $$('.un-n,.un-s', up).forEach((x) => (x.textContent = left)); if (left <= 0) playNext(n, true); }, 1000);
+    return true;
+  };
+  let upDone = ''; // episode key the countdown already ran for (Cancel = don't nag again for that episode)
+  if (T && o.card) T.onUpdate = (m) => {
+    if (m.type === 'nextepisode') { hideUp(); hideSkip(); upDone = ''; history.replaceState(history.state, '', watchHref(o.card, T.s, T.e)); return; }
+    if (/^(pause|seeking|seeked|volumechange|ratechange)$/.test(m.type) && T.dur && T.time < T.dur - 30) AutoRun.set(0);
+    if (T.real && T.dur > 60) loadSegs();
+    updateSkip();
+    const k = `${T.s}:${T.e}`;
+    if (tv && T.real && T.dur > 120 && upDone !== k) {
+      const ca = creditsAt(); const left = T.dur - T.time;
+      if (m.type === 'ended' || (ca != null && T.time >= ca) || left <= 20) { if (showUp('end')) upDone = k; }
+    }
+  };
+  // Interacting with our player UI (not the countdown itself) counts as "still here".
+  el.addEventListener('pointerdown', (e) => { if (!e.target.closest('.upnext')) AutoRun.set(0); });
+  el.addEventListener('keydown', () => AutoRun.set(0));
+
+  // Close: players with no events (e.g. Vidcore) get the Up next countdown when closed near the end of an episode.
+  $('.back', el).onclick = () => {
+    if (upState) { hideUp(); return reallyClose(); }
+    if (tv && T && !T.real && T.runtime() && T.approx >= T.runtime() * 60 * 0.8 && showUp('close')) return;
+    reallyClose();
+  };
   el.tabIndex = -1; el.focus();
 }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('.player')) $('.player .back').click(); });
@@ -632,7 +754,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023i').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023ja').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
