@@ -5,7 +5,7 @@
 <title>GhostFlix Admin</title><meta name="robots" content="noindex">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/app.css?v=20261023zn"><link rel="stylesheet" href="/admin.css?v=20261023zn">
+<link rel="stylesheet" href="/app.css?v=20261023zo"><link rel="stylesheet" href="/admin.css?v=20261023zo">
 </head>
 <body class="adm">
 <div class="bg" aria-hidden="true"></div>
@@ -37,6 +37,7 @@
       <a href="#notifications" role="tab" data-tab="notifications">🔔 Notifications</a>
       <a href="#content" role="tab" data-tab="content">🎬 Content</a>
       <a href="#live" role="tab" data-tab="live">📺 Live TV</a>
+      <a href="#promote" role="tab" data-tab="promote">📣 Promote</a>
       <a href="#system" role="tab" data-tab="system">🩺 Health &amp; backup</a>
     </nav>
     <div class="maintbar" id="maintBar" role="alert" hidden><b>🔧 Maintenance mode is ON.</b> Visitors (and moderators) only see the “back soon” page; the API answers 503. You still see the site because you’re signed in as admin. <a href="#site">Turn it off in Site controls</a></div>
@@ -145,6 +146,16 @@
       <section class="panel"><h2><span class="n">🎛️</span>Feature switches</h2>
         <p class="dim small">Turn whole features off site-wide in one tap. Changes apply within a minute (site config cache).</p>
         <div class="fsw" id="featList"><p class="dim">Loading…</p></div><p class="err" id="featErr"></p></section>
+    </div>
+    <div class="tabp" data-pane="promote" role="tabpanel" hidden>
+      <section class="panel"><h2><span class="n">📣</span>Promote GhostFlix <a class="btn ghost sm" href="/promote" target="_blank" rel="noopener" style="margin-left:auto">Open /promote</a></h2>
+        <label for="prReward">Reward text <small>(shown on /promote — max 200 characters)</small></label>
+        <input id="prReward" maxlength="200" placeholder="Bloodstrike Gold rewards for every person who joins with your link">
+        <div class="btns"><button class="btn glow sm" id="prSave" type="button">Save reward text</button><button class="btn ghost sm" id="prDefault" type="button">Use default</button></div><p class="err" id="prErr"></p>
+      </section>
+      <section class="panel"><h2><span class="n">🏆</span>Promoters <span class="dim small" id="prSum" style="margin-left:8px"></span><button class="btn ghost sm" id="prRefresh" type="button" style="margin-left:auto">Refresh</button></h2>
+        <p class="dim small">Everyone who has created a referral link, ranked by sign-ups (new accounts made after opening their link). Clicks are unique visitors per day. Use the Discord name/ID to pay out in the ZenClipsDaily server.</p>
+        <div class="table" id="prList"><p class="dim">Loading…</p></div></section>
     </div>
     <div class="tabp" data-pane="system" role="tabpanel" hidden>
       <section class="panel"><h2><span class="n">🩺</span>Site health <button class="btn ghost sm" id="hRefresh" type="button" style="margin-left:auto">Refresh</button></h2>
@@ -269,6 +280,6 @@
   </div>
 </main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script src="/admin.js?v=20261023zn" type="module"></script>
+<script src="/admin.js?v=20261023zo" type="module"></script>
 </body>
 </html>

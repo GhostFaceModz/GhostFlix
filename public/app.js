@@ -1,12 +1,13 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023zn';
-import { applyCosmetics } from './cosmetics.js?v=20261023zn';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023zn';
-import { createPush } from './push.js?v=20261023zn';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023zn';
-import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023zn';
-import { createCommunity } from './community.js?v=20261023zn';
-import { createFlair } from './flair.js?v=20261023zn';
+import { createAuth, ICONS } from './auth.js?v=20261023zo';
+import { applyCosmetics } from './cosmetics.js?v=20261023zo';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023zo';
+import { createPush } from './push.js?v=20261023zo';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023zo';
+import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023zo';
+import { createCommunity } from './community.js?v=20261023zo';
+import { createFlair } from './flair.js?v=20261023zo';
+import { createPromote } from './promote.js?v=20261023zo';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -30,6 +31,7 @@ const region = () => Settings.get().region || (navigator.language || 'en-US').sp
 // ---- storage (watchlist + continue watching) ----------------------------------
 // list/continue/eps/remind/ratings are per viewer profile (see profiles.js); everything else is per device.
 let PROF = null, PUSH = null, COMM = null, FLAIR = null;
+const PROMO = createPromote({ call: (p, o) => COMM.call(p, o), auth: () => AUTH, toast: (m) => toast(m), main });
 const LS = {
   get(k, d) { try { return JSON.parse(localStorage.getItem(lsKey(k))) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(lsKey(k), JSON.stringify(v)); } catch {} PROF?.touched(k); if (k === 'list' || k === 'continue' || k === 'remind') PUSH?.sync(); },
@@ -950,6 +952,7 @@ const routes = [
   [/^\/collection\/(\d+)$/, (m) => viewCollection(m[1]), 'movies'],
   [/^\/coming-soon$/, () => viewComingSoon(), 'movies'],
   [/^\/friends$/, () => COMM.viewFriends(), 'friends'],
+  [/^\/promote$/, () => PROMO.viewPromote(), 'promote'],
   [/^\/shared\/(\d{1,12})$/, (m) => FLAIR.viewShared(m[1]), 'friends'],
   [/^\/u\/([a-z0-9]{10})$/, (m) => COMM.viewPublic(m[1]).then(() => FLAIR.publicPage(m[1])), null],
   [/^\/request$/, () => { const q = new URLSearchParams(location.search).get('q') || ''; history.replaceState({}, '', '/'); render(); setTimeout(() => COMM.openRequest(q), 300); }, 'home'],
@@ -1066,7 +1069,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023zn').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023zo').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 // Installed app: Android keeps it alive in the background and this single-page app never does a full page load, so a new
@@ -1095,6 +1098,7 @@ installEl.addEventListener('click', async (e) => {
 });
 
 (async () => {
+  PROMO.captureRef(); // ?ref=CODE promoter links
   try { SITE = await api('/api/site-config'); } catch {} applySite();
   // Stage F: admin-scheduled theme applies unless this viewer picked a seasonal look themselves; the switch can turn themes off.
   { const st = Settings.get(); if (SITE.features?.themes === false) applySettings({ ...st, season: 'normal' }); else if (SITE.theme?.name && !st.seasonPicked) applySettings({ ...st, season: SITE.theme.name }); }
@@ -1107,6 +1111,7 @@ installEl.addEventListener('click', async (e) => {
     render();
   } });
   COMM = createCommunity({ api, auth: () => AUTH, toast, rowHTML, wireRows, cardHTML, remember, keyOf, genreName, profiles: Profiles, list: () => List.all(), history: () => Continue.all(), site: () => SITE, genres: () => GENRES, main, afterFriends: () => FLAIR?.friends() });
+  { let was = AUTH.user?.id; AUTH.subscribe((u) => { PROMO.claim(); if (u?.id !== was) { was = u?.id; if (location.pathname === '/promote') { lastPage = null; render(); } } }); setTimeout(() => PROMO.claim(), 2000); }
   FLAIR = createFlair({ api, comm: COMM, auth: () => AUTH, toast, cardHTML, remember, genreName, profiles: Profiles, list: () => List.all(), history: () => Continue.all(), main });
   COMM.applyFeatures(); AUTH.subscribe(() => { COMM.refreshMe(); COMM.pullActivity(); PUSH.refresh(); }); setTimeout(() => { COMM.refreshMe(); COMM.pullActivity(); PUSH.refresh(); }, 1500);
   if (CONFIG.discordUrl) {

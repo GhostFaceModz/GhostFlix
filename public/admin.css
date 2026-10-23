@@ -183,3 +183,6 @@ details.shot{margin-top:8px;font-size:12.5px}details.shot summary{cursor:pointer
 .memd .kv{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid rgba(255,255,255,.07);font-size:13.5px}.memd .kv>span:last-child{text-align:right;overflow-wrap:anywhere}
 .memd h4{margin:14px 0 4px}
 @media (max-width:560px){.memd .kv{flex-direction:column;gap:2px}.memd .kv>span:last-child{text-align:left}}
+/* Promote tab */
+.tr.prow{grid-template-columns:44px 1.6fr 80px 80px 1fr}.tr.prow>div>span,.tr.prow .dim.small b{display:block}
+@media (max-width:640px){.tr.prow{grid-template-columns:40px 1fr 64px 64px}.tr.prow>div:last-child{grid-column:2/-1}}

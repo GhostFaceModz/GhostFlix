@@ -342,7 +342,7 @@ $('#siteSave').onclick = () => {
 $('#siteReset').onclick = () => { if (confirm('Reset site settings to defaults (no banner, auto hero, all sections and rows on, maintenance off)?')) saveSite({ announcement: { on: false, text: '', color: '#5fe3ff' }, hero: null, maintenance: false, sections: {}, rows: {} }); };
 
 // ---- one panel: sticky tab bar (Overview · Stats · Site · Reports · Users · Notifications · Content · Live TV) ----
-const TABS = ['overview', 'stats', 'activity', 'reports', 'users', 'team', 'site', 'schedule', 'features', 'notifications', 'content', 'live', 'system'];
+const TABS = ['overview', 'stats', 'activity', 'reports', 'users', 'team', 'site', 'schedule', 'features', 'notifications', 'content', 'live', 'promote', 'system'];
 const TAB_KEY = 'gf.admin.tab';
 let tabsInit = false;
 function showTab(t, scroll) {
@@ -479,5 +479,6 @@ renderCards();
 
 const F = {};
 window.__gfAdmin = { $, $$, esc, toast, api, box, bars, fmt, F, reloadUsers: () => { UT = 0; loadUsers(UPAGE); }, loadSite };
-await import('/admin-f.js?v=20261023zn');
+await import('/admin-f.js?v=20261023zo');
+await import('/admin-promo.js?v=20261023zo');
 boot();
