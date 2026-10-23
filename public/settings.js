@@ -1,4 +1,5 @@
-import { Cosmetics, BORDER_GROUPS, GLOWS, avatarWrap } from './cosmetics.js?v=20261023tc';
+import { Cosmetics, BORDER_GROUPS, GLOWS, avatarWrap } from './cosmetics.js?v=20261023w1';
+import { SEASONS, HALLOWEEN, applySeason, resolveSeason, SFX } from './season.js?v=20261023w1';
 // GhostFlix settings: stored in localStorage, applied live (theme, accent, cards, subtitles, player prefs).
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const ACCENTS = {
@@ -10,7 +11,7 @@ export const ACCENTS = {
   gold: { name: 'Gold', acc: '#ffd166', acc2: '#f5a524', soft: '#fff1c9' },
 };
 const DEFAULTS = {
-  theme: 'dark', accent: 'ghost', cardLayout: 'poster', cardSize: 'm', motion: 'full',
+  theme: 'dark', accent: 'ghost', cardLayout: 'poster', cardSize: 'm', motion: 'full', season: 'auto', pumpkinCursor: true, spookySounds: false,
   autoplayHero: true, region: '', autoplay: true, rememberPosition: true, preferProvider: 'any', blockPopups: true,
   subs: { enabled: true, lang: 'en', size: 100, color: '#ffffff', bg: 'rgba(0,0,0,.6)', font: 'sans', edge: 'shadow' },
 };
@@ -25,15 +26,20 @@ export function subtitleCSS(s) {
   return `font-size:${(s.size / 100) * 1.25}em;color:${s.color};background:${s.bg};font-family:${FONTS[s.font] || FONTS.sans};${edge}`;
 }
 export function applySettings(s = Settings.get()) {
-  const r = document.documentElement; const a = ACCENTS[s.accent] || ACCENTS.ghost;
+  const r = document.documentElement; const season = applySeason(s); const a = season === 'halloween' ? HALLOWEEN : ACCENTS[s.accent] || ACCENTS.ghost;
   r.dataset.theme = s.theme; r.dataset.cards = s.cardLayout; r.dataset.size = s.cardSize; r.dataset.motion = s.motion;
   r.style.setProperty('--acc', a.acc); r.style.setProperty('--acc2', a.acc2); r.style.setProperty('--acc-soft', a.soft);
   r.style.setProperty('--acc-glow', hexA(a.acc, 0.45));
   let st = document.getElementById('gfSubStyle');
   if (!st) { st = document.createElement('style'); st.id = 'gfSubStyle'; document.head.appendChild(st); }
   st.textContent = `video::cue{${subtitleCSS(s.subs)}}`;
-  document.querySelector('meta[name=theme-color]')?.setAttribute('content', { amoled: '#000000', dim: '#10141d', light: '#f4f6fa' }[s.theme] || '#04050a');
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', season === 'halloween' && s.theme !== 'light' ? (s.theme === 'amoled' ? '#000000' : '#0d0714') : { amoled: '#000000', dim: '#10141d', light: '#f4f6fa' }[s.theme] || '#04050a');
   const tb = document.getElementById('themeTgl'); if (tb) { const l = s.theme === 'light'; tb.setAttribute('aria-label', l ? 'Switch to dark theme' : 'Switch to light theme'); tb.setAttribute('aria-pressed', String(l)); }
+}
+/** Signed in: adopt the seasonal theme saved on the account (Supabase user metadata gf_season). */
+export function seasonFromUser(user) {
+  const v = user?.user_metadata?.gf_season; if (!SEASONS.some(([k]) => k === v) || v === Settings.get().season) return false;
+  Settings.set({ season: v }); return true;
 }
 // Pop-up blocking for third-party embed players: sandbox without allow-popups / allow-top-navigation / allow-modals.
 export const POPUP_SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-presentation allow-orientation-lock allow-pointer-lock';
@@ -85,7 +91,7 @@ export function renderSettings(main, ctx, sub) {
         ${u ? `<a class="tile" href="/settings/account" data-link><span>${m.av ? `<img src="${esc(m.av)}" alt="" referrerpolicy="no-referrer">` : ico('user')}</span>${esc(m.name.split(' ')[0])}</a>` : `<button class="tile" type="button" data-signin><span>${ico('user')}</span>Sign in</button>`}
       </div>
       ${group('Account', [item('/profile', 'user', 'Profile', 'Avatar border and name glow'), item('/settings/account', 'user', 'Account', 'Profile, sync and backup')])}
-      ${group('App', [item('/settings/preferences', 'sliders', 'Preferences', 'Language, content and behavior'), item('/settings/appearance', 'palette', 'Appearance', 'Theme, layout and cards')])}
+      ${group('App', [item('/settings/preferences', 'sliders', 'Preferences', 'Language, content and behavior'), item('/settings/appearance', 'palette', 'Appearance', 'Theme, seasonal look, layout and cards')])}
       ${group('Playback', [item('/settings/player', 'play', 'Player', 'Playback, gestures and sources'), item('/settings/subtitles', 'subs', 'Subtitles', 'Style, size and languages')])}
       ${group('Integrations', [item('/settings/connections', 'link', 'Connections', 'Discord, GitHub')])}
       <p class="set-foot">GhostFlix · legit sources only</p></div>`;
@@ -127,10 +133,17 @@ export function renderSettings(main, ctx, sub) {
   }
   if (sub === 'appearance') {
     const cardPrev = (layout) => `<div class="lay-prev ${layout}">${'<i></i>'.repeat(layout === 'poster' ? 4 : 2)}</div>`;
+    const live = resolveSeason(s.season);
     main.innerHTML = `<div class="page settings">${header('Appearance')}
+      <div class="set-label">Seasonal theme</div><div class="set-group pad">
+        <div class="themes seasons" role="radiogroup" aria-label="Seasonal theme">${SEASONS.map(([v, l]) => `<button type="button" role="radio" aria-checked="${s.season === v}" class="theme season-opt so-${v} ${s.season === v ? 'on' : ''}" data-season="${v}"><span><i></i><b class="so-art" aria-hidden="true"></b></span>${l}</button>`).join('')}</div>
+        <p class="set-note">${s.season === 'auto' ? `Auto shows Halloween for all of October and the normal look the rest of the year. Right now: <b>${live ? 'Halloween' : 'Normal'}</b>.` : s.season === 'halloween' ? 'Halloween look on all year, until you change it.' : 'The normal GhostFlix look, all year.'} ${u ? 'Saved to your account.' : 'Saved on this device.'}</p>
+        ${live ? `${row('Pumpkin cursor', toggle('pumpkinCursor', s.pumpkinCursor), 'Desktop only (mouse pointers)')}
+        ${row('Spooky sounds', toggle('spookySounds', s.spookySounds), 'Soft whoosh on hover and a ghostly “ooo” on click. Off by default.')}` : ''}
+      </div>
       <div class="set-label">Theme</div><div class="set-group pad">
         <div class="themes">${[['dark', 'Dark', '#04050a'], ['amoled', 'AMOLED black', '#000'], ['dim', 'Dim', '#10141d'], ['light', 'Light', '#f4f6fa']].map(([v, l, c]) => `<button type="button" class="theme ${s.theme === v ? 'on' : ''}" data-set="theme" data-val="${v}"><span style="background:${c}"><i></i></span>${l}</button>`).join('')}</div></div>
-      <div class="set-label">Accent colour</div><div class="set-group pad"><div class="swatches">${Object.entries(ACCENTS).map(([k, a]) => `<button type="button" class="sw ${s.accent === k ? 'on' : ''}" data-set="accent" data-val="${k}" title="${a.name}" aria-label="${a.name}" style="--c:${a.acc};--c2:${a.acc2}"></button>`).join('')}</div><small class="dim">${esc((ACCENTS[s.accent] || ACCENTS.ghost).name)}</small></div>
+      <div class="set-label">Accent colour</div><div class="set-group pad">${live ? '<p class="set-note" style="margin:0 0 10px">The Halloween look uses orange and purple; your accent comes back with the normal look.</p>' : ''}<div class="swatches">${Object.entries(ACCENTS).map(([k, a]) => `<button type="button" class="sw ${s.accent === k ? 'on' : ''}" data-set="accent" data-val="${k}" title="${a.name}" aria-label="${a.name}" style="--c:${a.acc};--c2:${a.acc2}"></button>`).join('')}</div><small class="dim">${esc((ACCENTS[s.accent] || ACCENTS.ghost).name)}</small></div>
       <div class="set-label">Cards</div><div class="set-group pad">
         ${row('Layout', `<div class="lays">${[['poster', 'Poster'], ['landscape', 'Landscape']].map(([v, l]) => `<button type="button" class="lay ${s.cardLayout === v ? 'on' : ''}" data-set="cardLayout" data-val="${v}">${cardPrev(v)}${l}</button>`).join('')}</div>`)}
         ${row('Card size', seg('cardSize', [['s', 'Small'], ['m', 'Medium'], ['l', 'Large']], s.cardSize))}
@@ -139,7 +152,13 @@ export function renderSettings(main, ctx, sub) {
       <div class="set-label">Preview</div><div class="set-group pad prev-row" id="appPrev"></div>
       <p style="margin-top:18px"><button class="btn dark sm" type="button" id="resetApp">Reset appearance</button></p></div>`;
     ctx.previewCards(main.querySelector('#appPrev'));
+    const saveSeason = async (v) => {
+      Settings.set({ season: v }); re();
+      if (u) { try { const cl = await ctx.auth.client(); const { error } = await cl.auth.updateUser({ data: { gf_season: v } }); if (error) throw error; } catch { ctx.toast('Saved on this device (account sync failed)'); } }
+    };
+    main.querySelectorAll('[data-season]').forEach((b) => (b.onclick = () => saveSeason(b.dataset.season)));
     main.querySelector('#resetApp').onclick = () => { Settings.set({ theme: 'dark', accent: 'ghost', cardLayout: 'poster', cardSize: 'm', motion: 'full' }); re(); };
+    const st = main.querySelector('[data-tgl="spookySounds"]'); if (st) st.addEventListener('click', () => { if (!Settings.get().spookySounds) SFX.preview(); }); // runs before the toggle flips it
     wire(re); return;
   }
   if (sub === 'subtitles') {

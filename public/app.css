@@ -835,3 +835,65 @@ html[data-theme=light] .pav.add{border-color:rgba(0,0,0,.25)}
   .btn.icon.rt{width:42px;height:42px;font-size:17px}
   .prof-chip small{display:none}
 }
+/* ---- Seasonal: Halloween (html[data-season=halloween], set by theme-init.js / season.js; Settings › Appearance) ---- */
+html[data-season=halloween]{--acc:#ff7a18;--acc2:#9b5cff;--acc-soft:#ffd9b8;--acc-glow:rgba(255,122,24,.45);--hw-purple:155,92,255;--hw-orange:255,122,24}
+html[data-season=halloween]:not([data-theme=light]){--bg:#07050c}
+html[data-season=halloween]:not([data-theme=amoled]):not([data-theme=light]),html[data-season=halloween]:not([data-theme=amoled]):not([data-theme=light]) body{background:#07050c}
+html[data-season=halloween] body{background:transparent!important}
+html[data-season=halloween]:not([data-theme=light]) .bg{background:radial-gradient(1100px 620px at 85% -12%,rgba(var(--hw-purple),.16),transparent 62%),radial-gradient(900px 520px at -8% 108%,rgba(var(--hw-orange),.10),transparent 60%),radial-gradient(700px 400px at 50% 120%,rgba(var(--hw-purple),.08),transparent 70%),#07050c}
+html[data-season=halloween][data-theme=amoled] .bg{background:radial-gradient(1100px 620px at 85% -12%,rgba(var(--hw-purple),.10),transparent 62%),radial-gradient(900px 520px at -8% 108%,rgba(var(--hw-orange),.06),transparent 60%),#000}
+html[data-season=halloween][data-theme=light] .bg{background:radial-gradient(1100px 620px at 85% -12%,rgba(var(--hw-purple),.10),transparent 62%),radial-gradient(900px 520px at -8% 108%,rgba(var(--hw-orange),.10),transparent 60%),#f6f2fa}
+/* logo: glow around the (unchanged) melt video / picture + an orange ghost icon glow */
+html[data-season=halloween]:not([data-theme=light]) .logo .wm-img{filter:drop-shadow(0 0 5px rgba(var(--hw-orange),.55)) drop-shadow(0 0 14px rgba(var(--hw-purple),.38))}
+html[data-season=halloween] .logo img{filter:drop-shadow(0 0 7px rgba(var(--hw-orange),.6)) drop-shadow(0 0 16px rgba(var(--hw-purple),.35))}
+html[data-season=halloween] #nav>.logo:hover img{filter:drop-shadow(0 0 11px rgba(var(--hw-orange),.85))}
+html[data-season=halloween] .logo .name em{text-shadow:0 0 14px rgba(var(--hw-orange),.5)}
+/* hard-coded cyan touches → orange/purple */
+html[data-season=halloween] .card:hover .pic{box-shadow:0 18px 50px rgba(0,0,0,.7),0 0 0 1px rgba(var(--hw-orange),.45),0 0 30px rgba(var(--hw-purple),.35)}
+html[data-season=halloween] .search:focus-within{border-color:rgba(var(--hw-orange),.5);box-shadow:0 0 0 4px rgba(var(--hw-orange),.12)}
+html[data-season=halloween] .chip.acc{border-color:rgba(var(--hw-orange),.45);background:rgba(var(--hw-orange),.1)}
+html[data-season=halloween] .pill:hover,html[data-season=halloween] .burger:hover,html[data-season=halloween] .theme-tgl:hover{border-color:rgba(var(--hw-orange),.5)}
+html[data-season=halloween] .ep:hover,html[data-season=halloween] .drawer-nav a.on,html[data-season=halloween] .set-item .si,html[data-season=halloween] .btn.remind.on{background:rgba(var(--hw-orange),.12)}
+html[data-season=halloween] .btn.cta:hover,html[data-season=halloween] .acct-btn:hover{box-shadow:0 0 0 4px rgba(var(--hw-orange),.2)}
+html[data-season=halloween] .dock a.on{background:var(--acc-soft);box-shadow:0 0 18px rgba(var(--hw-orange),.4)}
+html[data-season=halloween] .row[data-row=halloween] .row-h h2{display:flex;align-items:center;gap:10px}
+html[data-season=halloween] .row[data-row=halloween] .row-h h2::before{content:"";width:24px;height:24px;flex:0 0 auto;background:url("/favicon-halloween.svg?v=1") center/contain no-repeat;filter:drop-shadow(0 0 6px rgba(var(--hw-orange),.6))}
+/* floating ghosts & bats: inside the fixed .bg layer (behind everything, never clickable) */
+#gfSpooky{position:absolute;inset:0;overflow:hidden;pointer-events:none;contain:strict}
+#gfSpooky i{position:absolute;display:block;background:center/contain no-repeat;will-change:transform;pointer-events:none}
+#gfSpooky .sp-ghost{width:64px;height:64px;opacity:.09;filter:blur(.4px) drop-shadow(0 0 12px rgba(255,255,255,.5));background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='white' d='M32 4C20 4 14 13 14 24v32l6-5 6 5 6-5 6 5 6-5 6 5V24C50 13 44 4 32 4Z'/%3E%3Cellipse cx='25.5' cy='25' rx='3.4' ry='5' fill='%2307050c'/%3E%3Cellipse cx='38.5' cy='25' rx='3.4' ry='5' fill='%2307050c'/%3E%3C/svg%3E");animation:gfSpDrift 70s linear infinite,gfSpBob 6s ease-in-out infinite alternate}
+#gfSpooky .sp-bat{width:46px;height:23px;opacity:.22;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 32'%3E%3Cpath fill='%238a5cd6' d='M32 9l-2-4-1 5c-2-1-5-1-7 1-3-5-10-8-20-6 5 2 8 6 8 11 3-2 7-2 9 1 1-3 5-4 8-2 1 2 3 4 5 4s4-2 5-4c3-2 7-1 8 2 2-3 6-3 9-1 0-5 3-9 8-11-10-2-17 1-20 6-2-2-5-2-7-1l-1-5Z'/%3E%3C/svg%3E");animation:gfSpFly 46s linear infinite,gfSpFlap .5s ease-in-out infinite alternate}
+#gfSpooky .g1{top:18%;left:0;animation-duration:84s,7s;animation-delay:-20s,0s}
+#gfSpooky .g2{top:56%;left:0;width:48px;height:48px;opacity:.07;animation-duration:110s,5.5s;animation-delay:-70s,-2s;animation-direction:reverse,alternate}
+#gfSpooky .g3{top:80%;left:0;width:40px;height:40px;opacity:.06;animation-duration:96s,6.5s;animation-delay:-45s,-1s}
+#gfSpooky .b1{top:12%;left:0;animation-duration:38s,.45s;animation-delay:-8s,0s}
+#gfSpooky .b2{top:26%;left:0;width:32px;height:16px;animation-duration:52s,.38s;animation-delay:-30s,-.2s}
+#gfSpooky .b3{top:44%;left:0;width:28px;height:14px;opacity:.16;animation-duration:64s,.42s;animation-delay:-50s,-.1s;animation-direction:reverse,alternate}
+#gfSpooky .b4{top:68%;left:0;width:36px;height:18px;opacity:.18;animation-duration:58s,.5s;animation-delay:-12s,-.3s}
+@keyframes gfSpDrift{from{translate:-120px 0}to{translate:calc(100vw + 120px) -40px}}
+@keyframes gfSpBob{from{transform:translateY(-10px) rotate(-4deg)}to{transform:translateY(12px) rotate(4deg)}}
+@keyframes gfSpFly{0%{translate:-80px 0}25%{translate:25vw -30px}50%{translate:50vw 10px}75%{translate:75vw -20px}100%{translate:calc(100vw + 80px) 0}}
+@keyframes gfSpFlap{from{transform:scaleY(1)}to{transform:scaleY(.45)}}
+@media (max-width:760px){#gfSpooky .g3,#gfSpooky .b3,#gfSpooky .b4{display:none}#gfSpooky .sp-ghost{width:44px;height:44px}}
+html[data-theme=light] #gfSpooky .sp-ghost{filter:none;opacity:.12;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath fill='%239b5cff' d='M32 4C20 4 14 13 14 24v32l6-5 6 5 6-5 6 5 6-5 6 5V24C50 13 44 4 32 4Z'/%3E%3C/svg%3E")}
+/* reduced motion (OS setting or Settings › Motion › Reduced): no drifting, just a couple of faint static shapes */
+html[data-motion=reduced] #gfSpooky i{animation:none!important}
+html[data-motion=reduced] #gfSpooky .g1{translate:8vw 0}html[data-motion=reduced] #gfSpooky .b1{translate:70vw 0}
+html[data-motion=reduced] #gfSpooky .g2,html[data-motion=reduced] #gfSpooky .g3,html[data-motion=reduced] #gfSpooky .b2,html[data-motion=reduced] #gfSpooky .b3,html[data-motion=reduced] #gfSpooky .b4{display:none}
+@media (prefers-reduced-motion:reduce){#gfSpooky i{animation:none!important}#gfSpooky .g1{translate:8vw 0}#gfSpooky .b1{translate:70vw 0}#gfSpooky .g2,#gfSpooky .g3,#gfSpooky .b2,#gfSpooky .b3,#gfSpooky .b4{display:none}}
+/* pumpkin cursor: desktop (fine pointer) only, links/buttons keep the hand */
+@media (hover:hover) and (pointer:fine){html[data-season=halloween][data-pumpkin] body{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M12 6c-1.2-.8-3-.9-4.5-.2C4.2 6.7 3 9.6 3 13s1.6 6.6 4.6 7.6c1.6.5 3.1.3 4.4-.4 1.3.7 2.8.9 4.4.4C19.4 19.6 21 16.4 21 13s-1.2-6.3-4.5-7.2C15 5.1 13.2 5.2 12 6Z' fill='%23ff7a18' stroke='%233a1a05' stroke-width='1.2'/%3E%3Cpath d='M12 6.2V3.2c0-.6.5-1 1.1-.9l1.4.3' fill='none' stroke='%232f6b2a' stroke-width='1.8' stroke-linecap='round'/%3E%3Cpath d='M8 11.5l1.6-1.6 1.2 1.6zM13.2 11.5l1.2-1.6 1.6 1.6zM8 15c1.3 1.4 2.6 1.9 4 1.9s2.7-.5 4-1.9' fill='%233a1a05' stroke='%233a1a05' stroke-width='.9' stroke-linejoin='round'/%3E%3C/svg%3E") 6 6,auto}}
+/* settings: seasonal theme picker */
+.seasons .season-opt span{display:block;background:#04050a}
+.seasons .so-art{position:absolute;inset:0;background:center/42% no-repeat}
+.seasons .so-normal span{background:radial-gradient(120% 90% at 85% 0,rgba(42,140,255,.25),transparent 60%),#04050a}
+.seasons .so-normal i{background:linear-gradient(90deg,#5fe3ff,#2a8cff)}
+.seasons .so-normal .so-art{background-image:url("/favicon.svg");background-size:30%;background-position:50% 32%}
+.seasons .so-halloween span{background:radial-gradient(120% 90% at 85% 0,rgba(155,92,255,.4),transparent 60%),radial-gradient(90% 70% at 0 100%,rgba(255,122,24,.25),transparent 60%),#07050c}
+.seasons .so-halloween i{background:linear-gradient(90deg,#ff7a18,#9b5cff)}
+.seasons .so-halloween .so-art{background-image:url("/favicon-halloween.svg?v=1");background-size:30%;background-position:50% 32%}
+.seasons .so-auto span{background:linear-gradient(115deg,#04050a 0 49.5%,#07050c 50.5%),#04050a}
+.seasons .so-auto span::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 70% at 100% 0,rgba(155,92,255,.35),transparent 60%)}
+.seasons .so-auto i{background:linear-gradient(90deg,#5fe3ff 0 50%,#ff7a18 50%)}
+.seasons .so-auto .so-art{background:url("/favicon.svg") 28% 32%/22% no-repeat,url("/favicon-halloween.svg?v=1") 72% 32%/22% no-repeat}
+.seasons .season-opt.on span{border-color:var(--acc)}

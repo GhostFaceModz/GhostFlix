@@ -10,6 +10,7 @@ import { parseSource, playerFor, PROVIDER_LABELS, SourceError, validatePattern, 
 import { toVtt } from './subtitles.js';
 import { previewImport, commitImport, runJob, startScheduler } from './importers.js';
 import { mountB3 } from './b3.js';
+import { mountSeasonal } from './seasonal.js';
 import { mountKids } from './b3-kids.js';
 
 import { fileURLToPath } from 'node:url';
@@ -165,6 +166,7 @@ const patternFor = (type) => store.data.patterns?.[type] || '';
 const withPlayable = (c) => (c ? { ...c, playable: catalog.mode === 'demo' ? (!!c.demo || store.hasAnyFor(c.media_type, c.id) || !!patternFor(c.media_type)) : true } : c);
 const markList = (d) => ({ ...d, results: d.results.map(withPlayable) });
 const KIDS = mountKids(app, { env, wrap, cacheFor, catalog }); // kids-profile filter: must come before the catalog routes
+mountSeasonal(app, { wrap, cacheFor, catalog, mark: withPlayable }); // Halloween Horror Picks (home row while the Halloween look is on)
 
 // ---- public API ---------------------------------------------------------------
 app.get('/api/config', (req, res) => res.json({ mode: catalog.mode, hasTmdbKey: !!env.TMDB_API_KEY, adminEnabled: !!env.ADMIN_PASSWORD, region: env.TMDB_REGION || 'US',

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- GhostFlix ghost, Halloween edition: same silhouette as favicon.svg with a pumpkin treatment (orange, stem, carved grin). -->
+  <defs><linearGradient id="p" x1="20" y1="6" x2="44" y2="60" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#ffb35c"/><stop offset=".55" stop-color="#ff7a18"/><stop offset="1" stop-color="#d4570b"/></linearGradient></defs>
+  <path d="M32 6.5V2.6c0-1 .8-1.6 1.8-1.4l2.6.6" fill="none" stroke="#2f6b2a" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M32 4.5C21.6 4.5 16.6 12.8 16.6 23c0 6.6-1.6 10.4-4.8 13.6C8.6 39.7 5.4 42 5.6 45.4c.1 2.4 2.2 3.6 4.6 3.4-.6 3.2 1.4 6.2 4.9 6.5 2 3 5.6 3.9 8.8 2 2.6 2.6 5.6 2.7 8.1.6 2.5 2.1 5.5 2 8.1-.6 3.2 1.9 6.8 1 8.8-2 3.5-.3 5.5-3.3 4.9-6.5 2.4.2 4.5-1 4.6-3.4.2-3.4-3-5.7-6.2-8.8-3.2-3.2-4.8-7-4.8-13.6C47.4 12.8 42.4 4.5 32 4.5Z" fill="url(#p)" stroke="#1a0b1f" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M21.5 25.5 26 17l4.5 8.5ZM33.5 25.5 38 17l4.5 8.5Z" fill="#1a0b1f" stroke="#1a0b1f" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M22 31.5l3 2.6 2.5-2.2 2.2 2.4 2.3-2.4 2.3 2.4 2.2-2.4 2.5 2.2 3-2.6c-1.2 5-5.2 8-10 8s-8.8-3-10-8Z" fill="#1a0b1f"/>
+</svg>

@@ -1,9 +1,9 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023tc';
-import { applyCosmetics } from './cosmetics.js?v=20261023tc';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023tc';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023tc';
-import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023tc';
+import { createAuth, ICONS } from './auth.js?v=20261023w1';
+import { applyCosmetics } from './cosmetics.js?v=20261023w1';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023w1';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023w1';
+import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023w1';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -317,6 +317,12 @@ async function viewHome() {
     if (!rowsEl.isConnected) return;
     for (const b of bs.reverse()) { const tmp = document.createElement('div'); tmp.innerHTML = rowHTML({ id: 'because-' + b.seed.id, title: b.title, items: b.items }); const ref = after('mylist') || after('continue'); ref ? ref.after(tmp.firstElementChild) : rowsEl.prepend(tmp.firstElementChild); }
     if (bs.length) wireRows(rowsEl);
+  }).catch(() => {});
+  // Seasonal row: while the Halloween look is on (Settings › Appearance › Seasonal theme). Kids profiles get family-friendly picks.
+  if (document.documentElement.dataset.season === 'halloween' && SITE.rows?.halloween !== false) api('/api/seasonal/halloween').then((h) => {
+    if (!rowsEl.isConnected || !h.items?.length || after('halloween')) return;
+    const tmp = document.createElement('div'); tmp.innerHTML = rowHTML({ id: 'halloween', title: h.title, items: h.items, link: h.kids == null ? '/genre/movie/27' : '' }, 'halloween');
+    const ref = after('mylist') || after('continue'); ref ? ref.after(tmp.firstElementChild) : rowsEl.prepend(tmp.firstElementChild); wireRows(rowsEl);
   }).catch(() => {});
   if (kids) return;
   if (SITE.rows?.collections !== false) api('/api/collections/featured').then((c) => {
@@ -990,7 +996,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023tc').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023w1').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);

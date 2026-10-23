@@ -3,6 +3,8 @@
   try {
     var s = JSON.parse(localStorage.getItem('gf.settings') || '{}') || {};
     var r = document.documentElement; r.dataset.theme = s.theme || 'dark';
+    // Seasonal look (auto = Halloween all October): set before paint so there is no cyan flash.
+    if (s.season === 'halloween' || (s.season !== 'normal' && new Date().getMonth() === 9)) r.dataset.season = 'halloween';
     var c = JSON.parse(localStorage.getItem('gf.cosmetics') || '{}') || {};
     if (c.glow) { r.style.setProperty('--gf-glow', c.glow); r.dataset.glow = '1'; }
   } catch (e) { document.documentElement.dataset.theme = 'dark'; }
