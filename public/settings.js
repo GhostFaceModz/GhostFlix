@@ -1,5 +1,5 @@
-import { Cosmetics, BORDER_GROUPS, GLOWS, avatarWrap } from './cosmetics.js?v=20261023zm';
-import { SEASONS, HALLOWEEN, applySeason, resolveSeason, SFX } from './season.js?v=20261023zm';
+import { Cosmetics, BORDER_GROUPS, GLOWS, avatarWrap } from './cosmetics.js?v=20261023zn';
+import { SEASONS, HALLOWEEN, applySeason, resolveSeason, SFX } from './season.js?v=20261023zn';
 // GhostFlix settings: stored in localStorage, applied live (theme, accent, cards, subtitles, player prefs).
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const ACCENTS = {
@@ -58,6 +58,7 @@ const I = {
   tv: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/>',
   profiles: '<rect x="7" y="3" width="14" height="14" rx="2"/><path d="M3 7v12a2 2 0 0 0 2 2h12"/><circle cx="14" cy="8.5" r="2.2"/><path d="M10.5 14c.6-1.6 2-2.5 3.5-2.5s2.9.9 3.5 2.5"/>',
   user: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.5 18.5c1.2-2.1 3.2-3.2 5.5-3.2s4.3 1.1 5.5 3.2"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.6 2H4.4Z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>',
   sliders: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
   palette: '<path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3Z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10" cy="7" r="1.2"/><circle cx="15" cy="7" r="1.2"/>',
   play: '<circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l5.5-3.5z"/>',
@@ -92,7 +93,7 @@ export function renderSettings(main, ctx, sub) {
         ${u ? `<a class="tile" href="/settings/account" data-link><span>${m.av ? `<img src="${esc(m.av)}" alt="" referrerpolicy="no-referrer">` : ico('user')}</span>${esc(m.name.split(' ')[0])}</a>` : `<button class="tile" type="button" data-signin><span>${ico('user')}</span>Sign in</button>`}
       </div>
       ${group('Account', [...(u ? [item('/profile', 'user', 'My profile', 'Your public profile page').replace('data-link', 'data-link data-my-profile')] : []), item('/profile', 'user', 'Profile', 'Avatar border and name glow'), item('/settings/account', 'user', 'Account', 'Profile, sync and backup')])}
-      ${group('App', [item('/settings/preferences', 'sliders', 'Preferences', 'Language, content and behavior'), item('/settings/appearance', 'palette', 'Appearance', 'Theme, seasonal look, layout and cards')])}
+      ${group('App', [item('/settings/preferences', 'sliders', 'Preferences', 'Language, content and behavior'), item('/settings/preferences?to=notifications', 'bell', 'Notifications', 'Off, in GhostFlix only, or on your phone'), item('/settings/appearance', 'palette', 'Appearance', 'Theme, seasonal look, layout and cards')])}
       ${group('Playback', [item('/settings/player', 'play', 'Player', 'Playback, gestures and sources'), item('/settings/subtitles', 'subs', 'Subtitles', 'Style, size and languages')])}
       ${group('Integrations', [item('/settings/connections', 'link', 'Connections', 'Discord, GitHub')])}
       <p class="set-foot">GhostFlix · a personal project · no video files hosted here</p></div>`;
@@ -195,9 +196,10 @@ export function renderSettings(main, ctx, sub) {
     main.innerHTML = `<div class="page settings">${header('Preferences')}<div class="set-group pad">
       ${row('Where-to-watch region', `<div class="select"><select data-sel="region">${[['', 'Auto (browser)'], ['US', 'United States'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['IE', 'Ireland'], ['DE', 'Germany'], ['FR', 'France'], ['ES', 'Spain'], ['IT', 'Italy'], ['NL', 'Netherlands'], ['IN', 'India'], ['BR', 'Brazil'], ['MX', 'Mexico']].map(([v, l]) => `<option value="${v}" ${s.region === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`, 'Used for streaming-service availability')}
       ${row('Auto-rotate hero', toggle('autoplayHero', s.autoplayHero), 'Cycle featured titles on Home')}
-    </div><div class="set-label">Notifications</div><div class="set-group pad" id="pushBox"></div><p style="margin-top:18px"><button class="btn dark sm" type="button" id="resetAll">Reset all settings</button></p></div>`;
+    </div><div class="set-label" id="notifications">Notifications</div><div class="set-group pad" id="pushBox"></div><p style="margin-top:18px"><button class="btn dark sm" type="button" id="resetAll">Reset all settings</button></p></div>`;
     main.querySelector('#resetAll').onclick = () => { if (confirm('Reset all settings to defaults?')) { Settings.reset(); re(); } };
     ctx.push?.mount(main.querySelector('#pushBox'));
+    if (/[?&]to=notifications/.test(location.search)) setTimeout(() => { const n = main.querySelector('#notifications'); if (n) scrollTo({ top: n.getBoundingClientRect().top + scrollY - 90 }); }, 60);
     wire(re); return;
   }
   if (sub === 'account') {

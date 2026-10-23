@@ -1,5 +1,5 @@
 // GhostFlix service worker: app shell only. Registered as /sw.js?v=<asset version>, so each deploy gets a fresh cache.
-const VERSION = new URL(self.location).searchParams.get('v') || 'dev'; // shell build 20261023zm (My profile menu item, installed app reloads on new build, mood row last; player bar above the embedded player + fullscreen button; Normal default theme + background animation; footer wording; Halloween season theme; resume, genres, people search; offline page; up next, source switcher, skip intro)
+const VERSION = new URL(self.location).searchParams.get('v') || 'dev'; // shell build 20261023zn (notifications choice: off / in GhostFlix / phone, header bell; My profile menu item, installed app reloads on new build, mood row last; player bar above the embedded player + fullscreen button; Normal default theme + background animation; footer wording; Halloween season theme; resume, genres, people search; offline page; up next, source switcher, skip intro)
 const CACHE = `gf-shell-${VERSION}`;
 const OFFLINE = '/offline.html';
 const SHELL = ['/', OFFLINE, '/manifest.webmanifest', '/favicon.svg', '/img/logo.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png'];

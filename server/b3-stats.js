@@ -13,7 +13,7 @@ const LIVE_MS = 2 * 60 * 1000;
 const clip = (v, n) => (v == null ? null : String(v).slice(0, n) || null);
 const today = () => new Date().toISOString().slice(0, 10);
 
-export function mountStats(app, { env, wrap, admin, catalog, store }) {
+export function mountStats(app, { env, wrap, admin, catalog, store, user = async () => null }) {
   const pushFeat = () => store?.data?.site?.features?.push !== false; // admin feature switch (Stage F)
   const sb = supa(env);
   const secret = env.SESSION_SECRET || env.SUPABASE_SERVICE_KEY || 'gf-stats';
@@ -94,7 +94,12 @@ export function mountStats(app, { env, wrap, admin, catalog, store }) {
     if (!/^https:\/\//.test(endpoint) || endpoint.length > 1000 || !p256dh || p256dh.length > 200 || !auth || auth.length > 100) return res.status(400).json({ error: 'Bad subscription' });
     const row = { endpoint, p256dh, auth, ua: deviceOf(req.get('user-agent')), updated_at: new Date().toISOString(), fails: 0,
       shows: cleanList(req.body.shows, showOf, 200), reminders: cleanList(req.body.reminders, remOf, 200) };
+    // Signed in: tie this device to the account + profile, so the per-profile notification choice applies to it.
+    const u = await user(req).catch(() => null), pid = PID.test(req.body?.profile || '') ? req.body.profile : 'main';
+    if (u) Object.assign(row, { user_id: u.id, profile_id: pid });
     await sb('ghostflix_push_subs?on_conflict=endpoint', { method: 'POST', body: row, prefer: 'resolution=merge-duplicates,return=minimal' });
+    // Someone who already had phone notifications keeps them: no saved choice yet -> 'push'.
+    if (u) await sb('ghostflix_notify_prefs?on_conflict=user_id,profile_id', { method: 'POST', body: { user_id: u.id, profile_id: pid, mode: 'push' }, prefer: 'resolution=ignore-duplicates,return=minimal' }).catch(() => {});
     res.json({ ok: true, shows: row.shows.length, reminders: row.reminders.length });
   }));
   app.post('/api/push/unsubscribe', wrap(async (req, res) => {
@@ -112,17 +117,65 @@ export function mountStats(app, { env, wrap, admin, catalog, store }) {
     catch (e) { res.status(502).json({ error: `Push service said ${e.statusCode || 'no'}` }); }
   }));
 
+  // ---------------------------------------------------------------- notification choice per account + profile
+  // mode: 'off' | 'site' (bell + toasts in GhostFlix only) | 'push' (phone/desktop notifications too). The list is a
+  // snapshot of the profile's My List (+ series in Continue watching) that the hourly job checks against TMDB.
+  const PID = /^[a-z0-9]{1,20}$/;
+  const itemOf = (x) => { const id = parseInt(x?.id, 10); return id > 0 && (x.t === 'movie' || x.t === 'tv') ? { t: x.t, id, title: clip(x.title, 120) || '' } : null; };
+  async function who(req) {
+    if (!sb) throw Object.assign(new Error('Accounts aren’t set up on this server.'), { status: 503 });
+    const u = await user(req).catch(() => null); if (!u) throw Object.assign(new Error('Sign in first.'), { status: 401 });
+    if (!PID.test(req.params.pid || '')) throw Object.assign(new Error('Bad profile'), { status: 400 });
+    return { u, pid: req.params.pid, q: `user_id=eq.${u.id}&profile_id=eq.${req.params.pid}` };
+  }
+  app.get('/api/notify/:pid', wrap(async (req, res) => {
+    const w = await who(req);
+    const p = (await sb(`ghostflix_notify_prefs?${w.q}&select=mode`))?.[0];
+    res.set('Cache-Control', 'no-store').json({ mode: p?.mode || 'off', saved: !!p, push: pushOn && pushFeat() });
+  }));
+  app.put('/api/notify/:pid', wrap(async (req, res) => {
+    const w = await who(req);
+    const mode = String(req.body?.mode || ''); if (!['off', 'site', 'push'].includes(mode)) return res.status(400).json({ error: 'Bad choice' });
+    const body = { user_id: w.u.id, profile_id: w.pid, mode, updated_at: new Date().toISOString() };
+    if (Array.isArray(req.body?.list)) body.list = cleanList(req.body.list, itemOf, 300);
+    await sb('ghostflix_notify_prefs?on_conflict=user_id,profile_id', { method: 'POST', body, prefer: 'resolution=merge-duplicates,return=minimal' });
+    res.json({ ok: true, mode });
+  }));
+  app.post('/api/notify/:pid/list', wrap(async (req, res) => {
+    const w = await who(req);
+    await sb(`ghostflix_notify_prefs?${w.q}`, { method: 'PATCH', body: { list: cleanList(req.body?.list, itemOf, 300), updated_at: new Date().toISOString() }, prefer: 'return=minimal' });
+    res.json({ ok: true });
+  }));
+  // In-app list: this profile's notes + admin broadcasts sent since the choice was made. Nothing when the choice is 'off'.
+  app.get('/api/notify/:pid/notes', wrap(async (req, res) => {
+    const w = await who(req);
+    res.set('Cache-Control', 'no-store');
+    const p = (await sb(`ghostflix_notify_prefs?${w.q}&select=mode,read_at,created_at`))?.[0];
+    if (!p || p.mode === 'off') return res.json({ mode: p?.mode || 'off', notes: [], unread: 0 });
+    const notes = (await sb(`ghostflix_notes?select=id,title,body,url,created_at&or=(and(user_id.eq.${w.u.id},profile_id.eq.${w.pid}),and(user_id.is.null,created_at.gte.${encodeURIComponent(p.created_at)}))&order=created_at.desc&limit=30`)) || [];
+    res.json({ mode: p.mode, notes, unread: notes.filter((n) => !p.read_at || n.created_at > p.read_at).length });
+  }));
+  app.post('/api/notify/:pid/read', wrap(async (req, res) => {
+    const w = await who(req);
+    await sb(`ghostflix_notify_prefs?${w.q}`, { method: 'PATCH', body: { read_at: new Date().toISOString() }, prefer: 'return=minimal' });
+    res.json({ ok: true });
+  }));
+  const allPrefs = async () => { const m = new Map(); for (const p of (await sb('ghostflix_notify_prefs?select=*&limit=5000').catch(() => [])) || []) m.set(`${p.user_id}|${p.profile_id}`, p); return m; };
+  const prefOf = (prefs, r) => (r.user_id ? prefs.get(`${r.user_id}|${r.profile_id || 'main'}`) : null);
+
   const send = (row, payload) => webpush.sendNotification({ endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } }, JSON.stringify(payload), { TTL: 86400, urgency: 'normal' });
   const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
   let running = null;
   let runSender = async function () {
-    if (!pushOn) return { skipped: 'not configured' };
-    if (!pushFeat()) return { skipped: 'switched off' };
+    if (!sb) return { skipped: 'not configured' };
     if (running) return running;
     running = (async () => {
-      const rows = (await sb('ghostflix_push_subs?select=*&order=updated_at.desc&limit=2000')) || [];
-      const ids = [...new Set(rows.flatMap((r) => (r.shows || []).map((s) => s.id)))].slice(0, 400);
-      const eps = new Map(); const t = today(), since = daysAgo(2);
+      const doPush = pushOn && pushFeat();
+      const rows = doPush ? (await sb('ghostflix_push_subs?select=*&order=updated_at.desc&limit=2000')) || [] : [];
+      const prefs = await allPrefs(), people = [...prefs.values()].filter((p) => p.mode !== 'off' && (p.list || []).length);
+      const ids = [...new Set([...rows.flatMap((r) => (r.shows || []).map((s) => s.id)), ...people.flatMap((p) => p.list.filter((x) => x.t === 'tv').map((x) => x.id))])].slice(0, 600);
+      const mids = [...new Set(people.flatMap((p) => p.list.filter((x) => x.t === 'movie').map((x) => x.id)))].slice(0, 400);
+      const eps = new Map(), rel = new Map(); const t = today(), since = daysAgo(2);
       for (const id of ids) {
         try {
           const d = await catalog.get(`/tv/${id}`, {}, 3 * 3600e3);
@@ -130,10 +183,15 @@ export function mountStats(app, { env, wrap, admin, catalog, store }) {
           if (ep?.air_date && ep.air_date >= since && ep.air_date <= t) eps.set(id, { name: d.name, s: ep.season_number, e: ep.episode_number, ep: ep.name, code: `${ep.season_number}x${ep.episode_number}` });
         } catch {}
       }
+      // Films in someone's list that came out in the last week.
+      for (const id of mids) { try { const d = await catalog.get(`/movie/${id}`, {}, 6 * 3600e3); if (d?.release_date && d.release_date >= daysAgo(7) && d.release_date <= t) rel.set(id, { name: d.title, date: d.release_date }); } catch {} }
       let sent = 0, removed = 0, failed = 0;
+      const drop = (r) => sb(`ghostflix_push_subs?endpoint=eq.${encodeURIComponent(r.endpoint)}`, { method: 'DELETE', prefer: 'return=minimal' }).catch(() => {});
       for (const r of rows) {
+        // A device tied to an account follows that profile's choice; its My List alerts come from the per-profile pass below.
+        const pf = prefOf(prefs, r); if (pf && pf.mode !== 'push') continue;
         const was = r.sent || {}, now = { ...was }, notes = [];
-        for (const s of r.shows || []) { const x = eps.get(s.id); if (x && was[`tv:${s.id}`] !== x.code) { now[`tv:${s.id}`] = x.code; notes.push({ title: `New episode: ${x.name}`, body: `S${x.s} · E${x.e}${x.ep ? ` “${x.ep}”` : ''} is out now`, url: `/title/tv/${s.id}`, tag: `tv-${s.id}` }); } }
+        if (!pf) for (const s of r.shows || []) { const x = eps.get(s.id); if (x && was[`tv:${s.id}`] !== x.code) { now[`tv:${s.id}`] = x.code; notes.push({ title: `New episode: ${x.name}`, body: `S${x.s} · E${x.e}${x.ep ? ` “${x.ep}”` : ''} is out now`, url: `/title/tv/${s.id}`, tag: `tv-${s.id}` }); } }
         for (const m of r.reminders || []) { if (m.date <= t && m.date >= daysAgo(14) && !was[`r:${m.key}`]) { now[`r:${m.key}`] = m.date; notes.push({ title: `${m.title || 'A title you’re waiting for'} is out`, body: m.label ? `${m.label} — tap to take a look` : 'Your reminder: it’s out now', url: `/title/${m.key.replace(':', '/')}`, tag: `r-${m.key}` }); } }
         if (!notes.length) continue;
         const batch = notes.length > 3 ? [{ title: `${notes.length} things you follow are out`, body: notes.slice(0, 4).map((n) => n.title.replace(/^New episode: /, '')).join(', '), url: '/coming-soon', tag: 'gf-batch' }] : notes;
@@ -142,11 +200,43 @@ export function mountStats(app, { env, wrap, admin, catalog, store }) {
           await sb(`ghostflix_push_subs?endpoint=eq.${encodeURIComponent(r.endpoint)}`, { method: 'PATCH', body: { sent: now, last_sent_at: new Date().toISOString(), fails: 0 }, prefer: 'return=minimal' });
         } catch (e) {
           console.warn('[push] send failed', e.statusCode || '');
-          if (e.statusCode === 410 || (e.statusCode === 404 && (r.fails || 0) >= 2)) { removed++; await sb(`ghostflix_push_subs?endpoint=eq.${encodeURIComponent(r.endpoint)}`, { method: 'DELETE', prefer: 'return=minimal' }).catch(() => {}); }
+          if (e.statusCode === 410 || (e.statusCode === 404 && (r.fails || 0) >= 2)) { removed++; await drop(r); }
           else { failed++; await sb(`ghostflix_push_subs?endpoint=eq.${encodeURIComponent(r.endpoint)}`, { method: 'PATCH', body: { fails: (r.fails || 0) + 1 }, prefer: 'return=minimal' }).catch(() => {}); }
         }
       }
-      return { subs: rows.length, shows: ids.length, newEpisodes: eps.size, sent, removed, failed };
+      // Per account + profile: My List (+ series in Continue watching) -> new episode / new season, film out now, featured on
+      // GhostFlix. Each thing once (the `sent` map), at most DAILY a day per profile (extra ones fold into one summary).
+      const DAILY = 3, pins = new Set((store?.data?.content?.pins || []).map((p) => p.key));
+      let inapp = 0;
+      for (const p of people) {
+        const was = p.sent || {}, now = {}, notes = [];
+        for (const x of p.list) {
+          const k = `${x.t}:${x.id}`;
+          if (pins.has(k)) now[`f:${k}`] = 1;
+          if (pins.has(k) && !was[`f:${k}`]) notes.push({ name: x.title, title: `From your list: ${x.title || 'a title'} is featured on GhostFlix`, body: 'It’s in the spotlight on Home right now — tap to watch', url: `/title/${x.t}/${x.id}`, tag: `f-${k}` });
+          if (x.t === 'tv') {
+            const e = eps.get(x.id); if (was[`tv:${x.id}`]) now[`tv:${x.id}`] = was[`tv:${x.id}`];
+            if (e && was[`tv:${x.id}`] !== e.code) { now[`tv:${x.id}`] = e.code; notes.push(e.e === 1 ? { name: e.name, title: `New season: ${e.name}`, body: `Season ${e.s} has started${e.ep ? ` — “${e.ep}”` : ''}`, url: `/title/tv/${x.id}`, tag: `tv-${x.id}` } : { name: e.name, title: `New episode: ${e.name}`, body: `S${e.s} · E${e.e}${e.ep ? ` “${e.ep}”` : ''} is out now`, url: `/title/tv/${x.id}`, tag: `tv-${x.id}` }); }
+          } else {
+            const m = rel.get(x.id); if (was[`m:${x.id}`]) now[`m:${x.id}`] = 1;
+            if (m && !was[`m:${x.id}`]) { now[`m:${x.id}`] = 1; notes.push({ name: m.name || x.title, title: `Out now: ${m.name || x.title}`, body: 'A film from your list has just been released', url: `/title/movie/${x.id}`, tag: `m-${x.id}` }); }
+          }
+        }
+        const used = p.day === t ? p.day_count || 0 : 0, room = DAILY - used;
+        if (!notes.length || room <= 0) { if (Object.keys(now).length !== Object.keys(was).length && !notes.length) await sb(`ghostflix_notify_prefs?user_id=eq.${p.user_id}&profile_id=eq.${p.profile_id}`, { method: 'PATCH', body: { sent: now }, prefer: 'return=minimal' }).catch(() => {}); continue; }
+        const out = notes.length <= room ? notes : [...notes.slice(0, room - 1), { title: `${notes.length - room + 1} more from your list`, body: notes.slice(room - 1, room + 3).map((n) => n.name || 'a title').join(', '), url: '/my-list', tag: 'gf-batch' }];
+        try {
+          await sb('ghostflix_notes', { method: 'POST', body: out.map((n) => ({ user_id: p.user_id, profile_id: p.profile_id, title: clip(n.title, 200), body: clip(n.body, 300) || '', url: n.url, tag: n.tag })), prefer: 'return=minimal' });
+          await sb(`ghostflix_notify_prefs?user_id=eq.${p.user_id}&profile_id=eq.${p.profile_id}`, { method: 'PATCH', body: { sent: now, day: t, day_count: used + out.length }, prefer: 'return=minimal' });
+          inapp += out.length;
+        } catch (e) { console.warn('[notify] save failed', e.message); continue; }
+        if (p.mode !== 'push' || !doPush) continue;
+        for (const r of rows.filter((r) => r.user_id === p.user_id && (r.profile_id || 'main') === p.profile_id)) {
+          for (const n of out) { try { await send(r, n); sent++; } catch (e) { failed++; if (e.statusCode === 410 || e.statusCode === 404) { removed++; await drop(r); break; } } }
+        }
+      }
+      sb(`ghostflix_notes?created_at=lt.${daysAgo(30)}`, { method: 'DELETE', prefer: 'return=minimal' }).catch(() => {});
+      return { subs: rows.length, profiles: people.length, shows: ids.length, films: mids.length, newEpisodes: eps.size, released: rel.size, inapp, sent, removed, failed };
     })().finally(() => { setTimeout(() => { running = null; }, 0); });
     return running;
   };
@@ -157,7 +247,7 @@ export function mountStats(app, { env, wrap, admin, catalog, store }) {
     if (!ok) return res.status(401).json({ error: 'Unauthorized' });
     res.json(await runSender());
   }));
-  if (pushOn) setInterval(() => runSender().then((r) => r.sent && console.log('[push] sent', r.sent)).catch((e) => console.warn('[push] run failed', e.message)), 3600e3).unref();
+  if (sb) setInterval(() => runSender().then((r) => r.sent && console.log('[push] sent', r.sent)).catch((e) => console.warn('[push] run failed', e.message)), 3600e3).unref();
   // ---------------------------------------------------------------- admin: notifications + users tabs
   let lastRun = null;
   const track = (by) => (r) => { lastRun = { at: new Date().toISOString(), by, result: r }; return r; };
@@ -206,9 +296,12 @@ export function mountStats(app, { env, wrap, admin, catalog, store }) {
   }));
   // One-off message to every subscriber (admin-approved announcements). 410/404 subscriptions are removed.
   async function broadcast(payload) {
+    // Shown in the bell for everyone whose choice isn't 'off'; pushed only to devices whose profile chose phone notifications.
+    if (sb) await sb('ghostflix_notes', { method: 'POST', body: { title: clip(payload.title, 200), body: clip(payload.body, 300) || '', url: payload.url || '/', tag: payload.tag || '' }, prefer: 'return=minimal' }).catch(() => {});
     if (!pushOn) return { skipped: 'not configured' };
     if (!pushFeat()) return { skipped: 'push switched off' };
-    const rows = (await sb('ghostflix_push_subs?select=endpoint,p256dh,auth&limit=5000')) || [];
+    const prefs = await allPrefs();
+    const rows = ((await sb('ghostflix_push_subs?select=endpoint,p256dh,auth,user_id,profile_id&limit=5000')) || []).filter((r) => { const p = prefOf(prefs, r); return !p || p.mode === 'push'; });
     let sent = 0, failed = 0;
     for (const r of rows) {
       try { await send(r, payload); sent++; }

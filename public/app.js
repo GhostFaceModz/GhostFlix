@@ -1,12 +1,12 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023zm';
-import { applyCosmetics } from './cosmetics.js?v=20261023zm';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023zm';
-import { createPush } from './push.js?v=20261023zm';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023zm';
-import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023zm';
-import { createCommunity } from './community.js?v=20261023zm';
-import { createFlair } from './flair.js?v=20261023zm';
+import { createAuth, ICONS } from './auth.js?v=20261023zn';
+import { applyCosmetics } from './cosmetics.js?v=20261023zn';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023zn';
+import { createPush } from './push.js?v=20261023zn';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023zn';
+import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023zn';
+import { createCommunity } from './community.js?v=20261023zn';
+import { createFlair } from './flair.js?v=20261023zn';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -560,6 +560,10 @@ const pageCtx = () => ({ because, main, api, rowHTML, wireRows, history: Continu
 PUSH = createPush({
   shows: () => { const seen = new Set(), out = []; for (const c of [...List.all(), ...Continue.all().slice(0, 60)]) if (c.media_type === 'tv' && !seen.has(c.id)) { seen.add(c.id); out.push({ id: c.id, title: c.title }); } return out.slice(0, 200); },
   reminders: () => Remind.all().filter((x) => x.date).map((x) => ({ key: keyOf(x), title: x.title, date: x.date, label: x.label || '' })).slice(0, 200),
+  // Notifications choice (Off / In GhostFlix only / Phone) per account + profile; the server checks this list hourly.
+  list: () => { const seen = new Set(), out = []; for (const c of [...List.all(), ...Continue.all().slice(0, 60).filter((c) => c.media_type === 'tv')]) { const k = keyOf(c); if ((c.media_type === 'movie' || c.media_type === 'tv') && !seen.has(k)) { seen.add(k); out.push({ t: c.media_type, id: c.id, title: c.title }); } } return out.slice(0, 300); },
+  profile: () => Profiles.active().id, signedIn: () => !!AUTH?.user,
+  call: (path, o) => (COMM ? COMM.call(path, o) : fetch(path, { method: o?.method || 'GET', headers: { 'Content-Type': 'application/json' }, body: o?.body ? JSON.stringify(o.body) : undefined }).then(async (r) => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `Error ${r.status}`); return j; })),
   toast,
 });
 const settingsCtx = () => ({ community: COMM, flair: FLAIR, push: PUSH, auth: AUTH, list: List, history: Continue, toast, watchHref, previewCards, discordUrl: CONFIG.discordUrl, githubUrl: CONFIG.githubUrl });
@@ -1062,7 +1066,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023zm').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023zn').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 // Installed app: Android keeps it alive in the background and this single-page app never does a full page load, so a new
@@ -1098,13 +1102,13 @@ installEl.addEventListener('click', async (e) => {
   AUTH = createAuth({ config: CONFIG, list: MainList, history: MainHistory, toast, onChange: () => { if (/^\/(my-list|settings.*)?$/.test(location.pathname)) { lastPage = null; render(); } } });
   AUTH.subscribe(() => { if (/^\/(settings|profile$)/.test(location.pathname)) { lastPage = null; render(); } });
   PROF = createProfiles({ auth: AUTH, toast, onSwitch: () => {
-    PREF.clear(); lastPage = null; PUSH.sync();
+    PREF.clear(); lastPage = null; PUSH.sync(); PUSH.refresh();
     if (Profiles.kidsAge() != null && /^\/(live|party|profiles|settings\/profiles)(\/|$)/.test(location.pathname)) history.replaceState({}, '', '/');
     render();
   } });
   COMM = createCommunity({ api, auth: () => AUTH, toast, rowHTML, wireRows, cardHTML, remember, keyOf, genreName, profiles: Profiles, list: () => List.all(), history: () => Continue.all(), site: () => SITE, genres: () => GENRES, main, afterFriends: () => FLAIR?.friends() });
   FLAIR = createFlair({ api, comm: COMM, auth: () => AUTH, toast, cardHTML, remember, genreName, profiles: Profiles, list: () => List.all(), history: () => Continue.all(), main });
-  COMM.applyFeatures(); AUTH.subscribe(() => { COMM.refreshMe(); COMM.pullActivity(); }); setTimeout(() => { COMM.refreshMe(); COMM.pullActivity(); }, 1500);
+  COMM.applyFeatures(); AUTH.subscribe(() => { COMM.refreshMe(); COMM.pullActivity(); PUSH.refresh(); }); setTimeout(() => { COMM.refreshMe(); COMM.pullActivity(); PUSH.refresh(); }, 1500);
   if (CONFIG.discordUrl) {
     const b = $('#dcBubble'); b.href = CONFIG.discordUrl; b.innerHTML = ICONS.DISCORD_SVG; b.hidden = false; $('#drawerDiscord').href = CONFIG.discordUrl;
   } else $('#drawerDiscord').hidden = true;
