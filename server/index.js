@@ -120,7 +120,7 @@ const AUTH = env.SUPABASE_PUBLIC_URL && env.SUPABASE_ANON_KEY ? {
   url: env.SUPABASE_PUBLIC_URL.replace(/\/$/, ''), key: env.SUPABASE_ANON_KEY,
   google: env.AUTH_GOOGLE !== 'false', discord: env.AUTH_DISCORD !== 'false',
 } : null;
-const DISCORD_URL = env.DISCORD_INVITE_URL || 'https://discord.gg/zenclipsdaily-arc-raiders-store-bloodstrike-1408818003591827539'; // GhostGames community server
+const DISCORD_URL = env.DISCORD_INVITE_URL || 'https://discord.gg/PZnVDsYGsC'; // GhostGames community server
 const authOrigin = AUTH ? new URL(AUTH.url).origin : '';
 app.use((req, res, next) => {
   res.setHeader('Content-Security-Policy', [
