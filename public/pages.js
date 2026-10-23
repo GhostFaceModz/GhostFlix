@@ -1,5 +1,5 @@
 // Discover, Live TV and Watch Parties pages.
-import { embedSandbox } from './settings.js?v=20261023xd';
+import { embedSandbox } from './settings.js?v=20261023xe';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];

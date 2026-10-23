@@ -1,10 +1,10 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023xd';
-import { applyCosmetics } from './cosmetics.js?v=20261023xd';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023xd';
-import { createPush } from './push.js?v=20261023xd';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023xd';
-import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023xd';
+import { createAuth, ICONS } from './auth.js?v=20261023xe';
+import { applyCosmetics } from './cosmetics.js?v=20261023xe';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023xe';
+import { createPush } from './push.js?v=20261023xe';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023xe';
+import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023xe';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -736,7 +736,8 @@ function openPlayer(o) {
   const el = document.createElement('div'); el.className = 'player'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', `Playing ${o.title}`);
   const playable = !o.trailer && /^(iframe|video|hls)$/.test(o.kind);
   const tools = playable && o.card ? `<div class="ptools">${o.all?.length > 1 ? `<div class="srcs" role="group" aria-label="Video source">${o.all.map((x, i) => `<button class="pill" data-src="${i}">${esc(srcLabel(x))}</button>`).join('')}</div>` : ''}<button class="ptool" data-report title="Report this source as broken"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 0h11l-2 4 2 4H5"/></svg><span>Report broken</span></button></div>` : '';
-  el.innerHTML = `<div class="player-top"><button class="back" aria-label="Close player"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div class="ptitle"><b>${esc(o.title)}</b> <span class="psub">${esc(o.sub || '')}</span></div>${tools}</div><div class="player-stage"></div><button class="skipseg" hidden></button><div class="upnext" hidden></div>${o.trailer ? '<div class="trailer-flag">Trailer · full title not available on GhostFlix</div>' : ''}`;
+  const fsBtn = `<button class="ptool pfs" type="button" data-fs title="Fullscreen" aria-label="Fullscreen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>`;
+  el.innerHTML = `<div class="player-top"><button class="back" aria-label="Close player"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div class="ptitle"><b>${esc(o.title)}</b> <span class="psub">${esc(o.sub || '')}</span></div>${tools}${fsBtn}</div><div class="player-stage"></div><button class="skipseg" hidden></button><div class="upnext" hidden></div>${o.trailer ? '<div class="trailer-flag">Trailer · full title not available on GhostFlix</div>' : ''}`;
   document.body.appendChild(el); document.body.style.overflow = 'hidden';
   const stage = $('.player-stage', el);
   TRACK = playable ? startTracker(o) : null;
@@ -746,7 +747,7 @@ function openPlayer(o) {
   const tv = o.card?.media_type === 'tv' && o.s != null;
   if (tv && T) api(`/api/tv/${o.card.id}/season/${o.s}`).then((sd) => { const ep = sd.episodes?.find((x) => x.episode_number === o.e); if (ep?.runtime) T.epRt = ep.runtime; }).catch(() => {});
   const mount = async (x) => {
-    stage.innerHTML = ''; vid = null;
+    stage.innerHTML = ''; vid = null; $('.pop-flag', el)?.remove();
     if (x.kind === 'iframe') {
       const f = document.createElement('iframe'); const base = Settings.get().autoplay ? x.src : x.src.replace(/([?&])autoplay=(1|true)&?/, '$1').replace(/[?&]$/, ''); f.src = withStart(base, startAt, o.resume, tv); f.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media'; f.allowFullscreen = true;
       f.referrerPolicy = 'unsafe-url'; f.title = o.title; const sb = embedSandbox(x.src, x.sandbox); if (sb) f.setAttribute('sandbox', sb); stage.appendChild(f); T?.setFrame(f, srcLabel(x));
@@ -754,7 +755,7 @@ function openPlayer(o) {
       if (sb && sb !== x.sandbox) {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'pop-flag'; b.innerHTML = 'Pop-ups blocked · Not playing? <u>Allow</u>';
         b.title = 'Allow pop-ups for embedded players (can be changed in Settings › Player)';
-        b.onclick = () => { Settings.set({ blockPopups: false }); toast('Pop-ups allowed · reloading player'); mount(x); }; stage.appendChild(b); setTimeout(() => b.classList.add('gone'), 6000);
+        b.onclick = () => { Settings.set({ blockPopups: false }); toast('Pop-ups allowed · reloading player'); mount(x); }; $('.player-top', el).insertBefore(b, $('.ptools', el) || $('.pfs', el)); setTimeout(() => { b.classList.add('gone'); setTimeout(() => b.remove(), 900); }, 6000);
       }
     } else if (x.kind === 'video' || x.kind === 'hls') {
       const v = document.createElement('video'); vid = v; v.controls = true; v.autoplay = Settings.get().autoplay; v.playsInline = true; v.poster = o.card?.backdrop || ''; v.crossOrigin = 'anonymous';
@@ -779,6 +780,19 @@ function openPlayer(o) {
     const br = o.card ? SrcMem.broken(o.card) : [];
     $$('[data-src]', el).forEach((b) => { const sx = o.all[+b.dataset.src], on = +b.dataset.src === cur; b.classList.toggle('on', on); b.classList.toggle('bad', br.includes(srcLabel(sx))); b.setAttribute('aria-pressed', String(on)); b.title = br.includes(srcLabel(sx)) ? 'You reported this source as broken' : ''; });
   };
+  // ---- our fullscreen: the whole player (bar + embedded player). iPhone Safari has no element fullscreen: native video
+  // goes fullscreen itself, embedded players use their own fullscreen button (iframe has allow="fullscreen" + allowfullscreen).
+  const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+  const fs = $('[data-fs]', el);
+  fs.onclick = () => {
+    if (fsEl()) { (document.exitFullscreen || document.webkitExitFullscreen)?.call(document); return; }
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) Promise.resolve(req.call(el)).then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {});
+    else if (vid?.webkitEnterFullscreen) vid.webkitEnterFullscreen();
+    else toast('Use the player’s own fullscreen button on this device');
+  };
+  const fsSync = () => { const on = fsEl() === el; fs.classList.toggle('on', on); fs.title = on ? 'Exit fullscreen' : 'Fullscreen'; fs.setAttribute('aria-label', fs.title); };
+  document.addEventListener('fullscreenchange', fsSync); document.addEventListener('webkitfullscreenchange', fsSync);
   const switchTo = (i) => { cur = i; if (T?.real) startAt = T.time; segKey = ''; segs = null; hideSkip(); mount(o.all[i]); };
   mount(o);
   $$('[data-src]', el).forEach((b) => (b.onclick = () => { AutoRun.set(0); switchTo(+b.dataset.src); }));
@@ -1005,7 +1019,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023xd').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023xe').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
