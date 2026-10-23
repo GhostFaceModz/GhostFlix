@@ -1,9 +1,10 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023w3';
-import { applyCosmetics } from './cosmetics.js?v=20261023w3';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023w3';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023w3';
-import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023w3';
+import { createAuth, ICONS } from './auth.js?v=20261023xd';
+import { applyCosmetics } from './cosmetics.js?v=20261023xd';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023xd';
+import { createPush } from './push.js?v=20261023xd';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023xd';
+import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023xd';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -26,10 +27,10 @@ const region = () => Settings.get().region || (navigator.language || 'en-US').sp
 
 // ---- storage (watchlist + continue watching) ----------------------------------
 // list/continue/eps/remind/ratings are per viewer profile (see profiles.js); everything else is per device.
-let PROF = null;
+let PROF = null, PUSH = null;
 const LS = {
   get(k, d) { try { return JSON.parse(localStorage.getItem(lsKey(k))) ?? d; } catch { return d; } },
-  set(k, v) { try { localStorage.setItem(lsKey(k), JSON.stringify(v)); } catch {} PROF?.touched(k); },
+  set(k, v) { try { localStorage.setItem(lsKey(k), JSON.stringify(v)); } catch {} PROF?.touched(k); if (k === 'list' || k === 'continue' || k === 'remind') PUSH?.sync(); },
 };
 // Account sync (auth.js) only ever reads/writes the first ('main') profile's list + history, whichever profile is active.
 const mainLS = (k, max) => ({ all: () => { try { return JSON.parse(localStorage.getItem('gf.' + k)) || []; } catch { return []; } }, replace(arr) { try { localStorage.setItem('gf.' + k, JSON.stringify(arr.slice(0, max))); } catch {} } });
@@ -552,7 +553,13 @@ async function previewCards(el) {
   remember(previewCache); el.innerHTML = `<div class="track" style="padding:6px 0 10px;margin:0">${previewCache.map((c) => cardHTML(c)).join('')}</div>`;
 }
 const pageCtx = () => ({ because, main, api, rowHTML, wireRows, history: Continue, list: List, go, auth: AUTH, toast, config: CONFIG });
-const settingsCtx = () => ({ auth: AUTH, list: List, history: Continue, toast, watchHref, previewCards, discordUrl: CONFIG.discordUrl, githubUrl: CONFIG.githubUrl });
+// Web push (Stage D): follows TV series in My List / Continue watching and Remind-me titles of the active profile.
+PUSH = createPush({
+  shows: () => { const seen = new Set(), out = []; for (const c of [...List.all(), ...Continue.all().slice(0, 60)]) if (c.media_type === 'tv' && !seen.has(c.id)) { seen.add(c.id); out.push({ id: c.id, title: c.title }); } return out.slice(0, 200); },
+  reminders: () => Remind.all().filter((x) => x.date).map((x) => ({ key: keyOf(x), title: x.title, date: x.date, label: x.label || '' })).slice(0, 200),
+  toast,
+});
+const settingsCtx = () => ({ push: PUSH, auth: AUTH, list: List, history: Continue, toast, watchHref, previewCards, discordUrl: CONFIG.discordUrl, githubUrl: CONFIG.githubUrl });
 async function viewTitle(type, id) {
   if (!PREF.has(`/api/title/${type}/${id}?region=${region()}`)) titleSkeleton();
   const d = await api(`/api/title/${type}/${id}?region=${region()}`);
@@ -624,6 +631,7 @@ async function viewWatch(type, id, s, e, r) {
     Continue.put(c, { s: s != null ? +s : null, e: e != null ? +e : null, ...(same && !prev.done ? {} : { time: 0, progress: 0, done: false, next: null, approx: false }) });
     const srcs = SrcMem.order(c, d.sources);
     if (type === 'tv' && !CARDS.get(keyOf(c))?.seasons) api(`/api/title/tv/${id}`).then((t) => { if (t?.seasons) CARDS.set(keyOf(c), { ...(CARDS.get(keyOf(c)) || {}), ...t }); }).catch(() => {});
+    track('play', { t: keyOf(c), tt: d.title, src: srcLabel(srcs[0]) });
     openPlayer({ ...srcs[0], title: d.title, sub, all: srcs, card: c, s: s != null ? +s : null, e: e != null ? +e : null, subs: d.subtitles || [], startAt: approxStart ? 0 : startAt, approxStart: approxStart ? startAt : 0, resume: r === '1' });
   } else if (d.trailer) {
     openPlayer({ kind: 'iframe', src: d.trailer.src, title: d.title, sub: d.trailer.name || 'Trailer', trailer: true });
@@ -934,6 +942,7 @@ async function routeTo(path) {
       $$('[data-nav]').forEach((a) => a.classList.toggle('on', a.dataset.nav === n));
       window.scrollTo({ top: 0, behavior: 'instant' });
       try { await fn(m); } catch (e) { errorView(e); }
+      trackPv(path);
       return;
     }
   }
@@ -989,14 +998,14 @@ $('#themeTgl').onclick = () => { const light = Settings.get().theme === 'light';
 const drawerEl = $('#drawer'), scrim = $('#scrim'), burger = $('#burger');
 function setDrawer(open) {
   drawerEl.classList.toggle('open', open); drawerEl.setAttribute('aria-hidden', String(!open)); scrim.hidden = !open; burger.setAttribute('aria-expanded', String(open));
-  if (open) { $('#drawerX').focus(); fetch('/api/admin/me').then((r) => r.json()).then((d) => ($('#drawerAdmin').hidden = !d.admin)).catch(() => {}); }
+  if (open) { $('#drawerX').focus(); fetch('/api/admin/me').then((r) => r.json()).then((d) => ($('#adminLink').hidden = !d.admin)).catch(() => {}); }
 }
 burger.onclick = () => setDrawer(true); $('#drawerX').onclick = () => setDrawer(false); scrim.onclick = () => setDrawer(false);
 drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin],[data-signout]')) setDrawer(false); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023w3').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023xd').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -1020,7 +1029,7 @@ installEl.addEventListener('click', async (e) => {
   AUTH = createAuth({ config: CONFIG, list: MainList, history: MainHistory, toast, onChange: () => { if (/^\/(my-list|settings.*)?$/.test(location.pathname)) { lastPage = null; render(); } } });
   AUTH.subscribe(() => { if (location.pathname.startsWith('/settings')) { lastPage = null; render(); } });
   PROF = createProfiles({ auth: AUTH, toast, onSwitch: () => {
-    PREF.clear(); lastPage = null;
+    PREF.clear(); lastPage = null; PUSH.sync();
     if (Profiles.kidsAge() != null && /^\/(live|party|profiles|settings\/profiles)(\/|$)/.test(location.pathname)) history.replaceState({}, '', '/');
     render();
   } });
@@ -1039,3 +1048,24 @@ installEl.addEventListener('click', async (e) => {
 
 // Admin link in the menu: only visible when this browser is logged in as admin.
 fetch('/api/admin/me', { credentials: 'same-origin', cache: 'no-store' }).then((r) => r.json()).then((d) => { const a = document.getElementById('adminLink'); if (a && d.admin) a.hidden = false; }).catch(() => {});
+
+// ---- first-party stats (no third-party trackers). Skipped entirely with Do Not Track / Global Privacy Control.
+// The server turns each request into an anonymous daily visitor hash; we never send IDs from here.
+const NOTRACK = navigator.globalPrivacyControl === true || navigator.doNotTrack === '1';
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+let firstPv = true, lastPv = '';
+function track(k, x = {}) {
+  if (NOTRACK) return;
+  try {
+    const body = JSON.stringify({ k, p: location.pathname, sa: isStandalone(), si: !!AUTH?.user, ...x });
+    fetch('/api/track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true, credentials: 'omit' }).catch(() => {});
+  } catch {}
+}
+function trackPv(path) {
+  if (path === lastPv) return; lastPv = path;
+  const m = path.match(/^\/title\/(movie|tv)\/(\d+)/);
+  const x = m ? { t: `${m[1]}:${m[2]}`, tt: document.title.replace(/\s+[—–-]\s+GhostFlix.*$/, '') } : {};
+  if (firstPv) { firstPv = false; if (document.referrer) x.r = document.referrer; }
+  setTimeout(() => track('pv', x), m ? 600 : 0); // title pages: let the title load first
+}
+setInterval(() => { if (document.visibilityState === 'visible') track('hb'); }, 60e3);

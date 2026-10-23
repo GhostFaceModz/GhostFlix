@@ -29,7 +29,7 @@ function showDash() {
   $('#dash').hidden = false; $('#logout').hidden = false;
   $('#who').textContent = `Catalog: ${STATE.mode === 'demo' ? 'demo (no TMDB key)' : 'TMDB'} · Store: ${STATE.backend}`;
   $('#ytNote').innerHTML = STATE.hasYouTubeKey ? '' : 'Tip: without <code>YOUTUBE_API_KEY</code>, YouTube imports only see the latest ~15 videos of a playlist/channel.';
-  renderAll(); loadSite();
+  renderAll(); loadSite(); initTabs(); loadStats();
 }
 $('#subFile').onchange = async (e) => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
@@ -63,9 +63,6 @@ function renderAll() {
   renderChannels();
   if (document.activeElement?.id !== 'patMovie') $('#patMovie').value = STATE.patterns?.movie || '';
   if (document.activeElement?.id !== 'patTv') $('#patTv').value = STATE.patterns?.tv || '';
-  const titles = new Set(STATE.sources.map((s) => s.key.split(':').slice(0, 2).join(':')));
-  $('#stats').innerHTML = [[STATE.sources.length, 'Playable sources'], [titles.size, 'Titles with video'], [STATE.unmatched.length, 'Unmatched'], [STATE.jobs.length, 'Import jobs']]
-    .map(([n, l]) => `<div class="stat"><b>${n}</b><span>${l}</span></div>`).join('');
   renderSources(); renderSubs(); renderUnmatched(); renderJobs();
 }
 async function refresh() { STATE = await api('/api/admin/state'); renderAll(); }
@@ -312,9 +309,7 @@ async function loadSite() {
   $('#maintOn').checked = s.maintenance; HERO = s.hero; renderHero();
   $('#secChecks').innerHTML = SITE.sectionKeys.map((k) => `<label class="check"><input type="checkbox" data-sec="${k}" ${s.sections[k] ? 'checked' : ''}> ${SECTION_NAMES[k] || k}</label>`).join('');
   $('#rowChecks').innerHTML = SITE.rows.map((r) => `<label class="check"><input type="checkbox" data-row="${esc(r.id)}" ${s.rows[r.id] === false ? '' : 'checked'}> ${esc(r.title)}</label>`).join('') || '<p class="dim small">No rows</p>';
-  const st = SITE.stats; const base = $('#stats');
-  base.querySelector('.stat.users')?.remove();
-  if (st.users != null) base.insertAdjacentHTML('beforeend', `<div class="stat users"><b>${st.users}</b><span>Signed-up users</span></div>`);
+  USERS = SITE.stats?.users ?? null; renderCards();
 }
 function renderHero() {
   $('#heroPicked').innerHTML = HERO ? `<div><b>${esc(HERO.title || `${HERO.type} ${HERO.id}`)}</b><span>${HERO.type === 'tv' ? 'Series' : 'Movie'} · TMDB ${HERO.id} · pinned as the first home hero</span></div>` : '<span class="dim">Auto (trending titles rotate)</span>';
@@ -345,5 +340,88 @@ $('#siteSave').onclick = () => {
   });
 };
 $('#siteReset').onclick = () => { if (confirm('Reset site settings to defaults (no banner, auto hero, all sections and rows on, maintenance off)?')) saveSite({ announcement: { on: false, text: '', color: '#5fe3ff' }, hero: null, maintenance: false, sections: {}, rows: {} }); };
+
+// ---- one panel: tabs (Stats · Reports · Site · Content · Live TV) -------------------------------
+const TABS = ['stats', 'reports', 'site', 'content', 'live'];
+function showTab(t, focus) {
+  if (!TABS.includes(t)) t = 'stats';
+  $$('#tabs [data-tab]').forEach((a) => { const on = a.dataset.tab === t; a.classList.toggle('on', on); a.setAttribute('aria-selected', String(on)); });
+  $$('.tabp').forEach((p) => (p.hidden = p.dataset.pane !== t));
+  if (focus) $(`.tabp[data-pane="${t}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function initTabs() {
+  const fromHash = () => showTab(location.hash.slice(1), false);
+  window.addEventListener('hashchange', () => showTab(location.hash.slice(1), true));
+  fromHash();
+}
+
+// ---- stats (first-party; /api/admin/stats) --------------------------------------------------------
+let USERS = null, ST = null, DAYS = 30, statsT;
+const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString());
+function renderCards() {
+  const t = ST?.stats?.today || {}, live = ST?.live;
+  const cards = [
+    [USERS, 'Signed-up users', '#stats', 'users'],
+    [ST?.stats ? t.visitors : null, 'Visitors today', '#stats'],
+    [ST?.stats ? ST.stats.visitors_7d : null, 'Visitors · 7 days', '#stats', '', 'Sum of daily unique visitors'],
+    [live ? live.now : null, 'Live now', '#stats', 'live', 'Active in the last 2 minutes'],
+    [ST?.stats ? t.pageviews : null, 'Page views today', '#stats'],
+    [ST?.stats ? t.plays : null, 'Plays today', '#stats'],
+    [ST?.stats ? t.installed : null, 'Installed app · today', '#stats', '', 'Visitors using the home-screen app today'],
+  ];
+  $('#stats').innerHTML = cards.map(([n, l, href, cls, tip]) => `<a class="stat${cls ? ' ' + cls : ''}" href="${href}"${tip ? ` title="${esc(tip)}"` : ''}><b>${fmt(n)}</b><span>${esc(l)}</span></a>`).join('');
+}
+function bars(list, key, label, empty = 'No data yet') {
+  const max = Math.max(1, ...list.map((x) => x.n));
+  return list.length ? list.map((x) => `<div class="bar-row"><span class="bl" title="${esc(x[key])}">${label ? label(x) : esc(x[key])}</span><span class="bt"><i style="width:${Math.max(2, (x.n / max) * 100)}%"></i></span><b>${fmt(x.n)}</b></div>`).join('') : `<p class="dim small">${empty}</p>`;
+}
+const box = (title, body, cls = '') => `<div class="sbox ${cls}"><h3>${title}</h3>${body}</div>`;
+const pct = (a, b) => (a + b ? Math.round((a / (a + b)) * 100) : 0);
+const titleHref = (k) => `/title/${k.replace(':', '/')}`;
+function chartSVG(rows) {
+  if (!rows.length) return '';
+  const W = 600, H = 200, n = rows.length, bw = W / n;
+  const max = Math.max(1, ...rows.map((r) => Math.max(r.pv, r.visitors)));
+  const y = (v) => H - (v / max) * (H - 8);
+  const barsS = rows.map((r, i) => `<rect x="${(i * bw + bw * 0.15).toFixed(1)}" y="${y(r.pv).toFixed(1)}" width="${(bw * 0.7).toFixed(1)}" height="${(H - y(r.pv)).toFixed(1)}" class="pvb"><title>${r.day}: ${r.pv} page views · ${r.visitors} visitors · ${r.plays} plays</title></rect>`).join('');
+  const line = rows.map((r, i) => `${(i * bw + bw / 2).toFixed(1)},${y(r.visitors).toFixed(1)}`).join(' ');
+  const lbl = (i) => rows[i].day.slice(5).replace('-', '/');
+  return `<div class="cwrap"><span class="mx">${fmt(max)}</span><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Page views and visitors per day">${barsS}<polyline points="${line}" class="vl" vector-effect="non-scaling-stroke"/></svg>
+    <div class="ticks"><span>${lbl(0)}</span><span>${lbl(Math.floor((n - 1) / 2))}</span><span>${lbl(n - 1)}</span></div></div>
+    <div class="legend"><span><i class="pvb"></i>Page views</span><span><i class="vl"></i>Visitors</span></div>`;
+}
+function renderStats() {
+  renderCards();
+  $('#statsErr').textContent = ST?.error || '';
+  const s = ST?.stats; if (!s) return;
+  $$('#range [data-days]').forEach((b) => b.classList.toggle('on', +b.dataset.days === DAYS));
+  const tot = s.chart.reduce((a, r) => ({ pv: a.pv + r.pv, v: a.v + r.visitors, p: a.p + r.plays }), { pv: 0, v: 0, p: 0 });
+  $('#chart').innerHTML = `<div class="ctot"><span><b>${fmt(tot.v)}</b> visitors</span><span><b>${fmt(tot.pv)}</b> page views</span><span><b>${fmt(tot.p)}</b> plays</span><span class="dim">last ${s.days} days</span></div>${chartSVG(s.chart)}`;
+  const L = ST.live;
+  $('#sgrid').innerHTML = [
+    box(`Live now · ${fmt(L.now)}`, bars(L.pages, 'path', (x) => esc(x.path), 'Nobody right now') + `<p class="dim small">${fmt(L.installed)} in the installed app · ${esc(L.note)}</p>`),
+    box('Top pages', bars(s.pages, 'path', (x) => `<a href="${esc(x.path)}" target="_blank" rel="noopener">${esc(x.path)}</a>`)),
+    box('Top titles', s.titles.length ? s.titles.map((x) => `<div class="bar-row t"><span class="bl"><a href="${titleHref(x.title_key)}" target="_blank" rel="noopener">${esc(x.title || x.title_key)}</a></span><b>${fmt(x.plays)} ▶</b><b class="dim">${fmt(x.views)} 👁</b></div>`).join('') : '<p class="dim small">No data yet</p>'),
+    box('Most-used sources', bars(s.sources, 'source', null, 'No plays yet')),
+    box('Devices', bars(s.devices, 'device', (x) => esc(x.device[0].toUpperCase() + x.device.slice(1)))),
+    box('App vs browser', bars([{ k: `Installed app (${pct(s.app.installed, s.app.browser)}%)`, n: s.app.installed }, { k: 'Browser', n: s.app.browser }], 'k') + '<div style="height:12px"></div>' + bars([{ k: `Signed in (${pct(s.signed.yes, s.signed.no)}%)`, n: s.signed.yes }, { k: 'Guests', n: s.signed.no }], 'k')),
+    box('Referrers', bars(s.referrers, 'ref', null, 'No outside referrers yet')),
+    box('Countries', bars(s.countries, 'country', (x) => (x.country === '??' ? 'Unknown' : esc(x.country)), 'No data yet') + (s.countries.every((c) => c.country === '??') && s.countries.length ? '<p class="dim small">Country needs a CDN country header (e.g. Cloudflare); the host doesn’t send one yet.</p>' : '')),
+  ].join('');
+  // Reports tab
+  const reps = s.reports || [];
+  $('#repCnt').hidden = !reps.length; $('#repCnt').textContent = reps.reduce((a, r) => a + r.n, 0);
+  $('#repRange').textContent = `(last ${s.days} days)`;
+  $('#repBySource').innerHTML = box('By source', bars(s.reports_by_source || [], 'source', null, 'No reports 🎉'));
+  $('#repTable').innerHTML = reps.length ? reps.map((r) => `<div class="tr" style="grid-template-columns:1fr 110px 60px"><div><b><a href="${titleHref(`${r.media_type}:${r.tmdb_id}`)}" target="_blank" rel="noopener">${r.media_type === 'tv' ? 'Series' : 'Movie'} ${r.tmdb_id}</a>${r.season != null ? ` · S${r.season}${r.episode != null ? ` E${r.episode}` : ''}` : ''}</b><span class="dim small">${esc(r.reasons || '')} · last ${new Date(r.last).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div><span class="pv">${esc(r.source)}</span><b>${r.n}×</b></div>`).join('') : '<p class="dim">No broken-source reports in this period.</p>';
+}
+async function loadStats() {
+  clearTimeout(statsT);
+  try { ST = await api(`/api/admin/stats?days=${DAYS}`); renderStats(); }
+  catch (e) { $('#statsErr').textContent = e.message; }
+  statsT = setTimeout(() => (document.visibilityState === 'visible' ? loadStats() : (statsT = setTimeout(loadStats, 60e3))), 60e3);
+}
+$('#range').addEventListener('click', (e) => { const b = e.target.closest('[data-days]'); if (b) { DAYS = +b.dataset.days; loadStats(); } });
+renderCards();
 
 boot();

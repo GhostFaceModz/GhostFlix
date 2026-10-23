@@ -127,3 +127,100 @@ grant select, insert, update, delete on public.ghostflix_profile_data to authent
 -- ===== pg_cron keep-alive (stops the Render free instance from sleeping) =====
 select cron.unschedule('ghostflix-keepalive') where exists (select 1 from cron.job where jobname = 'ghostflix-keepalive');
 select cron.schedule('ghostflix-keepalive', '*/5 * * * *', $cron$select net.http_get(url := 'https://ghostflix.onrender.com/healthz', headers := '{"User-Agent": "gg-keepalive"}'::jsonb, timeout_milliseconds := 30000)$cron$);  -- active=True
+
+-- ===== Stage D: first-party stats + web push (RLS on, no policies: only the service role / server can read or write) =====
+-- GhostFlix Stage D: first-party visitor stats + web push.
+create table if not exists public.ghostflix_events (
+  id bigint generated always as identity primary key,
+  at timestamptz not null default now(),
+  day date not null default ((now() at time zone 'utc')::date),
+  kind text not null check (kind in ('pv','play')),
+  visitor text not null check (char_length(visitor) between 8 and 64),
+  path text check (char_length(path) <= 200),
+  title_key text check (title_key ~ '^(movie|tv):[0-9]{1,10}$'),
+  title text check (char_length(title) <= 200),
+  device text check (device in ('mobile','tablet','desktop','tv','other')),
+  standalone boolean not null default false,
+  signed_in boolean not null default false,
+  ref text check (char_length(ref) <= 120),
+  country text check (char_length(country) <= 2),
+  source text check (char_length(source) <= 80)
+);
+create index if not exists ghostflix_events_day_idx on public.ghostflix_events (day, kind);
+create index if not exists ghostflix_events_at_idx on public.ghostflix_events (at);
+alter table public.ghostflix_events enable row level security;
+-- No policies: only the server (service role) can read or write; admins read aggregates through the server.
+revoke all on public.ghostflix_events from anon, authenticated;
+
+create table if not exists public.ghostflix_push_subs (
+  endpoint text primary key check (endpoint ~ '^https://' and char_length(endpoint) <= 1000),
+  p256dh text not null check (char_length(p256dh) <= 200),
+  auth text not null check (char_length(auth) <= 100),
+  user_id uuid references auth.users(id) on delete cascade,
+  ua text check (char_length(ua) <= 60),
+  shows jsonb not null default '[]'::jsonb,
+  reminders jsonb not null default '[]'::jsonb,
+  sent jsonb not null default '{}'::jsonb,
+  fails int not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  last_sent_at timestamptz
+);
+alter table public.ghostflix_push_subs enable row level security;
+revoke all on public.ghostflix_push_subs from anon, authenticated;
+
+-- Cron secret lives only in Vault; the server checks the header through this function (service role only).
+do $$ begin
+  if not exists (select 1 from vault.secrets where name = 'ghostflix_cron_secret') then
+    perform vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'ghostflix_cron_secret', 'GhostFlix push sender cron key');
+  end if;
+end $$;
+create or replace function public.ghostflix_cron_ok(k text) returns boolean
+language sql security definer set search_path = '' stable as $$
+  select coalesce(k = (select decrypted_secret from vault.decrypted_secrets where name = 'ghostflix_cron_secret' limit 1), false);
+$$;
+revoke all on function public.ghostflix_cron_ok(text) from public, anon, authenticated;
+grant execute on function public.ghostflix_cron_ok(text) to service_role;
+
+-- Aggregated stats for the admin panel (service role only).
+create or replace function public.ghostflix_stats(days int default 30) returns jsonb
+language plpgsql security definer set search_path = '' stable as $$
+declare
+  t date := (now() at time zone 'utc')::date;
+  since date := t - (greatest(1, least(days, 90)) - 1);
+  r jsonb;
+begin
+  with e as (select * from public.ghostflix_events where day >= since),
+  dv as (select day, visitor, bool_or(standalone) sa, bool_or(signed_in) si, max(device) dev, max(country) cc from e group by day, visitor)
+  select jsonb_build_object(
+    'today', jsonb_build_object(
+      'visitors', (select count(*) from dv where day = t),
+      'pageviews', (select count(*) from e where day = t and kind = 'pv'),
+      'plays', (select count(*) from e where day = t and kind = 'play'),
+      'installed', (select count(*) from dv where day = t and sa),
+      'signed_in', (select count(*) from dv where day = t and si)),
+    'visitors_7d', (select count(*) from dv where day > t - 7),
+    'visitors_30d', (select count(*) from dv where day > t - 30),
+    'pageviews_7d', (select count(*) from e where day > t - 7 and kind = 'pv'),
+    'plays_7d', (select count(*) from e where day > t - 7 and kind = 'play'),
+    'chart', (select coalesce(jsonb_agg(jsonb_build_object('day', d::date, 'pv', (select count(*) from e where e.day = d::date and kind = 'pv'), 'visitors', (select count(*) from dv where dv.day = d::date), 'plays', (select count(*) from e where e.day = d::date and kind = 'play')) order by d), '[]') from generate_series(since, t, interval '1 day') d),
+    'pages', (select coalesce(jsonb_agg(x), '[]') from (select path, count(*) n from e where kind = 'pv' and path is not null group by path order by n desc limit 12) x),
+    'titles', (select coalesce(jsonb_agg(x), '[]') from (select title_key, max(title) title, count(*) filter (where kind = 'play') plays, count(*) filter (where kind = 'pv') views from e where title_key is not null group by title_key order by count(*) filter (where kind = 'play') desc, count(*) desc limit 12) x),
+    'devices', (select coalesce(jsonb_agg(x), '[]') from (select coalesce(dev, 'other') device, count(*) n from dv group by 1 order by n desc) x),
+    'app', jsonb_build_object('installed', (select count(*) from dv where sa), 'browser', (select count(*) from dv where not sa)),
+    'signed', jsonb_build_object('yes', (select count(*) from dv where si), 'no', (select count(*) from dv where not si)),
+    'referrers', (select coalesce(jsonb_agg(x), '[]') from (select ref, count(*) n from e where kind = 'pv' and ref is not null group by ref order by n desc limit 10) x),
+    'countries', (select coalesce(jsonb_agg(x), '[]') from (select coalesce(cc, '??') country, count(*) n from dv group by 1 order by n desc limit 12) x),
+    'sources', (select coalesce(jsonb_agg(x), '[]') from (select source, count(*) n from e where kind = 'play' and source is not null group by source order by n desc limit 10) x),
+    'reports', (select coalesce(jsonb_agg(x), '[]') from (select media_type, tmdb_id, season, episode, source, count(*) n, max(created_at) last, string_agg(distinct reason, ', ') reasons from public.ghostflix_source_reports where created_at >= since group by 1,2,3,4,5 order by n desc, last desc limit 25) x),
+    'reports_by_source', (select coalesce(jsonb_agg(x), '[]') from (select source, count(*) n from public.ghostflix_source_reports where created_at >= since group by source order by n desc limit 10) x),
+    'days', greatest(1, least(days, 90)), 'since', since
+  ) into r;
+  return r;
+end $$;
+revoke all on function public.ghostflix_stats(int) from public, anon, authenticated;
+grant execute on function public.ghostflix_stats(int) to service_role;
+
+-- ===== pg_cron: hourly web-push sender (secret is read from Vault inside the job, never stored in plain text) =====
+select cron.unschedule('ghostflix-push') where exists (select 1 from cron.job where jobname = 'ghostflix-push');
+select cron.schedule('ghostflix-push', '17 * * * *', $cron$select net.http_post(url := 'https://ghostflix.uk/api/cron/push', body := '{}'::jsonb, headers := jsonb_build_object('Content-Type', 'application/json', 'User-Agent', 'gg-cron', 'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'ghostflix_cron_secret' limit 1)), timeout_milliseconds := 60000)$cron$);

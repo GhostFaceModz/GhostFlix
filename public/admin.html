@@ -5,7 +5,7 @@
 <title>GhostFlix Admin</title><meta name="robots" content="noindex">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/app.css?v=20261023w3"><link rel="stylesheet" href="/admin.css?v=20261023w3">
+<link rel="stylesheet" href="/app.css?v=20261023xd"><link rel="stylesheet" href="/admin.css?v=20261023xd">
 </head>
 <body class="adm">
 <div class="bg" aria-hidden="true"></div>
@@ -24,7 +24,32 @@
   </section>
 
   <div id="dash" hidden>
-    <div class="stats" id="stats"></div>
+    <div class="stats" id="stats" aria-label="Site stats at a glance"></div>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Admin sections">
+      <a href="#stats" role="tab" data-tab="stats">📈 Stats</a>
+      <a href="#reports" role="tab" data-tab="reports">🚩 Reports <b class="cnt" id="repCnt" hidden></b></a>
+      <a href="#site" role="tab" data-tab="site">★ Site</a>
+      <a href="#content" role="tab" data-tab="content">🎬 Content</a>
+      <a href="#live" role="tab" data-tab="live">📺 Live TV</a>
+    </nav>
+    <div class="tabp" data-pane="stats" role="tabpanel">
+      <section class="panel" id="statsPanel">
+        <h2><span class="n">📈</span>Visitors &amp; plays <span class="range" id="range"><button type="button" data-days="7">7d</button><button type="button" data-days="30" class="on">30d</button><button type="button" data-days="90">90d</button></span></h2>
+        <p class="dim small" id="statsNote">First-party only — no third-party trackers. A visitor is an anonymous hash of IP + browser that changes every UTC day (IPs aren’t stored), so multi-day numbers are the sum of daily unique visitors. Do Not Track / GPC browsers and bots aren’t counted.</p>
+        <div class="chart" id="chart"></div>
+        <div class="sgrid" id="sgrid"></div>
+        <p class="err" id="statsErr"></p>
+      </section>
+    </div>
+    <div class="tabp" data-pane="reports" role="tabpanel" hidden>
+      <section class="panel" id="reportsPanel">
+        <h2><span class="n">🚩</span>Broken-source reports <small class="dim" id="repRange"></small></h2>
+        <p class="dim small">What viewers flagged with “Report broken source” in the player, grouped by title/episode and source.</p>
+        <div class="sgrid" id="repBySource"></div>
+        <div class="table" id="repTable"></div>
+      </section>
+    </div>
+    <div class="tabp" data-pane="site" role="tabpanel" hidden>
     <section class="panel" id="sitePanel">
       <h2><span class="n">★</span>Site controls</h2>
       <div class="cols site-cols">
@@ -47,6 +72,8 @@
       <div class="btns"><button class="btn glow sm" id="siteSave" type="button">Save site settings</button><button class="btn ghost sm" id="siteReset" type="button">Reset to defaults</button></div>
       <p class="err" id="siteErr"></p>
     </section>
+    </div>
+    <div class="tabp" data-pane="content" role="tabpanel" hidden>
     <div class="cols">
       <section class="panel" id="addPanel">
         <h2><span class="n">1</span>Add video to a title</h2>
@@ -119,16 +146,7 @@
     </section>
 
     <section class="panel">
-      <h2><span class="n">4</span>Live TV channels</h2>
-      <p class="dim">Add free, legal live channels (official streams only — e.g. a broadcaster’s YouTube live URL <code>youtube.com/channel/UC…/live</code> or their official HLS). Curated defaults live in <code>data/live-channels.json</code>.</p>
-      <div class="row3" style="grid-template-columns:1fr 140px"><div><label>Name</label><input id="chName" placeholder="Channel name"></div><div><label>Category</label><input id="chCat" placeholder="News"></div></div>
-      <label>Official stream URL</label><input id="chUrl" placeholder="https://www.youtube.com/channel/UC…/live">
-      <button class="btn glow sm" id="chAdd">Add channel</button><p class="err" id="chErr"></p>
-      <div class="table" id="chTable"></div>
-    </section>
-
-    <section class="panel">
-      <h2><span class="n">5</span>Playable sources <small class="dim" id="srcCount"></small></h2>
+      <h2><span class="n">4</span>Playable sources <small class="dim" id="srcCount"></small></h2>
       <input id="srcFilter" placeholder="Filter…" class="filter">
       <div class="table" id="srcTable"></div>
       <h2 style="margin-top:22px">Subtitle tracks</h2><div class="table" id="subTable"></div>
@@ -139,9 +157,21 @@
         <h2 style="margin-top:26px">Backup</h2><p class="dim">Render free disks reset on deploy. Export, then commit the file as <code>data/seed-store.json</code> (or use Supabase).</p>
         <div class="btns"><a class="btn ghost sm" href="/api/admin/export" download>Export JSON</a><label class="btn ghost sm">Restore JSON<input type="file" id="restore" accept="application/json" hidden></label></div></section>
     </div>
+    </div>
+    <div class="tabp" data-pane="live" role="tabpanel" hidden>
+    <section class="panel">
+      <h2><span class="n">📺</span>Live TV channels</h2>
+      <p class="dim">Add free, legal live channels (official streams only — e.g. a broadcaster’s YouTube live URL <code>youtube.com/channel/UC…/live</code> or their official HLS). Curated defaults live in <code>data/live-channels.json</code>.</p>
+      <div class="row3" style="grid-template-columns:1fr 140px"><div><label>Name</label><input id="chName" placeholder="Channel name"></div><div><label>Category</label><input id="chCat" placeholder="News"></div></div>
+      <label>Official stream URL</label><input id="chUrl" placeholder="https://www.youtube.com/channel/UC…/live">
+      <button class="btn glow sm" id="chAdd">Add channel</button><p class="err" id="chErr"></p>
+      <div class="table" id="chTable"></div>
+    </section>
+
+    </div>
   </div>
 </main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script src="/admin.js?v=20261023w3" type="module"></script>
+<script src="/admin.js?v=20261023xd" type="module"></script>
 </body>
 </html>

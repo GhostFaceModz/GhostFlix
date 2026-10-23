@@ -1,5 +1,5 @@
-import { Cosmetics, BORDER_GROUPS, GLOWS, avatarWrap } from './cosmetics.js?v=20261023w3';
-import { SEASONS, HALLOWEEN, applySeason, resolveSeason, SFX } from './season.js?v=20261023w3';
+import { Cosmetics, BORDER_GROUPS, GLOWS, avatarWrap } from './cosmetics.js?v=20261023xd';
+import { SEASONS, HALLOWEEN, applySeason, resolveSeason, SFX } from './season.js?v=20261023xd';
 // GhostFlix settings: stored in localStorage, applied live (theme, accent, cards, subtitles, player prefs).
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const ACCENTS = {
@@ -193,8 +193,9 @@ export function renderSettings(main, ctx, sub) {
     main.innerHTML = `<div class="page settings">${header('Preferences')}<div class="set-group pad">
       ${row('Where-to-watch region', `<div class="select"><select data-sel="region">${[['', 'Auto (browser)'], ['US', 'United States'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['IE', 'Ireland'], ['DE', 'Germany'], ['FR', 'France'], ['ES', 'Spain'], ['IT', 'Italy'], ['NL', 'Netherlands'], ['IN', 'India'], ['BR', 'Brazil'], ['MX', 'Mexico']].map(([v, l]) => `<option value="${v}" ${s.region === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`, 'Used for streaming-service availability')}
       ${row('Auto-rotate hero', toggle('autoplayHero', s.autoplayHero), 'Cycle featured titles on Home')}
-    </div><p style="margin-top:18px"><button class="btn dark sm" type="button" id="resetAll">Reset all settings</button></p></div>`;
+    </div><div class="set-label">Notifications</div><div class="set-group pad" id="pushBox"></div><p style="margin-top:18px"><button class="btn dark sm" type="button" id="resetAll">Reset all settings</button></p></div>`;
     main.querySelector('#resetAll').onclick = () => { if (confirm('Reset all settings to defaults?')) { Settings.reset(); re(); } };
+    ctx.push?.mount(main.querySelector('#pushBox'));
     wire(re); return;
   }
   if (sub === 'account') {

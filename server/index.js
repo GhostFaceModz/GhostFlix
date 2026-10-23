@@ -12,6 +12,7 @@ import { previewImport, commitImport, runJob, startScheduler } from './importers
 import { mountB3 } from './b3.js';
 import { mountSeasonal } from './seasonal.js';
 import { mountKids } from './b3-kids.js';
+import { mountStats } from './b3-stats.js';
 
 import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -351,6 +352,7 @@ const admin = express.Router();
 admin.use((req, res, next) => (isAdmin(req) ? next() : res.status(401).json({ error: 'Not signed in.' })));
 app.use('/api/admin', admin);
 const B3 = mountB3(app, { env, wrap, cacheFor, isAdmin, admin, store, catalog, markList });
+const STATS = mountStats(app, { env, wrap, admin, catalog }); // first-party stats + web push (Stage D)
 
 admin.get('/state', (req, res) => res.json({ mode: catalog.mode, backend: store.backend, sources: store.allSources().reverse(),
   subs: Object.entries(store.data.subs || {}).flatMap(([key, list]) => list.map(({ vtt, ...t }) => ({ key, ...t, title: store.data.titles[key.split(':').slice(0, 2).join(':')]?.title || key }))), unmatched: store.data.unmatched, jobs: store.data.jobs,
@@ -529,6 +531,7 @@ app.get('/sw.js', (req, res) => { res.set({ 'Cache-Control': 'no-cache', 'Servic
 app.get('/manifest.webmanifest', (req, res) => { res.set('Cache-Control', 'public, max-age=3600'); res.type('application/manifest+json'); res.sendFile(path.join(ROOT, 'public/manifest.webmanifest')); });
 // Versioned assets (?v=…) change URL on every release, so browsers may keep them for a year.
 // Unversioned files keep a short cache; HTML is always revalidated.
+app.get('/admin.html', (req, res) => res.redirect(301, '/admin')); // one admin panel: the old URL points at /admin
 app.use(express.static(path.join(ROOT, 'public'), { maxAge: '1h', index: false, setHeaders(res, file) {
   if (/\.html$/.test(file)) res.setHeader('Cache-Control', 'no-cache');
   else if (res.req?.query?.v !== undefined) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
