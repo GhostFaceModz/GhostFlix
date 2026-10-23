@@ -57,9 +57,42 @@ export class TmdbCatalog {
     const d = await this.get(p[0], { page });
     return { page: d.page, total_pages: Math.min(d.total_pages, 500), results: cards(d.results, type === 'all' ? undefined : type) };
   }
-  async discover(type, genre, page = 1) {
-    const d = await this.get(`/discover/${type}`, { with_genres: genre, sort_by: 'popularity.desc', page, 'vote_count.gte': 50 });
+  async discover(type, genre, page = 1, sort = 'popular') {
+    const date = type === 'tv' ? 'first_air_date' : 'primary_release_date';
+    const today = new Date().toISOString().slice(0, 10);
+    const by = sort === 'top_rated' ? { sort_by: 'vote_average.desc', 'vote_count.gte': 300 }
+      : sort === 'newest' ? { sort_by: `${date}.desc`, [`${date}.lte`]: today, 'vote_count.gte': 20 }
+      : { sort_by: 'popularity.desc', 'vote_count.gte': 50 };
+    const d = await this.get(`/discover/${type}`, { with_genres: genre, page, ...by });
     return { page: d.page, total_pages: Math.min(d.total_pages, 500), results: cards(d.results, type) };
+  }
+  /** One tile per genre with a backdrop from a popular title in it (each backdrop used once). */
+  async genreTiles(type) {
+    const list = (await this.genres())[type] || [];
+    const tops = await Promise.all(list.map((g) => this.get(`/discover/${type}`, { with_genres: g.id, sort_by: 'popularity.desc', 'vote_count.gte': 200 }, 864e5).catch(() => ({ results: [] }))));
+    const used = new Set();
+    return list.map((g, i) => {
+      const pick = (tops[i].results || []).find((x) => x.backdrop_path && !used.has(x.id));
+      if (pick) used.add(pick.id);
+      return { id: g.id, name: g.name, backdrop: img(pick?.backdrop_path, 'w780'), title: pick ? pick.title || pick.name : null };
+    });
+  }
+  async searchPeople(q) {
+    const d = await this.get('/search/person', { query: q, include_adult: 'false' }, 10 * 60e3);
+    return (d.results || []).filter((p) => !p.adult).slice(0, 12).map((p) => ({ id: p.id, name: p.name, profile: img(p.profile_path, 'w185'), dept: p.known_for_department || '',
+      known_for: (p.known_for || []).map((x) => x.title || x.name).filter(Boolean).slice(0, 3), popularity: p.popularity || 0 }));
+  }
+  async person(id) {
+    const d = await this.get(`/person/${id}`, { append_to_response: 'combined_credits' }, 6 * 3600e3);
+    const seen = new Set(); const credits = [];
+    for (const x of [...(d.combined_credits?.cast || []), ...(d.combined_credits?.crew || [])]) {
+      const c = card(x); const k = c && `${c.media_type}:${c.id}`;
+      if (!c || !(c.poster || c.backdrop) || seen.has(k)) continue;
+      seen.add(k); credits.push(c);
+    }
+    credits.sort((a, b) => b.popularity - a.popularity);
+    return { id: d.id, name: d.name, profile: img(d.profile_path, 'h632'), dept: d.known_for_department || '', biography: d.biography || '',
+      birthday: d.birthday || null, place_of_birth: d.place_of_birth || null, credits };
   }
   async search(q, page = 1) {
     const d = await this.get('/search/multi', { query: q, page, include_adult: 'false' }, 10 * 60e3);

@@ -161,7 +161,7 @@ export function renderSettings(main, ctx, sub) {
   if (sub === 'player') {
     main.innerHTML = `<div class="page settings">${header('Player')}<div class="set-group pad">
       ${row('Autoplay', toggle('autoplay', s.autoplay), 'Start playing as soon as the player opens')}
-      ${row('Remember position', toggle('rememberPosition', s.rememberPosition), 'Resume MP4/HLS where you left off')}
+      ${row('Remember position', toggle('rememberPosition', s.rememberPosition), 'Resume where you left off (jumps to the exact spot on CineSrc and MP4/HLS)')}
       ${row('Block pop-ups', toggle('blockPopups', s.blockPopups), 'Stops players opening ads in new tabs. Turn off if a movie won’t play.')}
       ${row('Preferred source', `<div class="select"><select data-sel="preferProvider">${[['any', 'Best available'], ['archive', 'Internet Archive'], ['youtube', 'YouTube'], ['vimeo', 'Vimeo'], ['file', 'Direct / own hosting']].map(([v, l]) => `<option value="${v}" ${s.preferProvider === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>`, 'When a title has several legit sources')}
       ${row('Keyboard', '<span class="dim" style="font-size:13px">Esc closes · Space plays/pauses · ←/→ seek 10s</span>')}

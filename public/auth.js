@@ -105,7 +105,7 @@ export function createAuth({ config, list, history, toast, onChange }) {
     }
     onChange?.();
   }
-  const histRow = (c) => ({ user_id: user.id, media_type: c.media_type, tmdb_id: c.id, season: c.s ?? null, episode: c.e ?? null, progress: c.progress ?? null, time: c.time ?? null, data: card(c), watched_at: new Date(c.at || Date.now()).toISOString() });
+  const histRow = (c) => ({ user_id: user.id, media_type: c.media_type, tmdb_id: c.id, season: c.s ?? null, episode: c.e ?? null, progress: c.progress ?? null, time: c.time ?? null, data: { ...card(c), ...(c.dur ? { dur: c.dur } : {}), ...(c.done ? { done: true } : {}), ...(c.next ? { next: c.next } : {}), ...(c.approx ? { approx: true } : {}), ...(c.src ? { src: c.src } : {}) }, watched_at: new Date(c.at || Date.now()).toISOString() });
   async function run(table, q) { if (!user || !sb || !ok[table]) return; const { error } = await q(); if (error && missing(error)) ok[table] = false; }
   const onToggle = (c, on) => run(WL, () => (on ? sb.from(WL).upsert({ user_id: user.id, media_type: c.media_type, tmdb_id: c.id, data: card(c) }) : sb.from(WL).delete().match({ user_id: user.id, media_type: c.media_type, tmdb_id: c.id })));
   let hT = null; const pending = new Map();

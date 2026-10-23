@@ -210,7 +210,22 @@ app.get('/api/list/:type/:category', wrap(async (req, res) => {
   if (req.params.type === 'free') { const all = catalog.mode === 'demo' ? (await demo.list('all', 'trending', req.query.page)).results : store.playableCards(); return res.json({ page: 1, total_pages: 1, results: all.map(withPlayable) }); }
   res.json(markList(await catalog.list(T(req.params.type), String(req.params.category), +req.query.page || 1)));
 }));
-app.get('/api/discover/:type/:genre', wrap(async (req, res) => res.json(markList(await catalog.discover(T(req.params.type), ID(req.params.genre), +req.query.page || 1)))));
+const SORTS = ['popular', 'top_rated', 'newest'];
+app.get('/api/discover/:type/:genre', wrap(async (req, res) => res.json(markList(await catalog.discover(T(req.params.type), ID(req.params.genre), +req.query.page || 1, SORTS.includes(req.query.sort) ? req.query.sort : 'popular')))));
+app.get('/api/genre-tiles/:type', wrap(async (req, res) => {
+  const type = T(req.params.type);
+  const tiles = catalog.genreTiles ? await catalog.genreTiles(type) : ((await catalog.genres())[type] || []).map((g) => ({ id: g.id, name: g.name, backdrop: null }));
+  cacheFor(res, 3600); res.json({ type, tiles });
+}));
+app.get('/api/search/people', wrap(async (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 100);
+  cacheFor(res, 300); res.json({ results: q && catalog.searchPeople ? await catalog.searchPeople(q) : [] });
+}));
+app.get('/api/person/:id', wrap(async (req, res) => {
+  if (!catalog.person) { const e = new Error('People need the TMDB catalog'); e.status = 404; throw e; }
+  const d = await catalog.person(ID(req.params.id)); d.credits = d.credits.map(withPlayable);
+  cacheFor(res, 600); res.json(d);
+}));
 app.get('/api/search', wrap(async (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 100);
   res.json(q ? markList(await catalog.search(q, +req.query.page || 1)) : { page: 1, total_pages: 0, results: [] });

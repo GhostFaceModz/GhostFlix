@@ -1,8 +1,8 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261021c';
+import { createAuth, ICONS } from './auth.js?v=20261023a';
 import { applyCosmetics } from './cosmetics.js?v=20261021c';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261022c';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261022c';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023a';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023a';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -45,13 +45,44 @@ const Continue = {
   get: (c) => Continue.all().find((x) => keyOf(x) === keyOf(c)),
   put(c, extra = {}) {
     const l = Continue.all().filter((x) => keyOf(x) !== keyOf(c));
-    const entry = { ...Continue.get(c), ...slim(c), ...extra, at: Date.now() };
+    let prev = Continue.get(c) || {};
+    // A different episode starts fresh: don't carry the old episode's position/progress over.
+    if ('s' in extra && (prev.s ?? null) != (extra.s ?? null) || 'e' in extra && (prev.e ?? null) != (extra.e ?? null)) { const { time, progress, dur, done, next, approx, ...rest } = prev; prev = rest; }
+    const entry = { ...prev, ...slim(c), ...extra, at: Date.now() };
     l.unshift(entry); LS.set('continue', l.slice(0, 200)); AUTH?.onHistory(entry);
   },
   remove(c) { LS.set('continue', Continue.all().filter((x) => keyOf(x) !== keyOf(c))); AUTH?.onHistoryRemove(c); },
   clear() { LS.set('continue', []); AUTH?.onHistoryClear(); },
   replace(arr) { LS.set('continue', arr.slice(0, 200)); },
 };
+
+// ---- resume -----------------------------------------------------------------------
+// Each title keeps one history entry: last season/episode, seconds in (time), duration (dur),
+// percent (progress), done (>= 90%), next episode and whether the time is an estimate (approx).
+const DONE_PCT = 90;
+const fmtPos = (sec) => { const m = Math.round(sec / 60); return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60 ? (m % 60) + 'm' : ''}`.trim() : `${Math.max(1, m)} min`; };
+function nextEpisode(c, s, e) {
+  s = +s; e = +e; if (!(s >= 0) || !(e > 0)) return null;
+  const seasons = (CARDS.get(keyOf(c)) || c).seasons;
+  if (!seasons?.length) return { s, e: e + 1 };
+  const cur = seasons.find((x) => x.season_number === s);
+  if (cur && e < (cur.episode_count || 0)) return { s, e: e + 1 };
+  const nx = seasons.filter((x) => x.season_number > s && x.season_number > 0).sort((a, b) => a.season_number - b.season_number)[0];
+  return nx ? { s: nx.season_number, e: 1 } : null;
+}
+/** What the Resume button should do for a title, or null if it was never played. */
+function resumeInfo(c) {
+  const h = Continue.get(c); if (!h) return null;
+  const pct = h.progress != null ? Math.max(0, Math.min(100, h.progress)) : null;
+  const url = (s, e, t) => { const q = new URLSearchParams(); if (s != null && e != null) { q.set('s', s); q.set('e', e); } if (t) q.set('r', '1'); const qs = q.toString(); return `/watch/${c.media_type}/${c.id}${qs ? '?' + qs : ''}`; };
+  const t = !h.done && h.time >= 30 ? h.time : 0;
+  if (c.media_type === 'tv' && h.s != null && h.e != null) {
+    if (h.done) { const n = h.next || nextEpisode(c, h.s, h.e); if (n) return { s: n.s, e: n.e, t: 0, pct: 0, href: url(n.s, n.e, 0), label: `Resume S${n.s}:E${n.e}`, sub: 'Next episode' }; return { s: h.s, e: h.e, t: 0, pct: 100, href: url(h.s, h.e, 0), label: 'Watch again', sub: 'Finished' }; }
+    return { s: h.s, e: h.e, t, pct, approx: !!h.approx, href: url(h.s, h.e, t), label: `Resume S${h.s}:E${h.e}${t ? ' · ' + fmtPos(t) : ''}` };
+  }
+  if (h.done) return { t: 0, pct: 100, href: url(null, null, 0), label: 'Watch again', sub: 'Finished' };
+  return { t, pct, approx: !!h.approx, href: url(null, null, t), label: t ? `Resume · ${fmtPos(t)}` : 'Resume' };
+}
 
 // ---- helpers --------------------------------------------------------------------
 async function api(path) {
@@ -82,7 +113,7 @@ function cardHTML(c, opts = {}) {
   const inner = `<div class="pic${art ? ' art' : ''}"${art ? ` style="--h:${hue}"` : ''}>${pic}${opts.s != null ? `<span class="ep-badge">S${esc(opts.s)} E${esc(opts.e)}</span>` : ''}${prog}
     <div class="info"><b>${esc(c.title)}</b><span>${c.rating ? `<i class="rt">${c.rating}</i>` : ''}${c.year ? `<i>${c.year}</i>` : ''}${c.media_type === 'tv' ? '<i>Series</i>' : ''}</span>
     ${g ? `<span style="margin-top:3px">${esc(g)}</span>` : ''}
-    <div class="acts"><a class="p" href="${watchHref(c, opts.s, opts.e)}" data-link aria-label="Play ${esc(c.title)}">${ICON.play}</a>
+    <div class="acts"><a class="p" href="${opts.play || watchHref(c, opts.s, opts.e)}" data-link aria-label="Play ${esc(c.title)}">${ICON.play}</a>
     <button data-list="${keyOf(c)}" aria-label="${inList ? 'Remove from' : 'Add to'} My List">${inList ? ICON.check : ICON.plus}</button>
     <a href="${href(c)}" data-link aria-label="More info" style="margin-left:auto">${ICON.down}</a></div></div></div>`;
   // Card = div with a full-size link layer (no nested <a> elements).
@@ -93,11 +124,13 @@ function cardHTML(c, opts = {}) {
 const CARDS = new Map(); // key -> card data, for list toggles
 const remember = (arr) => arr.forEach((c) => CARDS.set(keyOf(c), c));
 
+// Continue-watching card: badge/progress/play link follow the resume target.
+function contOpts(c) { const r = resumeInfo(c); return r ? { progress: r.pct > 0 ? r.pct : null, s: r.s, e: r.e, play: r.href } : { progress: c.progress, s: c.s, e: c.e }; }
 function rowHTML(r, i) {
   if (!r.items?.length) return '';
   remember(r.items);
-  const items = r.items.map((c, n) => cardHTML(c, r.top10 ? { rank: n + 1 } : r.cont ? { progress: c.progress, s: c.s, e: c.e } : {})).join('');
-  return `<section class="row" aria-labelledby="rh${i}"><div class="row-h"><h2 id="rh${i}">${esc(r.title)}</h2>${r.link ? `<a href="${r.link}" data-link>Explore all ›</a>` : ''}</div>
+  const items = r.items.map((c, n) => cardHTML(c, r.top10 ? { rank: n + 1 } : r.cont ? contOpts(c) : {})).join('');
+  return `<section class="row"${r.cont ? ' data-cont' : ''} aria-labelledby="rh${i}"><div class="row-h"><h2 id="rh${i}">${esc(r.title)}</h2>${r.link ? `<a href="${r.link}" data-link>Explore all ›</a>` : ''}</div>
     <div class="track-wrap"><button class="arrow l" aria-label="Scroll left" disabled>${ICON.left}</button><div class="track">${items}</div><button class="arrow r" aria-label="Scroll right">${ICON.right}</button></div></section>`;
 }
 function wireRows(root = main) {
@@ -126,8 +159,7 @@ let heroTimer;
 function heroHTML(c, { detail = false, items = [] } = {}) {
   const lowres = !c.backdrop || c.backdrop === c.poster;
   const g = (c.genres || (c.genre_ids || []).map((id) => ({ id, name: genreName(id) }))).filter((x) => x.name).slice(0, 2);
-  const cont = Continue.get(c);
-    const playLabel = c.playable ? (cont ? 'Resume' : 'Play') : 'Play';
+  const rs = resumeInfo(c);
   return `<section class="hero ${detail ? 'detail-hero' : ''} ${lowres ? 'lowres' : ''}" data-key="${keyOf(c)}">
     <div class="hero-bg"><img src="${esc(c.backdrop || c.poster || '')}" alt="" fetchpriority="high"></div>
     ${c.poster ? `<div class="hero-poster${c.demo ? ' art' : ''}" style="--h:${(c.id * 47) % 360}"><img src="${esc(c.poster)}" alt="">${c.demo ? `<div class="art-t"><small>${c.year || ''}${c.media_type === 'tv' ? ' · SERIES' : ''}</small><b>${esc(c.title)}</b></div>` : ''}</div>` : ''}
@@ -140,10 +172,11 @@ function heroHTML(c, { detail = false, items = [] } = {}) {
         ${c.playable ? '<span class="chip acc">Free to watch</span>' : ''}</div>
       <p class="ov">${esc(c.overview)}</p>
       <div class="btns">
-        <a class="btn cta" href="${c.playable && cont?.s != null ? watchHref(c, cont.s, cont.e) : watchHref(c)}" data-link>${ICON.play}${playLabel}</a>
+        <a class="btn cta${rs ? ' resume' : ''}" href="${rs ? rs.href : watchHref(c)}" data-link>${ICON.play}${esc(rs ? rs.label : 'Play')}</a>
         ${detail ? `<button class="btn icon ${List.has(c) ? 'on' : ''}" data-list="${keyOf(c)}" aria-label="My List">${List.has(c) ? ICON.check : ICON.plus}</button>${CONFIG.parties ? `<a class="btn dark" href="/party/${Math.random().toString(36).slice(2, 8)}?t=${keyOf(c)}" data-link>👻 Watch together</a>` : ''}`
           : `<a class="btn dark" href="${href(c)}" data-link>${ICON.info}Details</a>`}
       </div>
+      ${rs && (rs.pct > 0 || rs.sub) ? `<div class="resume-bar"${rs.approx ? ' title="Approximate — this player doesn’t report its exact position"' : ''}>${rs.pct > 0 ? `<span class="rb"><i style="width:${Math.max(3, rs.pct).toFixed(1)}%"></i></span>` : ''}<small>${rs.sub ? esc(rs.sub) : `${Math.round(rs.pct)}% watched${rs.approx ? ' (approx.)' : ''}`}${detail && rs.t ? ` · <a href="${rs.href.replace('r=1', 'r=0')}" data-link>Start over</a>` : ''}</small></div>` : ''}
     </div>
     ${items.length > 1 ? `<div class="hero-dots">${items.map((x, i) => `<button aria-label="Show ${esc(x.title)}" data-hero="${i}" class="${x === c ? 'on' : ''}"></button>`).join('')}</div>` : ''}
   </section>`;
@@ -189,15 +222,20 @@ async function viewBrowse(type, category, title) {
     url: (p) => `/api/list/${type}/${category}?page=${p}`, infinite: type === 'movie' || type === 'tv',
   });
 }
+const GENRE_SORTS = [['popular', 'Popular'], ['top_rated', 'Top rated'], ['newest', 'Newest']];
 async function viewGenre(type, id) {
   const g = GENRES[type]?.find((x) => x.id === +id);
-  await gridView({ title: `${g?.name || 'Genre'} ${type === 'tv' ? 'series' : 'movies'}`, pills: [{ href: `/browse/${type}/popular`, name: 'All' }, ...(GENRES[type] || []).map((x) => ({ href: `/genre/${type}/${x.id}`, name: x.name, on: x.id === +id }))],
-    url: (p) => `/api/discover/${type}/${id}?page=${p}`, infinite: true });
+  const sort = GENRE_SORTS.some(([k]) => k === new URLSearchParams(location.search).get('sort')) ? new URLSearchParams(location.search).get('sort') : 'popular';
+  const sq = sort === 'popular' ? '' : `?sort=${sort}`;
+  const head = `<div class="g-bar"><a class="g-back" href="/genres${type === 'tv' ? '?type=tv' : ''}" data-link>‹ All genres</a>
+    <div class="seg" role="group" aria-label="Sort">${GENRE_SORTS.map(([k, n]) => `<a href="/genre/${type}/${id}${k === 'popular' ? '' : `?sort=${k}`}" data-link class="${k === sort ? 'on' : ''}"${k === sort ? ' aria-current="true"' : ''}>${n}</a>`).join('')}</div></div>`;
+  await gridView({ title: `${g?.name || 'Genre'} ${type === 'tv' ? 'series' : 'movies'}`, head, pills: [{ href: `/browse/${type}/popular`, name: 'All' }, ...(GENRES[type] || []).map((x) => ({ href: `/genre/${type}/${x.id}${sq}`, name: x.name, on: x.id === +id }))],
+    url: (p) => `/api/discover/${type}/${id}?page=${p}&sort=${sort}`, infinite: true });
 }
 let gridObserver;
-async function gridView({ title, lead = '', pills = [], url, empty, infinite = false }) {
+async function gridView({ title, lead = '', head = '', pills = [], url, empty, infinite = false }) {
   gridObserver?.disconnect(); gridObserver = null;
-  main.innerHTML = `<div class="page"><h1>${esc(title)}</h1>${lead ? `<p class="lead">${esc(lead)}</p>` : ''}
+  main.innerHTML = `<div class="page"><h1>${esc(title)}</h1>${lead ? `<p class="lead">${esc(lead)}</p>` : ''}${head}
     ${pills.length ? `<div class="pills">${pills.map((p) => `<a class="pill ${p.on ? 'on' : ''}" href="${p.href}" data-link>${esc(p.name)}</a>`).join('')}</div>` : ''}
     <div class="grid">${'<div class="card"><div class="pic skel"></div></div>'.repeat(12)}</div><div class="more"></div></div>`;
   const grid = $('.grid', main), more = $('.more', main);
@@ -230,24 +268,76 @@ async function viewSearch(q) {
   if (!q) {
     main.innerHTML = `<div class="page"><h1>Search</h1><p class="lead">Find movies, series and people.</p>
     <form class="search" style="width:100%;max-width:560px;height:50px;margin:0 0 24px" id="pageSearch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input name="q" type="search" placeholder="Search GhostFlix" autofocus></form>
-    <div class="pills">${GENRES.movie.slice(0, 14).map((g) => `<a class="pill" href="/genre/movie/${g.id}" data-link>${esc(g.name)}</a>`).join('')}</div></div>`;
+    <div class="pills">${GENRES.movie.slice(0, 14).map((g) => `<a class="pill" href="/genre/movie/${g.id}" data-link>${esc(g.name)}</a>`).join('')}<a class="pill" href="/genres" data-link>All genres ›</a></div></div>`;
     $('#pageSearch').onsubmit = (e) => { e.preventDefault(); const v = e.target.q.value.trim(); if (v) go(`/search?q=${encodeURIComponent(v)}`); };
     return;
   }
-  await gridView({ title: `Results for “${q}”`, url: (p) => `/api/search?q=${encodeURIComponent(q)}&page=${p}`,
-    empty: `<div class="empty"><img src="/img/logo.svg" alt=""><h2>No matches for “${esc(q)}”</h2><p>Check the spelling or try a different title.</p></div>` });
+  const gm = matchGenres(q);
+  const head = `<div class="sx">${gm.length ? `<div class="sx-genres" aria-label="Genres">${gm.map(({ type, g }) => `<a class="gchip" href="/genre/${type}/${g.id}" data-link style="--gh:${genreHue(g.id)}"><small>Genre</small>${esc(g.name)} <span>${type === 'tv' ? 'Series' : 'Movies'}</span></a>`).join('')}</div>` : ''}<div class="sx-people" hidden></div></div>`;
+  const people = api(`/api/search/people?q=${encodeURIComponent(q)}`).catch(() => ({ results: [] }));
+  const grid = gridView({ title: `Results for “${q}”`, head, url: (p) => `/api/search?q=${encodeURIComponent(q)}&page=${p}`,
+    empty: `<div class="empty"><img src="/img/logo.svg" alt=""><h2>No title matches for “${esc(q)}”</h2><p>Check the spelling or try a different title.</p></div>` });
+  const pr = await people; const box = location.pathname === '/search' && new URLSearchParams(location.search).get('q') === q ? $('.sx-people', main) : null; // ignore stale results while typing
+  const nq = normQ(q), words = nq.split(' ').filter(Boolean);
+  // TMDB person search is fuzzy; only show people whose name actually matches what was typed.
+  const list = (pr.results || []).filter((x) => { const n = normQ(x.name); return n.includes(nq) || words.every((w) => n.split(' ').some((p) => p.startsWith(w))); }).slice(0, 12);
+  if (box && list.length) {
+    box.hidden = false;
+    box.innerHTML = `<h2>People</h2><div class="cast people">${list.map((x) => `<a class="person" href="/person/${x.id}" data-link><div class="ph">${x.profile ? `<img src="${esc(x.profile)}" alt="" loading="lazy">` : `<span>${esc(x.name.split(' ').map((w) => w[0]).join('').slice(0, 2))}</span>`}</div><b>${esc(x.name)}</b><span>${esc(x.known_for?.[0] || x.dept || '')}</span></a>`).join('')}</div>`;
+  }
+  await grid;
+}
+const normQ = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9& ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const GENRE_ALIAS = { scifi: 'science fiction', 'sci fi': 'science fiction', sf: 'science fiction', romcom: 'romance', 'rom com': 'romance', romantic: 'romance', cartoon: 'animation', cartoons: 'animation', animated: 'animation', anime: 'animation', docs: 'documentary', doc: 'documentary', documentaries: 'documentary', scary: 'horror', funny: 'comedy', comedies: 'comedy', kids: 'kids', thrillers: 'thriller', westerns: 'western', musical: 'music', superhero: 'action', detective: 'crime', murder: 'mystery' };
+function matchGenres(q) {
+  const n = normQ(q), a = GENRE_ALIAS[n] || n;
+  if (a.length < 3) return [];
+  const out = [];
+  for (const type of ['movie', 'tv']) for (const g of GENRES[type] || []) {
+    const gn = normQ(g.name), words = gn.split(/ & | /);
+    if (gn === a || gn.startsWith(a) || words.some((w) => w.length > 2 && w.startsWith(a)) || (a.length > 4 && words.some((w) => w.length > 3 && a.startsWith(w)))) out.push({ type, g });
+  }
+  return out.slice(0, 6);
+}
+const genreHue = (id) => (id * 67) % 360;
+async function viewPerson(id) {
+  skeleton();
+  const d = await api(`/api/person/${id}`);
+  document.title = `${d.name} — GhostFlix`;
+  const all = d.credits || []; remember(all);
+  const nm = all.filter((c) => c.media_type === 'movie').length, nt = all.length - nm;
+  const bio = d.biography || '';
+  main.innerHTML = `<div class="page pp"><div class="pp-head"><div class="pp-ph">${d.profile ? `<img src="${esc(d.profile)}" alt="">` : `<span>${esc(d.name.split(' ').map((w) => w[0]).join('').slice(0, 2))}</span>`}</div>
+    <div class="pp-in"><small class="pp-k">${esc(d.dept || 'Person')}</small><h1>${esc(d.name)}</h1>
+    <p class="pp-meta">${[d.birthday ? `Born ${esc(d.birthday)}` : '', esc(d.place_of_birth || ''), `${nm} movie${nm === 1 ? '' : 's'} · ${nt} series`].filter(Boolean).join(' <span class="dotsep">·</span> ')}</p>
+    ${bio ? `<p class="pp-bio">${esc(bio.length > 520 ? bio.slice(0, 520).replace(/\s+\S*$/, '') + '…' : bio)}</p>${bio.length > 520 ? '<button class="pp-more" type="button">Read more</button>' : ''}` : ''}</div></div>
+    <div class="pills" role="group" aria-label="Filter">${[['all', `All (${all.length})`], ['movie', `Movies (${nm})`], ['tv', `Series (${nt})`]].map(([k, n], i) => `<button class="pill${i ? '' : ' on'}" data-pf="${k}" type="button">${n}</button>`).join('')}</div>
+    <div class="grid">${all.map((c) => cardHTML(c)).join('') || '<p class="empty">No movies or series listed.</p>'}</div></div>`;
+  const more = $('.pp-more', main); if (more) more.onclick = () => { $('.pp-bio', main).textContent = bio; more.remove(); };
+  $$('[data-pf]', main).forEach((b) => (b.onclick = () => {
+    $$('[data-pf]', main).forEach((x) => x.classList.toggle('on', x === b));
+    const list = b.dataset.pf === 'all' ? all : all.filter((c) => c.media_type === b.dataset.pf);
+    $('.grid', main).innerHTML = list.map((c) => cardHTML(c)).join('');
+  }));
 }
 function viewMyList() {
   const list = List.all(), cont = Continue.all();
   remember([...list, ...cont]);
   main.innerHTML = `<div class="page"><h1>My List</h1><p class="lead">Saved on this device.</p>
     ${list.length ? `<div class="grid">${list.map((c) => cardHTML(c)).join('')}</div>` : `<div class="empty"><img src="/img/logo.svg" alt=""><h2>Your list is empty</h2><p>Tap <b>+</b> on any title to save it here.</p></div>`}
-    ${cont.length ? `<h1 id="continue" style="margin-top:46px;font-size:24px">Continue watching</h1><p class="lead"><a class="pill" href="/settings/history" data-link>Manage history</a></p><div class="grid">${cont.map((c) => cardHTML(c, { progress: c.progress, s: c.s, e: c.e })).join('')}</div>` : ''}</div>`;
+    ${cont.length ? `<h1 id="continue" style="margin-top:46px;font-size:24px">Continue watching</h1><p class="lead"><a class="pill" href="/settings/history" data-link>Manage history</a></p><div class="grid">${cont.map((c) => cardHTML(c, contOpts(c))).join('')}</div>` : ''}</div>`;
 }
 
-function viewGenres() {
-  const block = (type, label) => `<h2 style="font-size:20px;margin:26px 0 12px">${label}</h2><div class="pills">${(GENRES[type] || []).map((g) => `<a class="pill" href="/genre/${type}/${g.id}" data-link>${esc(g.name)}</a>`).join('') || '<span style="color:var(--dim)">No genres yet.</span>'}</div>`;
-  main.innerHTML = `<div class="page"><h1>Genres</h1><p class="lead">Browse by mood.</p>${block('movie', 'Movies')}${block('tv', 'Series')}</div>`;
+async function viewGenres() {
+  const type = new URLSearchParams(location.search).get('type') === 'tv' ? 'tv' : 'movie';
+  const tile = (g) => `<a class="gtile" href="/genre/${type}/${g.id}" data-link style="--gh:${genreHue(g.id)}">${g.backdrop ? `<img src="${esc(g.backdrop)}" alt="" loading="lazy" decoding="async">` : ''}<span class="gt-n">${esc(g.name)}</span>${g.title ? `<span class="gt-t">${esc(g.title)}</span>` : ''}</a>`;
+  main.innerHTML = `<div class="page gpage"><div class="g-top"><div><h1>Genres</h1><p class="lead">Browse by mood.</p></div>
+    <div class="seg" role="group" aria-label="Type"><a href="/genres" data-link class="${type === 'movie' ? 'on' : ''}">Movies</a><a href="/genres?type=tv" data-link class="${type === 'tv' ? 'on' : ''}">Series</a></div></div>
+    <div class="gtiles">${(GENRES[type] || []).map(tile).join('') || '<p class="empty">No genres yet.</p>'}</div></div>`;
+  try {
+    const d = await api(`/api/genre-tiles/${type}`);
+    const box = $('.gtiles', main); if (box && d.tiles?.length) box.innerHTML = d.tiles.map(tile).join('');
+  } catch {}
 }
 let previewCache = null;
 async function previewCards(el) {
@@ -286,7 +376,7 @@ async function viewTitle(type, id) {
   wireRows();
   $$('[data-yt]', main).forEach((el) => { const open = () => openPlayer({ kind: 'iframe', src: `https://www.youtube-nocookie.com/embed/${el.dataset.yt}?autoplay=1&rel=0&modestbranding=1&playsinline=1`, title: d.title, sub: 'Trailer', trailer: true }); el.onclick = open; el.onkeydown = (e) => e.key === 'Enter' && open(); });
   if ($('#seasonSel')) {
-    const sel = $('#seasonSel'); const cont = Continue.get(d);
+    const sel = $('#seasonSel'); const cont = resumeInfo(d);
     if (cont?.s != null && d.seasons.some((s) => s.season_number === +cont.s)) sel.value = cont.s;
     const load = async () => {
       const eps = $('#eps'); eps.innerHTML = '<div class="ep skel" style="height:110px"></div>'.repeat(3);
@@ -303,23 +393,82 @@ async function viewTitle(type, id) {
 
 // ---- player ---------------------------------------------------------------------
 let hlsLib = null;
-async function viewWatch(type, id, s, e) {
+async function viewWatch(type, id, s, e, r) {
   const qs = s != null ? `?s=${s}&e=${e}` : '';
   const d = await api(`/api/play/${type}/${id}${qs}`);
   const c = { ...(CARDS.get(`${type}:${id}`) || {}), id: +id, media_type: type, title: d.title, year: d.year, poster: d.poster, backdrop: d.backdrop };
   const sub = s != null ? `S${s} · E${e}` : d.year || '';
   if (d.sources.length) {
     c.playable = true;
-    Continue.put(c, { s: s ?? null, e: e ?? null });
+    // Saved position for this exact episode/movie (unless finished or the user chose Start over).
+    const prev = Continue.get(c);
+    const same = prev && (prev.s ?? null) == (s ?? null) && (prev.e ?? null) == (e ?? null);
+    const startAt = Settings.get().rememberPosition && r !== '0' && same && !prev.done && prev.time >= 30 ? prev.time : 0;
+    const approxStart = !!(startAt && prev.approx); // estimated time only: never seek to it
+    Continue.put(c, { s: s != null ? +s : null, e: e != null ? +e : null, ...(same && !prev.done ? {} : { time: 0, progress: 0, done: false, next: null, approx: false }) });
     const pref = Settings.get().preferProvider; const srcs = [...d.sources].sort((a, b) => (b.provider === pref) - (a.provider === pref));
-    openPlayer({ ...srcs[0], title: d.title, sub, all: srcs, card: c, s, e, subs: d.subtitles || [] });
+    openPlayer({ ...srcs[0], title: d.title, sub, all: srcs, card: c, s: s != null ? +s : null, e: e != null ? +e : null, subs: d.subtitles || [], startAt: approxStart ? 0 : startAt, approxStart: approxStart ? startAt : 0, resume: r === '1' });
   } else if (d.trailer) {
     openPlayer({ kind: 'iframe', src: d.trailer.src, title: d.title, sub: d.trailer.name || 'Trailer', trailer: true });
   } else {
     openPlayer({ kind: 'none', title: d.title, sub, card: c, providers: d.providers });
   }
 }
+// ---- playback progress ------------------------------------------------------------
+// Embedded players that report playback via postMessage (CineSrc: {type:'cinesrc:timeupdate', currentTime, duration};
+// common PLAYER_EVENT/MEDIA_DATA shapes too) give exact positions. Others only get season/episode plus an
+// estimate of time spent with the player open (approx).
+const START_PARAMS = [[/(^|\.)cinesrc\.st$/i, 't', { continueprompt: 'false' }]]; // host -> start-time URL param
+function withStart(src, t, direct) {
+  if (!(t >= 30)) return src;
+  try {
+    const u = new URL(src); const m = START_PARAMS.find(([re]) => re.test(u.hostname)); if (!m) return src;
+    u.searchParams.set(m[1], String(Math.floor(t))); if (direct) for (const [k, v] of Object.entries(m[2] || {})) u.searchParams.set(k, v);
+    return u.toString();
+  } catch { return src; }
+}
+const supportsStart = (src) => { try { const h = new URL(src).hostname; return START_PARAMS.some(([re]) => re.test(h)); } catch { return false; } };
+function parsePlayerMsg(d) {
+  if (typeof d === 'string') { if (d[0] !== '{') return null; try { d = JSON.parse(d); } catch { return null; } }
+  if (!d || typeof d !== 'object') return null;
+  let type = String(d.type || d.event || ''), p = d;
+  if (/^(PLAYER_EVENT|MEDIA_DATA)$/i.test(type) && d.data && typeof d.data === 'object') { p = d.data; type = /^MEDIA_DATA$/i.test(type) ? (p.event || 'media') : String(p.event || p.type || ''); }
+  type = type.replace(/^[\w-]+:/, '').toLowerCase();
+  const num = (v) => (typeof v === 'number' && isFinite(v) ? v : typeof v === 'string' && v.trim() !== '' && isFinite(+v) ? +v : null);
+  return { type, time: num(p.currentTime ?? p.current_time ?? p.time ?? p.position), dur: num(p.duration), s: num(p.season), e: num(p.episode) };
+}
+let TRACK = null;
+function fromFrame(src, frame) { try { for (let w = src, i = 0; w && i < 5; w = w.parent, i++) { if (w === frame.contentWindow) return true; if (w === w.parent) break; } } catch {} return false; }
+window.addEventListener('message', (ev) => { if (TRACK?.frame && fromFrame(ev.source, TRACK.frame)) { const m = parsePlayerMsg(ev.data); if (m) TRACK.onMsg(m); } });
+function startTracker(o) {
+  const c = o.card; if (!c) return null;
+  const prev = Continue.get(c);
+  const runtime = (CARDS.get(keyOf(c)) || c).runtime; // minutes (TMDB); per-episode estimate for series
+  const T = { frame: null, label: '', real: false, s: o.s ?? null, e: o.e ?? null, last: 0, time: 0, dur: 0,
+    approx: prev?.approx && !prev.done && (prev.s ?? null) == (o.s ?? null) && (prev.e ?? null) == (o.e ?? null) ? prev.time || 0 : 0 };
+  const save = (force) => {
+    if (!force && Date.now() - T.last < 8000) return; T.last = Date.now();
+    const real = T.real && T.dur > 0;
+    const time = real ? T.time : T.approx, dur = real ? T.dur : runtime ? runtime * 60 : 0;
+    if (!real && time < 15) return;
+    const pct = dur ? Math.min(100, (time / dur) * 100) : null, done = pct != null && pct >= DONE_PCT;
+    Continue.put(c, { s: T.s, e: T.e, time: Math.round(time), dur: Math.round(dur) || null, progress: pct != null ? Math.round(pct * 10) / 10 : null, done, next: done && c.media_type === 'tv' ? nextEpisode(c, T.s, T.e) : null, approx: !real, src: T.label || null });
+  };
+  T.onMsg = (m) => {
+    if (m.type === 'nextepisode' && m.s != null && m.e != null) { save(true); T.s = m.s; T.e = m.e; T.time = 0; T.approx = 0; T.last = 0; Continue.put(c, { s: m.s, e: m.e, time: 0, progress: 0, done: false, next: null }); const sp = $('.player-top span'); if (sp) sp.textContent = `S${m.s} · E${m.e}`; return; }
+    if (m.dur > 0) T.dur = m.dur;
+    if (m.time != null && T.dur > 0) { T.real = true; T.time = m.time; }
+    if (m.type === 'ended') { T.real = true; if (T.dur) T.time = T.dur; save(true); return; }
+    if (T.real) save(/^(pause|seeked)$/.test(m.type));
+  };
+  T.setFrame = (f, label) => { T.frame = f; T.label = label || ''; };
+  T.video = (v) => { T.real = true; T.time = v.currentTime; T.dur = v.duration || 0; save(v.paused || v.ended); };
+  T.tick = setInterval(() => { if (!T.real && document.visibilityState === 'visible') { T.approx += 5; save(); } }, 5000);
+  T.stop = () => { clearInterval(T.tick); save(true); if (TRACK === T) TRACK = null; };
+  return T;
+}
 function closePlayer() {
+  TRACK?.stop();
   const p = $('.player'); if (!p) return;
   const v = $('video', p); if (v) v.pause();
   p.remove(); document.body.style.overflow = '';
@@ -331,11 +480,15 @@ function openPlayer(o) {
   el.innerHTML = `<div class="player-top"><button class="back" aria-label="Close player"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div><b>${esc(o.title)}</b> <span>${esc(o.sub || '')}</span></div>${srcBtns}</div><div class="player-stage"></div>${o.trailer ? '<div class="trailer-flag">Trailer · full title not available on GhostFlix</div>' : ''}`;
   document.body.appendChild(el); document.body.style.overflow = 'hidden';
   const stage = $('.player-stage', el);
+  TRACK = !o.trailer && /^(iframe|video|hls)$/.test(o.kind) ? startTracker(o) : null;
+  if (o.approxStart) toast(`Resuming ${o.sub || ''} — you watched about ${fmtPos(o.approxStart)} last time`);
+  let startAt = o.startAt || 0;
   const mount = async (x) => {
     stage.innerHTML = '';
     if (x.kind === 'iframe') {
-      const f = document.createElement('iframe'); f.src = Settings.get().autoplay ? x.src : x.src.replace(/([?&])autoplay=(1|true)&?/, '$1').replace(/[?&]$/, ''); f.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media'; f.allowFullscreen = true;
-      f.referrerPolicy = 'unsafe-url'; f.title = o.title; const sb = embedSandbox(x.src, x.sandbox); if (sb) f.setAttribute('sandbox', sb); stage.appendChild(f);
+      const f = document.createElement('iframe'); const base = Settings.get().autoplay ? x.src : x.src.replace(/([?&])autoplay=(1|true)&?/, '$1').replace(/[?&]$/, ''); f.src = withStart(base, startAt, o.resume); f.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media'; f.allowFullscreen = true;
+      f.referrerPolicy = 'unsafe-url'; f.title = o.title; const sb = embedSandbox(x.src, x.sandbox); if (sb) f.setAttribute('sandbox', sb); stage.appendChild(f); TRACK?.setFrame(f, x.label || x.providerName);
+      if (startAt >= 30 && !supportsStart(x.src)) toast(`Last time you got to ${fmtPos(startAt)} — this player can’t jump there automatically`);
       if (sb && sb !== x.sandbox) {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'pop-flag'; b.innerHTML = 'Pop-ups blocked · Not playing? <u>Allow</u>';
         b.title = 'Allow pop-ups for embedded players (can be changed in Settings › Player)';
@@ -353,17 +506,16 @@ function openPlayer(o) {
         if (!hlsLib) { await new Promise((res, rej) => { const s = document.createElement('script'); s.src = '/vendor/hls.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); hlsLib = window.Hls; }
         const h = new hlsLib(); h.loadSource(x.src); h.attachMedia(v);
       } else v.src = x.src;
-      const prev = o.card && Continue.get(o.card);
-      if (Settings.get().rememberPosition && prev?.time && prev.s == o.s && prev.e == o.e) v.addEventListener('loadedmetadata', () => { if (prev.time < v.duration - 30) v.currentTime = prev.time; }, { once: true });
-      let last = 0;
-      v.addEventListener('timeupdate', () => { if (o.card && Date.now() - last > 4000 && v.duration) { last = Date.now(); Continue.put(o.card, { s: o.s ?? null, e: o.e ?? null, time: v.currentTime, progress: (v.currentTime / v.duration) * 100 }); } });
+      if (startAt >= 30) v.addEventListener('loadedmetadata', () => { if (startAt < v.duration - 30) v.currentTime = startAt; }, { once: true });
+      TRACK?.setFrame(null, x.label || x.providerName);
+      ['timeupdate', 'pause', 'ended'].forEach((ev) => v.addEventListener(ev, () => v.duration && TRACK?.video(v)));
     } else {
       const p = o.providers; const any = p && (p.flatrate?.length || p.free?.length || p.rent?.length || p.buy?.length);
       stage.innerHTML = `<div class="player-msg"><img src="/img/logo.svg" alt="" width="64" style="margin:0 auto;filter:drop-shadow(0 0 14px var(--acc-glow))"><h2>Not streaming on GhostFlix yet</h2><p>There’s no trailer or stream added for this one yet.${any ? ' Check where it’s streaming instead:' : ''}</p>${any ? `<a class="btn glow sm" href="${esc(p.link)}" target="_blank" rel="noopener">Where to watch</a>` : ''}</div>`;
     }
   };
   mount(o);
-  $$('[data-src]', el).forEach((b) => (b.onclick = () => { $$('[data-src]', el).forEach((x) => x.classList.remove('on')); b.classList.add('on'); mount(o.all[+b.dataset.src]); }));
+  $$('[data-src]', el).forEach((b) => (b.onclick = () => { $$('[data-src]', el).forEach((x) => x.classList.remove('on')); b.classList.add('on'); if (TRACK?.real) startAt = TRACK.time; mount(o.all[+b.dataset.src]); }));
   $('.back', el).onclick = () => (location.pathname.startsWith('/watch/') ? (history.length > 1 ? history.back() : go('/')) : closePlayer());
   el.tabIndex = -1; el.focus();
 }
@@ -400,19 +552,33 @@ const routes = [
   [/^\/profile$/, () => renderSettings(main, settingsCtx(), 'profile'), 'settings'],
   [/^\/settings\/(history|appearance|subtitles|player|preferences|account|connections|tv|profiles|profile)$/, (m) => renderSettings(main, settingsCtx(), m[1]), 'settings'],
   [/^\/title\/(movie|tv)\/(\d+)$/, (m) => viewTitle(m[1], m[2]), null],
+  [/^\/person\/(\d+)$/, (m) => viewPerson(m[1]), 'search'],
 ];
 let lastPage = null;
+// After closing the player the page underneath isn't re-rendered, so refresh its Resume buttons/progress bars.
+function refreshResume() {
+  $$('.hero[data-key]', main).forEach((h) => {
+    const c = CARDS.get(h.dataset.key); if (!c) return;
+    const t = document.createElement('div'); t.innerHTML = heroHTML(c, { detail: h.classList.contains('detail-hero') });
+    const n = t.firstElementChild; $('.btn.cta', h)?.replaceWith($('.btn.cta', n)); $('.resume-bar', h)?.remove();
+    const bar = $('.resume-bar', n); if (bar) $('.btns', h)?.after(bar);
+  });
+  $$('[data-cont] .card[data-key], #continue ~ .grid .card[data-key]', main).forEach((el) => {
+    const c = Continue.all().find((x) => keyOf(x) === el.dataset.key); if (!c) return;
+    const t = document.createElement('div'); t.innerHTML = cardHTML(c, contOpts(c)); el.replaceWith(t.firstElementChild);
+  });
+}
 async function render() {
   const path = location.pathname.replace(/\/+$/, '') || '/';
   const w = path.match(/^\/watch\/(movie|tv)\/(\d+)$/);
   if (w) {
     const q = new URLSearchParams(location.search);
     if (!lastPage) { lastPage = `/title/${w[1]}/${w[2]}`; await routeTo(lastPage); }
-    try { await viewWatch(w[1], w[2], q.get('s'), q.get('e')); } catch (e) { toast(e.message); }
+    try { await viewWatch(w[1], w[2], q.get('s'), q.get('e'), q.get('r')); } catch (e) { toast(e.message); }
     return;
   }
   closePlayer();
-  if (lastPage === path + location.search && main.innerHTML) return; // returning from player
+  if (lastPage === path + location.search && main.innerHTML) return refreshResume(); // returning from player
   lastPage = path + location.search;
   await routeTo(path);
 }
@@ -466,7 +632,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261022c').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023a').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
