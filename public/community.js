@@ -138,7 +138,8 @@ export function createCommunity(ctx) {
     if (!rowsEl.isConnected || after('gf-moods')) return;
     const sec = document.createElement('section'); sec.className = 'row moods'; sec.dataset.row = 'gf-moods';
     sec.innerHTML = `<div class="row-h"><h2>What’s your mood?</h2></div><div class="mood-chips" role="group" aria-label="Pick a mood">${moods.map((m) => `<button class="pill mood" type="button" data-mood="${esc(m.id)}" aria-pressed="false"><span aria-hidden="true">${esc(m.emoji)}</span> ${esc(m.label)}</button>`).join('')}</div><div class="mood-row"></div>`;
-    const ref = after('continue') || after('mylist'); ref ? ref.after(sec) : rowsEl.prepend(sec);
+    rowsEl.append(sec); // always the last home section, even when other rows load in later
+    new MutationObserver(() => { if (sec.isConnected && rowsEl.lastElementChild !== sec) rowsEl.append(sec); }).observe(rowsEl, { childList: true });
     const out = $('.mood-row', sec);
     const pick = async (id) => {
       $$('[data-mood]', sec).forEach((b) => { const on = b.dataset.mood === id; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });

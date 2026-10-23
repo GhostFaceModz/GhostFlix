@@ -3,7 +3,7 @@
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-import { tagHTML } from './community.js?v=20261023zl';
+import { tagHTML } from './community.js?v=20261023zm';
 const keyOf = (c) => `${c.media_type}:${c.id}`;
 
 // Original ghost mascots (drawn here; no third-party characters). viewBox 0 0 64 64, idle animation in CSS.

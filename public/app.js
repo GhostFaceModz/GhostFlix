@@ -1,12 +1,12 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023zl';
-import { applyCosmetics } from './cosmetics.js?v=20261023zl';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023zl';
-import { createPush } from './push.js?v=20261023zl';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023zl';
-import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023zl';
-import { createCommunity } from './community.js?v=20261023zl';
-import { createFlair } from './flair.js?v=20261023zl';
+import { createAuth, ICONS } from './auth.js?v=20261023zm';
+import { applyCosmetics } from './cosmetics.js?v=20261023zm';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023zm';
+import { createPush } from './push.js?v=20261023zm';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023zm';
+import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023zm';
+import { createCommunity } from './community.js?v=20261023zm';
+import { createFlair } from './flair.js?v=20261023zm';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -996,6 +996,12 @@ async function routeTo(path) {
   errorView(Object.assign(new Error('That page drifted into the ether.'), { status: 404 }));
 }
 function go(url) { history.pushState({}, '', url); render(); }
+// "My profile": the active viewer profile's public page (/u/<slug>) if it's switched on, otherwise where it's set up (/profile).
+async function openMyProfile() {
+  let slug = null;
+  if (AUTH?.user && COMM?.feat('publicProfiles')) { try { const p = await COMM.call(`/api/me/public/${encodeURIComponent(Profiles.active().id)}`); if (p.enabled && p.slug) slug = p.slug; } catch {} }
+  go(slug ? `/u/${slug}` : '/profile');
+}
 
 document.addEventListener('click', (e) => {
   const lb = e.target.closest('[data-list]');
@@ -1025,6 +1031,8 @@ document.addEventListener('click', (e) => {
   }
   const ob = e.target.closest('[data-open-bug],[data-open-request]');
   if (ob) { e.preventDefault(); if (ob.hasAttribute('data-open-bug')) COMM?.openBug('menu'); else COMM?.openRequest(); return; }
+  const mp = e.target.closest('[data-my-profile]');
+  if (mp) { e.preventDefault(); mp.closest('.acct')?.classList.remove('open'); openMyProfile(); return; }
   const a = e.target.closest('a[data-link]');
   if (a && !e.metaKey && !e.ctrlKey && !e.shiftKey && a.origin === location.origin) { e.preventDefault(); go(a.pathname + a.search); }
 });
@@ -1054,9 +1062,19 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023zl').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023zm').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+// Installed app: Android keeps it alive in the background and this single-page app never does a full page load, so a new
+// deploy only arrived once the app was killed. When the app comes back to the foreground, check the live build and reload if it changed.
+const BUILD = new URL(import.meta.url).searchParams.get('v'); let buildChk = 0;
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible' || !standalone() || !BUILD || Date.now() - buildChk < 60e3) return; buildChk = Date.now();
+  try {
+    const live = (await (await fetch('/', { cache: 'no-store' })).text()).match(/\/app\.js\?v=([\w.-]+)/)?.[1];
+    if (live && live !== BUILD && !$('.player') && !document.fullscreenElement) location.reload();
+  } catch {}
+});
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 let installPrompt = null;
 if (!standalone() && isIOS) installEl.hidden = false;
