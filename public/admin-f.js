@@ -117,6 +117,49 @@ async function loadTeam(q = '') {
   } catch (e) { $('#teamErr').textContent = e.message; }
 }
 let tq; $('#teamQ').oninput = (e) => { clearTimeout(tq); tq = setTimeout(() => loadTeam(e.target.value.trim()), 350); };
+// ---- all members (admin-only API; also needs the admin's Discord sign-in token, same as role changes)
+const MEM = { page: 1, mods: false, discord: false };
+const memTag = (t) => (t === 'owner' ? ' <span class="mtag own">👑 OWNER</span>' : t === 'mod' ? ' <span class="mtag mod">🛡️ MODERATOR</span>' : '');
+const memAv = (x, sz = 40) => `<span class="mav" style="--s:${sz}px">${x.avatar ? `<img src="${esc(x.avatar)}" alt="" referrerpolicy="no-referrer" loading="lazy">` : esc((x.name || '?')[0])}</span>`;
+async function loadMembers() {
+  const tok = siteToken(); $('#memErr').textContent = '';
+  if (!tok) { $('#memList').innerHTML = '<p class="dim small">Sign in with Discord on the main site in this browser to see members.</p>'; return; }
+  try {
+    const d = await api(`/api/admin/members?page=${MEM.page}&sort=${$('#memSort').value}&q=${encodeURIComponent($('#memQ').value.trim())}${MEM.mods ? '&mods=1' : ''}${MEM.discord ? '&discord=1' : ''}`, { headers: { Authorization: `Bearer ${tok}` } });
+    MEM.page = d.page; $('#memTotal').textContent = `${d.total}`; $('#memPage').textContent = `Page ${d.page} of ${d.pages}`; $('#memPrev').disabled = d.page <= 1; $('#memNext').disabled = d.page >= d.pages;
+    $('#memList').innerHTML = d.members.length ? d.members.map((x) => `<button type="button" class="tr mrow" data-mem="${x.uid}">${memAv(x)}<div><b>${esc(x.name || 'Viewer')}${memTag(x.tag)}</b><span class="dim small">${esc(x.email)}${x.discord ? ` · Discord ${esc(x.discord.user || x.discord.id)}` : ''}</span></div><span class="dim small mst">${x.tier.emoji} ${x.hours} h<br>${ago(x.last)}</span></button>`).join('') : '<p class="dim small">No members match.</p>';
+    $$('[data-mem]').forEach((b) => (b.onclick = () => memberView(b.dataset.mem)));
+  } catch (e) { $('#memErr').textContent = e.message; }
+}
+async function memberView(uid) {
+  const tok = siteToken(); if (!tok) return toast('Sign in with Discord on the main site first');
+  const dl = document.createElement('dialog'); dl.className = 'cdlg memd'; dl.innerHTML = '<p class="dim">Loading…</p>'; document.body.appendChild(dl); dl.addEventListener('close', () => dl.remove()); dl.showModal();
+  let x; try { x = await api(`/api/admin/members/${uid}`, { headers: { Authorization: `Bearer ${tok}` } }); } catch (e) { dl.innerHTML = `<p class="err">${esc(e.message)}</p><div class="btns"><button class="btn ghost sm" onclick="this.closest('dialog').close()">Close</button></div>`; return; }
+  const yn = (v) => (v ? '<b class="pv ok">on</b>' : '<b class="pv">off</b>');
+  const row = (k, v) => `<div class="kv"><span class="dim">${k}</span><span>${v}</span></div>`;
+  dl.innerHTML = `<div class="memh">${memAv(x, 64)}<div><h3>${esc(x.name || 'Viewer')}${memTag(x.tag)}</h3><span class="dim small">${x.profiles.map((p) => esc(p.name) + (p.kids ? ' (kids)' : '')).join(' · ')}</span></div></div>
+    ${row('Email', esc(x.email || '—'))}${row('Discord', x.discord ? `${esc(x.discord.user || x.discord.name || '')} <span class="dim">${esc(x.discord.id)}</span>` : 'not linked')}${row('Sign-in', esc(x.providers.join(', ') || '—'))}
+    ${row('Joined', when(x.joined, { year: 'numeric' }))}${row('Last active', `${when(x.last, { year: 'numeric' })} (${ago(x.last)})`)}
+    ${row('Watch time', `${x.hours} h`)}${row('Rank', `${x.rank.emoji} ${esc(x.rank.name)}`)}${row('Titles watched', x.titles)}
+    ${row('Lists', `${x.lists.watchlist} in My List · ${x.lists.shared} shared`)}${row('Favourites', x.favourites)}${row('Friends', `${x.friends} · ${x.followers} followers · following ${x.following}`)}
+    ${row('Friends feature', yn(x.privacy.friends_on))}${row('Share watching', yn(x.privacy.share_watching))}
+    ${row('Public profile', x.privacy.public.length ? x.privacy.public.map((p) => `${esc(p.profile)}: ${p.enabled ? `<a href="/u/${esc(p.slug)}" target="_blank">on</a>` : 'off'}${p.show_history ? ' (+history)' : ''}`).join(' · ') : 'off')}
+    ${row('Profile stats', x.privacy.stats.length ? x.privacy.stats.map((p) => `${esc(p.profile)}: stats ${p.show_stats ? 'shown' : 'hidden'}, watching ${p.show_watching ? 'shown' : 'hidden'}`).join(' · ') : 'defaults')}
+    ${x.banned ? row('Banned', `<b class="bad">${when(x.banned.banned_at)}</b> ${esc(x.banned.reason || '')}`) : ''}
+    <h4 class="sub">Reports &amp; flags <small class="dim">${x.reports.length}</small></h4>${x.reports.length ? x.reports.map((r) => `<div class="kv"><span>${esc(KIND[r.kind] || r.kind)} · ${esc(r.title || '')} <span class="dim">${r.by_them ? '(sent by them)' : '(about them)'}</span></span><span class="dim small">${esc(STATUS[r.status] || r.status)} · ${when(r.at)}</span></div>`).join('') : '<p class="dim small">None.</p>'}
+    <div class="btns">${x.tag === 'owner' ? '' : `<button type="button" class="btn sm" id="memRole">${x.tag === 'mod' ? 'Remove moderator' : 'Make moderator'}</button>`}<button type="button" class="btn ghost sm" id="memClose">Close</button></div>`;
+  dl.querySelector('#memClose').onclick = () => dl.close();
+  const rb = dl.querySelector('#memRole'); if (rb) rb.onclick = async () => {
+    const mk = x.tag !== 'mod'; dl.close();
+    if (!(await confirmBox(mk ? `Make ${x.name} a moderator?` : `Remove ${x.name} as moderator?`, mk ? 'They get the /mod panel: inbox, flags, users list (names + last seen) and suggestions. No admin access.' : 'They lose access to /mod straight away.', mk ? 'Make moderator' : 'Remove', !mk))) return;
+    const t = siteToken(); if (!t) { roleWho(); return toast('Sign in with Discord on the main site first'); }
+    try { await api(`/api/admin/team/${x.uid}`, { method: 'POST', body: { role: mk ? 'moderator' : '' }, headers: { Authorization: `Bearer ${t}` } }); toast('Role updated'); loadTeam($('#teamQ').value.trim()); loadMembers(); } catch (e) { toast(e.message); }
+  };
+}
+let mq; $('#memQ').oninput = () => { clearTimeout(mq); mq = setTimeout(() => { MEM.page = 1; loadMembers(); }, 350); };
+$('#memSort').onchange = () => { MEM.page = 1; loadMembers(); };
+$$('[data-mf]').forEach((b) => (b.onclick = () => { MEM[b.dataset.mf] = !MEM[b.dataset.mf]; b.classList.toggle('on', MEM[b.dataset.mf]); MEM.page = 1; loadMembers(); }));
+$('#memPrev').onclick = () => { MEM.page--; loadMembers(); }; $('#memNext').onclick = () => { MEM.page++; loadMembers(); };
 async function loadModLog() {
   try { const d = await api('/api/admin/modlog'); $('#modLog').innerHTML = d.items.length ? d.items.map((x) => `<div class="tr lrow"><div><b>${esc(x.mod_name || String(x.mod_id).slice(0, 8))}</b> <span class="pv">${esc(x.action)}</span><span class="dim small">${esc(x.target || '')}${x.detail?.status ? ` → ${esc(STATUS[x.detail.status] || x.detail.status)}` : ''}${x.detail?.note ? ` · “${esc(x.detail.note)}”` : ''}</span></div><time class="dim small">${when(x.created_at)}</time></div>`).join('') : '<p class="dim small">No moderator activity yet.</p>'; }
   catch (e) { $('#modLog').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
@@ -215,7 +258,7 @@ $('#bkGo').onclick = async (e) => {
 F.onTab = (t) => {
   if (t === 'activity') { loadFeed(); loadVisitors(); }
   if (t === 'reports') { loadInbox(); loadFlags(); }
-  if (t === 'team') { loadTeam($('#teamQ').value.trim()); loadModLog(); }
+  if (t === 'team') { loadTeam($('#teamQ').value.trim()); loadMembers(); loadModLog(); }
   if (t === 'schedule') { schKind(); loadSch(); }
   if (t === 'features') loadFeat();
   if (t === 'content') loadCtl();

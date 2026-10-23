@@ -170,3 +170,16 @@ details.shot{margin-top:8px;font-size:12.5px}details.shot summary{cursor:pointer
 .cdlg .btns{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
 .btn.danger{background:#ff5f7a;color:#fff;border-color:#ff5f7a}
 @media (max-width:600px){.feed li{grid-template-columns:12px 1fr}.feed li time{grid-column:2}.tr.srow{grid-template-columns:1fr auto}.tr.srow button{grid-column:1/-1}.hours{height:110px;gap:2px}}
+/* All members (Team tab) */
+.memctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}.memctl .filter{flex:1;min-width:180px}.memctl .select{width:auto}
+.tr.mrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;text-align:left;background:none;border:0;color:inherit;font:inherit;cursor:pointer}
+.tr.mrow:hover{background:rgba(95,227,255,.06)}.tr.mrow>div{display:flex;flex-direction:column;min-width:0;gap:2px}.tr.mrow>div>*{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mst{text-align:right;line-height:1.4}
+.mav{width:var(--s);height:var(--s);border-radius:50%;overflow:hidden;display:grid;place-items:center;background:#1b2338;font-weight:800;flex:none}.mav img{width:100%;height:100%;object-fit:cover}
+.mtag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:.06em;vertical-align:middle}
+.mtag.own{color:#1a1200;background:linear-gradient(135deg,#fff3b0,#ffc83d,#ff9f1c);box-shadow:0 0 8px rgba(255,200,61,.7)}.mtag.mod{color:#e9fbff;background:linear-gradient(135deg,#7b2ff7,#00d4ff);box-shadow:0 0 8px rgba(0,212,255,.55)}
+.mempg{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:10px}
+.cdlg.memd{width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 40px);overflow:auto}
+.memh{display:flex;gap:14px;align-items:center;margin-bottom:12px}.memh h3{margin:0 0 4px}
+.memd .kv{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid rgba(255,255,255,.07);font-size:13.5px}.memd .kv>span:last-child{text-align:right;overflow-wrap:anywhere}
+.memd h4{margin:14px 0 4px}
+@media (max-width:560px){.memd .kv{flex-direction:column;gap:2px}.memd .kv>span:last-child{text-align:left}}

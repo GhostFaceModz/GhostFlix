@@ -5,7 +5,7 @@
 <title>GhostFlix Admin</title><meta name="robots" content="noindex">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/app.css?v=20261023zk"><link rel="stylesheet" href="/admin.css?v=20261023zk">
+<link rel="stylesheet" href="/app.css?v=20261023zl"><link rel="stylesheet" href="/admin.css?v=20261023zl">
 </head>
 <body class="adm">
 <div class="bg" aria-hidden="true"></div>
@@ -121,6 +121,13 @@
         <h3 class="sub">Moderators</h3><div class="table" id="modList"><p class="dim">Loading…</p></div>
         <h3 class="sub">Add a moderator</h3><input id="teamQ" placeholder="Search users by name, email or id…" autocomplete="off" class="filter"><div class="table" id="teamRes"></div>
         <p class="err" id="teamErr"></p></section>
+      <section class="panel"><h2><span class="n">👥</span>All members <small class="dim" id="memTotal"></small></h2>
+        <div class="memctl"><input id="memQ" placeholder="Search name, email, Discord or id…" autocomplete="off" class="filter">
+          <span class="select sm"><select id="memSort" aria-label="Sort"><option value="new">Newest</option><option value="watched">Most watched</option><option value="rank">Rank</option><option value="active">Last active</option></select></span>
+          <div class="seg"><button type="button" data-mf="mods">🛡️ Mods only</button><button type="button" data-mf="discord">Discord-linked</button></div></div>
+        <div class="table" id="memList"><p class="dim">Loading…</p></div>
+        <div class="mempg"><button type="button" class="btn ghost sm" id="memPrev">‹ Prev</button><span class="dim small" id="memPage"></span><button type="button" class="btn ghost sm" id="memNext">Next ›</button></div>
+        <p class="err" id="memErr"></p></section>
       <section class="panel"><h2><span class="n">📝</span>Moderator activity log</h2><div class="table" id="modLog"><p class="dim">Loading…</p></div></section>
     </div>
     <div class="tabp" data-pane="schedule" role="tabpanel" hidden>
@@ -262,6 +269,6 @@
   </div>
 </main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script src="/admin.js?v=20261023zk" type="module"></script>
+<script src="/admin.js?v=20261023zl" type="module"></script>
 </body>
 </html>

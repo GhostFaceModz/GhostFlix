@@ -9,6 +9,7 @@
 import crypto from 'node:crypto';
 import { supa, limiter } from './b3.js';
 import { card } from './tmdb.js';
+import { rankOf as rankOfB6 } from './b6.js';
 
 const clip = (v, n) => String(v ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim().slice(0, n);
 const KEY_RE = /^(movie|tv):\d{1,10}$/;
@@ -359,6 +360,48 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
     else await sb(`ghostflix_roles?user_id=eq.${uid}`, { method: 'DELETE', prefer: 'return=minimal' });
     roleCache.delete(uid);
     res.json({ ok: true });
+  }));
+  // All members (Team tab): admin cookie AND the admin's own Discord sign-in token (same check as role changes). Never for mods.
+  const needOwner = async (req) => { const me = await userOf(req); if (!me || !me.discord.some((d) => adminIds.includes(d))) throw err(403, 'Only the GhostFlix admin’s Discord account can view members. Sign in on the main site with Discord, then try again.'); };
+  const discOf = (u) => { const i = (u.identities || []).find((x) => x.provider === 'discord'); if (!i) return null; const d = i.identity_data || {}; return { id: String(d.provider_id || d.sub || i.id), name: clip(d.custom_claims?.global_name || d.full_name || d.name || '', 60), user: clip(d.user_name || d.preferred_username || d.name || '', 60) }; };
+  const isOwnerU = (u) => (u.identities || []).some((i) => i.provider === 'discord' && adminIds.includes(String(i.id || i.identity_data?.provider_id || i.identity_data?.sub)));
+  admin.get('/members', wrap(async (req, res) => {
+    needSb(); await needOwner(req);
+    const [users, roles, days, soc] = await Promise.all([allUsers(), sb('ghostflix_roles?select=user_id,role'), sb('ghostflix_watch_days?select=user_id,seconds&limit=500000'), sb('ghostflix_social?select=user_id,display_name,last_seen&limit=50000')]);
+    const role = Object.fromEntries((roles || []).map((r) => [r.user_id, r.role])); const so = Object.fromEntries((soc || []).map((r) => [r.user_id, r])); const secs = {};
+    for (const d of days || []) secs[d.user_id] = (secs[d.user_id] || 0) + (d.seconds > 0 ? d.seconds : 0);
+    let list = users.map((u) => { const m = u.user_metadata || {}; const dc = discOf(u); const own = isOwnerU(u); const r = rankOfB6({ watch_seconds: secs[u.id] || 0 });
+      return { uid: u.id, name: so[u.id]?.display_name || nameOfU(u) || (u.email || '').split('@')[0], email: u.email || '', avatar: clip(m.avatar_url || m.picture || '', 400), discord: dc, tag: own ? 'owner' : role[u.id] === 'moderator' ? 'mod' : null,
+        joined: u.created_at, last: [so[u.id]?.last_seen, u.last_sign_in_at].filter(Boolean).sort().pop() || null, hours: r.hours, tier: { i: r.tier.i, name: r.tier.name, emoji: r.tier.emoji } }; });
+    const q = String(req.query.q || '').toLowerCase().trim().slice(0, 60);
+    if (q) list = list.filter((x) => [x.name, x.email, x.uid, x.discord?.id, x.discord?.user, x.discord?.name].some((v) => String(v || '').toLowerCase().includes(q)));
+    if (req.query.mods === '1') list = list.filter((x) => x.tag);
+    if (req.query.discord === '1') list = list.filter((x) => x.discord);
+    const by = { new: (x) => Date.parse(x.joined) || 0, watched: (x) => x.hours, rank: (x) => x.tier.i * 1e7 + x.hours, active: (x) => Date.parse(x.last || 0) || 0 }[req.query.sort] || ((x) => Date.parse(x.joined) || 0);
+    list.sort((x, y) => by(y) - by(x));
+    const pages = Math.max(1, Math.ceil(list.length / 25)); const page = Math.min(pages, Math.max(1, parseInt(req.query.page, 10) || 1));
+    res.set('Cache-Control', 'no-store').json({ total: list.length, page, pages, members: list.slice((page - 1) * 25, page * 25) });
+  }));
+  admin.get('/members/:uid', wrap(async (req, res) => {
+    needSb(); await needOwner(req); const uid = UUIDp(req.params.uid);
+    const r = await authAdmin(`users/${uid}`); if (!r.ok) throw err(404, 'No such member'); const u = await r.json(); const m = u.user_metadata || {};
+    const n = (x) => (Array.isArray(x) ? x.length : 0);
+    const [profiles, sum, wl, shared, flair, pub, soc, fr, fol, fing, inbox, ban, roleR] = await Promise.all([
+      sb(`ghostflix_profiles?user_id=eq.${uid}&select=id,name,kids&order=position`), sb('rpc/ghostflix_watch_summary', { method: 'POST', body: { p_uid: uid, p_profile: 'main' } }),
+      sb(`ghostflix_watchlist?user_id=eq.${uid}&select=tmdb_id&limit=10000`), sb(`ghostflix_shared_lists?or=(a.eq.${uid},b.eq.${uid})&select=id`),
+      sb(`ghostflix_flair?user_id=eq.${uid}&select=profile_id,fav4,show_stats,show_watching`), sb(`ghostflix_public_profiles?user_id=eq.${uid}&select=profile_id,slug,enabled,show_history`),
+      sb(`ghostflix_social?user_id=eq.${uid}&select=display_name,friends_on,share_watching,last_seen`), sb(`ghostflix_friends?or=(a.eq.${uid},b.eq.${uid})&status=eq.accepted&select=a`),
+      sb(`ghostflix_follows?followee=eq.${uid}&select=follower`), sb(`ghostflix_follows?follower=eq.${uid}&select=followee`),
+      sb(`ghostflix_inbox?or=(user_id.eq.${uid},data->>user_id.eq.${uid},data->message->>user_id.eq.${uid})&select=id,kind,status,title,user_id,created_at&order=created_at.desc&limit=50`),
+      sb(`ghostflix_bans?user_id=eq.${uid}&select=reason,banned_at`), sb(`ghostflix_roles?user_id=eq.${uid}&select=role,granted_at`)].map((p) => p.catch(() => null)));
+    const s = soc?.[0] || {}; const rk = rankOfB6(sum); const own = isOwnerU(u);
+    res.set('Cache-Control', 'no-store').json({ uid, name: s.display_name || nameOfU(u), email: u.email || '', avatar: clip(m.avatar_url || m.picture || '', 400), discord: discOf(u), providers: (u.app_metadata?.providers || []).filter(Boolean),
+      tag: own ? 'owner' : roleR?.[0]?.role === 'moderator' ? 'mod' : null, role: roleR?.[0] || null, banned: ban?.[0] || null, joined: u.created_at, last: [s.last_seen, u.last_sign_in_at].filter(Boolean).sort().pop() || null,
+      profiles: [{ id: 'main', name: (profiles || []).find((p) => p.id === 'main')?.name || 'Main' }, ...(profiles || []).filter((p) => p.id !== 'main').map((p) => ({ id: p.id, name: p.name, kids: !!p.kids }))],
+      hours: rk.hours, rank: { name: rk.tier.name, emoji: rk.tier.emoji }, titles: sum?.titles || 0, lists: { watchlist: n(wl), shared: n(shared) }, favourites: (flair || []).reduce((t, f) => t + n(f.fav4), 0),
+      friends: n(fr), followers: n(fol), following: n(fing),
+      privacy: { friends_on: !!s.friends_on, share_watching: !!s.share_watching, public: (pub || []).map((p) => ({ profile: p.profile_id, enabled: p.enabled, slug: p.enabled ? p.slug : null, show_history: p.show_history })), stats: (flair || []).map((f) => ({ profile: f.profile_id, show_stats: f.show_stats, show_watching: f.show_watching })) },
+      reports: (inbox || []).map((x) => ({ id: x.id, kind: x.kind, status: x.status, title: x.title, by_them: x.user_id === uid, at: x.created_at })) });
   }));
   // Reports inbox + Flags (admin view of everything)
   const INBOX_COLS = 'id,kind,status,title,body,data,user_id,visitor,by_mod,notes,created_at,updated_at';
