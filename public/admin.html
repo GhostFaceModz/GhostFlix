@@ -24,15 +24,21 @@
   </section>
 
   <div id="dash" hidden>
-    <div class="stats" id="stats" aria-label="Site stats at a glance"></div>
     <nav class="tabs" id="tabs" role="tablist" aria-label="Admin sections">
+      <a href="#overview" role="tab" data-tab="overview">🏠 Overview</a>
       <a href="#stats" role="tab" data-tab="stats">📈 Stats</a>
+      <a href="#site" role="tab" data-tab="site">★ Site controls</a>
       <a href="#reports" role="tab" data-tab="reports">🚩 Reports <b class="cnt" id="repCnt" hidden></b></a>
-      <a href="#site" role="tab" data-tab="site">★ Site</a>
+      <a href="#users" role="tab" data-tab="users">👥 Users</a>
+      <a href="#notifications" role="tab" data-tab="notifications">🔔 Notifications</a>
       <a href="#content" role="tab" data-tab="content">🎬 Content</a>
       <a href="#live" role="tab" data-tab="live">📺 Live TV</a>
     </nav>
-    <div class="tabp" data-pane="stats" role="tabpanel">
+    <div class="tabp" data-pane="overview" role="tabpanel">
+      <div class="stats" id="stats" aria-label="Site stats at a glance"></div>
+      <p class="dim small ovnote">Tap a card for the full breakdown. Visitors are first-party, anonymous and counted per UTC day; numbers refresh every minute.</p>
+    </div>
+    <div class="tabp" data-pane="stats" role="tabpanel" hidden>
       <section class="panel" id="statsPanel">
         <h2><span class="n">📈</span>Visitors &amp; plays <span class="range" id="range"><button type="button" data-days="7">7d</button><button type="button" data-days="30" class="on">30d</button><button type="button" data-days="90">90d</button></span></h2>
         <p class="dim small" id="statsNote">First-party only — no third-party trackers. A visitor is an anonymous hash of IP + browser that changes every UTC day (IPs aren’t stored), so multi-day numbers are the sum of daily unique visitors. Do Not Track / GPC browsers and bots aren’t counted.</p>
@@ -72,6 +78,24 @@
       <div class="btns"><button class="btn glow sm" id="siteSave" type="button">Save site settings</button><button class="btn ghost sm" id="siteReset" type="button">Reset to defaults</button></div>
       <p class="err" id="siteErr"></p>
     </section>
+    </div>
+    <div class="tabp" data-pane="users" role="tabpanel" hidden>
+      <section class="panel" id="usersPanel">
+        <h2><span class="n">👥</span>Signed-up users <small class="dim" id="usersTot"></small></h2>
+        <p class="dim small">Accounts in Supabase Auth (newest first). Emails are partly hidden on purpose. Viewer profiles are counted per account.</p>
+        <div class="table" id="usersTable"><p class="dim">Loading…</p></div>
+        <div class="btns"><button class="btn ghost sm" id="usersPrev" type="button" hidden>← Newer</button><button class="btn ghost sm" id="usersNext" type="button" hidden>Older →</button></div>
+        <p class="err" id="usersErr"></p>
+      </section>
+    </div>
+    <div class="tabp" data-pane="notifications" role="tabpanel" hidden>
+      <section class="panel" id="pushPanel">
+        <h2><span class="n">🔔</span>Push notifications</h2>
+        <p class="dim small">Viewers opt in under Settings → Preferences → Notifications. They get a push when a series in their My List / Continue watching gets a new episode, or a “Remind me” title comes out. iPhone/iPad only works from the installed home-screen app. The sender runs hourly (Supabase cron) and while the server is awake.</p>
+        <div class="sgrid" id="pushGrid"><p class="dim">Loading…</p></div>
+        <div class="btns"><button class="btn glow sm" id="pushRun" type="button">Run sender now</button></div>
+        <p class="dim small" id="pushOut"></p>
+      </section>
     </div>
     <div class="tabp" data-pane="content" role="tabpanel" hidden>
     <div class="cols">

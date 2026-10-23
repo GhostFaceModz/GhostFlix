@@ -100,3 +100,18 @@ a.stat:hover,a.stat:focus-visible{border-color:rgba(95,227,255,.5);transform:tra
 .bar-row .bt{height:8px;border-radius:4px;background:rgba(255,255,255,.06);overflow:hidden}.bar-row .bt i{display:block;height:100%;background:linear-gradient(90deg,#2a8cff,#5fe3ff);border-radius:4px}
 #repBySource{margin-bottom:14px}
 @media (max-width:600px){.stats{grid-template-columns:repeat(2,1fr);gap:10px}.stat.users{grid-column:1/-1}#who{display:none}.cwrap svg{height:150px}.stat{padding:14px}.stat b{font-size:22px}.range{float:none;display:flex;margin-top:8px}.sgrid{grid-template-columns:1fr}}
+/* Stage D: sticky pill tab bar directly under the header */
+.adm .admin{padding-top:62px}
+.tabs{position:sticky;top:62px;z-index:300;margin:0 calc(-1 * var(--pad)) 20px;padding:10px var(--pad);gap:8px;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(6,8,14,.86);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;mask-image:linear-gradient(90deg,transparent 0,#000 var(--pad),#000 calc(100% - var(--pad)),transparent 100%)}
+.tabs a{scroll-snap-align:center;padding:8px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.1);border-bottom:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);font-size:13.5px;line-height:1.2}
+.tabs a.on{color:#04121a;background:#5fe3ff;border-color:#5fe3ff}
+.tabs a:focus-visible{outline:2px solid #5fe3ff;outline-offset:2px}
+.tabs a.on .cnt{background:#04121a;color:#5fe3ff}
+.tabp{scroll-margin-top:120px}
+.ovnote{margin-top:14px}
+.sbox .big{font-size:18px;font-weight:700;margin:4px 0}
+.tr.urow{grid-template-columns:minmax(0,1.6fr) 1fr 1fr 90px;align-items:center}
+.tr.urow>div{display:flex;flex-direction:column;min-width:0}.tr.urow>div b,.tr.urow>div span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:760px){.tabs{top:56px}.adm .admin{padding-top:56px}}
+@media (max-width:900px){.tr.urow{grid-template-columns:1fr 1fr}.tr.urow>div{grid-column:1/-1}}
+@media (max-width:600px){.tabs{padding:8px var(--pad);gap:6px}.tabs a{padding:7px 12px;font-size:13px}}

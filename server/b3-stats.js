@@ -103,7 +103,7 @@ export function mountStats(app, { env, wrap, admin, catalog }) {
   const send = (row, payload) => webpush.sendNotification({ endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } }, JSON.stringify(payload), { TTL: 86400, urgency: 'normal' });
   const daysAgo = (n) => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
   let running = null;
-  async function runSender() {
+  let runSender = async function () {
     if (!pushOn) return { skipped: 'not configured' };
     if (running) return running;
     running = (async () => {
@@ -136,7 +136,7 @@ export function mountStats(app, { env, wrap, admin, catalog }) {
       return { subs: rows.length, shows: ids.length, newEpisodes: eps.size, sent, removed, failed };
     })().finally(() => { setTimeout(() => { running = null; }, 0); });
     return running;
-  }
+  };
   app.post('/api/cron/push', wrap(async (req, res) => {
     const k = String(req.get('x-cron-secret') || '');
     let ok = !!(env.CRON_SECRET && k && k.length === env.CRON_SECRET.length && crypto.timingSafeEqual(Buffer.from(k), Buffer.from(env.CRON_SECRET)));
@@ -145,5 +145,41 @@ export function mountStats(app, { env, wrap, admin, catalog }) {
     res.json(await runSender());
   }));
   if (pushOn) setInterval(() => runSender().then((r) => r.sent && console.log('[push] sent', r.sent)).catch((e) => console.warn('[push] run failed', e.message)), 3600e3).unref();
-  return { runSender };
+  // ---------------------------------------------------------------- admin: notifications + users tabs
+  let lastRun = null;
+  const track = (by) => (r) => { lastRun = { at: new Date().toISOString(), by, result: r }; return r; };
+  const _run = runSender; runSender = () => _run().then(track('auto'));
+  admin.get('/push', wrap(async (req, res) => {
+    const out = { configured: pushOn, lastRun, subs: 0, devices: [], shows: 0, reminders: 0, failing: 0, lastSent: null, newest: null };
+    if (sb) {
+      const rows = (await sb('ghostflix_push_subs?select=ua,shows,reminders,fails,last_sent_at,created_at&limit=5000').catch(() => [])) || [];
+      out.subs = rows.length;
+      const d = {}; for (const r of rows) d[r.ua || 'other'] = (d[r.ua || 'other'] || 0) + 1;
+      out.devices = Object.entries(d).map(([device, n]) => ({ device, n })).sort((a, b) => b.n - a.n);
+      out.shows = new Set(rows.flatMap((r) => (r.shows || []).map((x) => x.id))).size;
+      out.reminders = rows.reduce((a, r) => a + (r.reminders || []).length, 0);
+      out.failing = rows.filter((r) => r.fails > 0).length;
+      out.lastSent = rows.map((r) => r.last_sent_at).filter(Boolean).sort().pop() || null;
+      out.newest = rows.map((r) => r.created_at).filter(Boolean).sort().pop() || null;
+    }
+    res.set('Cache-Control', 'no-store').json(out);
+  }));
+  admin.post('/push/run', wrap(async (req, res) => { const r = await _run(); track('admin')(r); res.json(r); }));
+  const mask = (e) => { if (!e) return ''; const [u, d] = String(e).split('@'); return d ? `${u.slice(0, 2)}${'•'.repeat(Math.max(1, Math.min(6, u.length - 2)))}@${d}` : '•••'; };
+  admin.get('/users', wrap(async (req, res) => {
+    if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_KEY) return res.json({ users: [], total: null, error: 'Supabase is not configured' });
+    const page = Math.max(1, Math.min(200, parseInt(req.query.page, 10) || 1));
+    const r = await fetch(`${env.SUPABASE_URL.replace(/\/$/, '')}/auth/v1/admin/users?page=${page}&per_page=50`, { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } });
+    if (!r.ok) return res.status(502).json({ error: `Auth said ${r.status}` });
+    const total = r.headers.get('x-total-count'); const j = await r.json(); const list = j.users || [];
+    let prof = {};
+    if (list.length) { try { const ids = list.map((u) => u.id).join(','); for (const x of (await sb(`ghostflix_profiles?select=user_id&user_id=in.(${ids})`)) || []) prof[x.user_id] = (prof[x.user_id] || 0) + 1; } catch {} }
+    res.set('Cache-Control', 'no-store').json({ page, total: total != null ? +total : (j.total ?? null), users: list.map((u) => {
+      const m = u.user_metadata || {};
+      return { id: u.id.slice(0, 8), name: clip(m.full_name || m.name || m.user_name || m.custom_claims?.global_name || '', 60), email: mask(u.email),
+        providers: (u.app_metadata?.providers || [u.app_metadata?.provider]).filter(Boolean), created: u.created_at, last: u.last_sign_in_at, profiles: prof[u.id] || 0,
+        admin: m.provider_id === '803606154365632555' || m.sub === '803606154365632555' };
+    }) });
+  }));
+  return { runSender: () => runSender() };
 }

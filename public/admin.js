@@ -341,19 +341,69 @@ $('#siteSave').onclick = () => {
 };
 $('#siteReset').onclick = () => { if (confirm('Reset site settings to defaults (no banner, auto hero, all sections and rows on, maintenance off)?')) saveSite({ announcement: { on: false, text: '', color: '#5fe3ff' }, hero: null, maintenance: false, sections: {}, rows: {} }); };
 
-// ---- one panel: tabs (Stats · Reports · Site · Content · Live TV) -------------------------------
-const TABS = ['stats', 'reports', 'site', 'content', 'live'];
-function showTab(t, focus) {
-  if (!TABS.includes(t)) t = 'stats';
-  $$('#tabs [data-tab]').forEach((a) => { const on = a.dataset.tab === t; a.classList.toggle('on', on); a.setAttribute('aria-selected', String(on)); });
+// ---- one panel: sticky tab bar (Overview · Stats · Site · Reports · Users · Notifications · Content · Live TV) ----
+const TABS = ['overview', 'stats', 'site', 'reports', 'users', 'notifications', 'content', 'live'];
+const TAB_KEY = 'gf.admin.tab';
+let tabsInit = false;
+function showTab(t, scroll) {
+  if (!TABS.includes(t)) t = 'overview';
+  $$('#tabs [data-tab]').forEach((a) => { const on = a.dataset.tab === t; a.classList.toggle('on', on); a.setAttribute('aria-selected', String(on)); a.tabIndex = on ? 0 : -1; if (on) a.scrollIntoView({ block: 'nearest', inline: 'center' }); });
   $$('.tabp').forEach((p) => (p.hidden = p.dataset.pane !== t));
-  if (focus) $(`.tabp[data-pane="${t}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  try { localStorage.setItem(TAB_KEY, t); } catch {}
+  if (location.hash.slice(1) !== t) history.replaceState(null, '', `#${t}`);
+  if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (t === 'users') loadUsers(); if (t === 'notifications') loadPush();
 }
 function initTabs() {
-  const fromHash = () => showTab(location.hash.slice(1), false);
+  if (tabsInit) return; tabsInit = true;
+  let saved = null; try { saved = localStorage.getItem(TAB_KEY); } catch {}
+  const h = location.hash.slice(1);
+  showTab(TABS.includes(h) ? h : saved, false);
   window.addEventListener('hashchange', () => showTab(location.hash.slice(1), true));
-  fromHash();
+  $('#tabs').addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    const i = TABS.indexOf(document.activeElement?.dataset?.tab); if (i < 0) return;
+    const n = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length]; location.hash = n; $(`#tabs [data-tab="${n}"]`).focus(); e.preventDefault();
+  });
 }
+
+// ---- users tab (Supabase Auth, emails masked server-side) ----
+let UPAGE = 1, UT = 0;
+async function loadUsers(page = UPAGE) {
+  if (Date.now() - UT < 30000 && page === UPAGE) return; UT = Date.now(); UPAGE = page;
+  $('#usersErr').textContent = '';
+  try {
+    const d = await api(`/api/admin/users?page=${page}`);
+    if (d.error) $('#usersErr').textContent = d.error;
+    $('#usersTot').textContent = d.total != null ? `(${fmt(d.total)})` : '';
+    const when = (x) => (x ? new Date(x).toLocaleString(undefined, { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
+    $('#usersTable').innerHTML = d.users.length ? d.users.map((u) => `<div class="tr urow"><div><b>${esc(u.name || u.email || u.id)}${u.admin ? ' <span class="pv">admin</span>' : ''}</b><span class="dim small">${esc(u.email)}${u.providers.length ? ' · ' + esc(u.providers.join(', ')) : ''}</span></div><span class="small"><span class="dim">Joined</span> ${when(u.created)}</span><span class="small"><span class="dim">Last sign-in</span> ${when(u.last)}</span><span class="small">${u.profiles} profile${u.profiles === 1 ? '' : 's'}</span></div>`).join('') : '<p class="dim">No users yet.</p>';
+    $('#usersPrev').hidden = page <= 1; $('#usersNext').hidden = !(d.total && page * 50 < d.total);
+  } catch (e) { $('#usersErr').textContent = e.message; UT = 0; }
+}
+$('#usersPrev').onclick = () => loadUsers(UPAGE - 1);
+$('#usersNext').onclick = () => loadUsers(UPAGE + 1);
+
+// ---- notifications tab ----
+async function loadPush() {
+  try {
+    const d = await api('/api/admin/push');
+    const when = (x) => (x ? new Date(x).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
+    const lr = d.lastRun;
+    $('#pushGrid').innerHTML = [
+      box('Status', `<p class="big">${d.configured ? '✅ Configured' : '⚠️ Not configured'}</p><p class="dim small">${d.configured ? 'VAPID keys set on the server.' : 'Set VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY.'}</p>`),
+      box(`Subscribed devices · ${fmt(d.subs)}`, bars(d.devices, 'device', (x) => esc(x.device[0].toUpperCase() + x.device.slice(1)), 'Nobody has turned notifications on yet') + (d.failing ? `<p class="dim small">${d.failing} with recent delivery errors</p>` : '')),
+      box('Following', `<div class="bar-row t"><span class="bl">Series watched for new episodes</span><b>${fmt(d.shows)}</b></div><div class="bar-row t"><span class="bl">Remind-me titles</span><b>${fmt(d.reminders)}</b></div>`),
+      box('Delivery', `<div class="bar-row t"><span class="bl">Last notification sent</span><b>${when(d.lastSent)}</b></div><div class="bar-row t"><span class="bl">Newest subscriber</span><b>${when(d.newest)}</b></div><div class="bar-row t"><span class="bl">Last sender run (this instance)</span><b>${lr ? when(lr.at) : '—'}</b></div>${lr?.result ? `<p class="dim small">${esc(lr.by)}: ${fmt(lr.result.sent ?? 0)} sent · ${fmt(lr.result.newEpisodes ?? 0)} new episodes · ${fmt(lr.result.removed ?? 0)} removed</p>` : ''}`),
+    ].join('');
+  } catch (e) { $('#pushGrid').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+$('#pushRun').onclick = async (e) => {
+  const b = e.currentTarget; b.disabled = true; $('#pushOut').textContent = 'Running…';
+  try { const r = await api('/api/admin/push/run', { method: 'POST', body: {} }); $('#pushOut').textContent = r.skipped ? `Skipped: ${r.skipped}` : `Checked ${r.subs} device(s) and ${r.shows} series: ${r.newEpisodes} with a new episode, ${r.sent} notification(s) sent, ${r.removed} expired removed${r.failed ? `, ${r.failed} failed` : ''}.`; loadPush(); }
+  catch (err) { $('#pushOut').textContent = err.message; }
+  b.disabled = false;
+};
 
 // ---- stats (first-party; /api/admin/stats) --------------------------------------------------------
 let USERS = null, ST = null, DAYS = 30, statsT;
@@ -361,7 +411,7 @@ const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString());
 function renderCards() {
   const t = ST?.stats?.today || {}, live = ST?.live;
   const cards = [
-    [USERS, 'Signed-up users', '#stats', 'users'],
+    [USERS, 'Signed-up users', '#users', 'users'],
     [ST?.stats ? t.visitors : null, 'Visitors today', '#stats'],
     [ST?.stats ? ST.stats.visitors_7d : null, 'Visitors · 7 days', '#stats', '', 'Sum of daily unique visitors'],
     [live ? live.now : null, 'Live now', '#stats', 'live', 'Active in the last 2 minutes'],
