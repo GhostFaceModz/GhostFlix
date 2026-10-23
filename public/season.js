@@ -1,7 +1,7 @@
-// Seasonal looks (Settings › Appearance › Seasonal theme). "auto" = Halloween for all of October, Normal otherwise.
+// Seasonal looks (Settings › Appearance › Seasonal theme). Default Normal; "auto" = Halloween for all of October, Normal otherwise.
 // Halloween: orange/purple accents, a few slow ghosts/bats behind the content, a glow on the logo (the logo video itself
 // is untouched), an optional pumpkin cursor (desktop), optional synthesised sound effects, and a pumpkin-ghost favicon.
-export const SEASONS = [['auto', 'Auto (seasonal)'], ['normal', 'Normal'], ['halloween', 'Halloween']];
+export const SEASONS = [['normal', 'Normal'], ['halloween', 'Halloween'], ['auto', 'Auto (seasonal)']];
 export const HALLOWEEN = { acc: '#ff7a18', acc2: '#9b5cff', soft: '#ffd9b8' };
 /** Resolve a season setting to the active season ('' = normal). */
 export function resolveSeason(v, d = new Date()) { return v === 'halloween' || (v !== 'normal' && d.getMonth() === 9) ? 'halloween' : ''; }
@@ -59,6 +59,8 @@ export function applySeason(s) {
   if (season && s.pumpkinCursor) r.dataset.pumpkin = '1'; else delete r.dataset.pumpkin;
   enabled = !!(season && s.spookySounds); if (enabled) wireSounds();
   setIcons(season);
-  if (document.body) decor(!!season); else document.addEventListener('DOMContentLoaded', () => decor(!!resolveSeason(s.season)), { once: true });
+  // Background animation (drifting ghosts/bats) on every theme unless switched off: cyan on Normal, orange/purple on Halloween.
+  const anim = s.bgAnim !== false; if (anim) r.dataset.bganim = '1'; else delete r.dataset.bganim;
+  if (document.body) decor(anim); else document.addEventListener('DOMContentLoaded', () => decor(anim), { once: true });
   return season;
 }

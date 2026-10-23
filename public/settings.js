@@ -1,5 +1,5 @@
-import { Cosmetics, BORDER_GROUPS, GLOWS, avatarWrap } from './cosmetics.js?v=20261023w2';
-import { SEASONS, HALLOWEEN, applySeason, resolveSeason, SFX } from './season.js?v=20261023w2';
+import { Cosmetics, BORDER_GROUPS, GLOWS, avatarWrap } from './cosmetics.js?v=20261023w3';
+import { SEASONS, HALLOWEEN, applySeason, resolveSeason, SFX } from './season.js?v=20261023w3';
 // GhostFlix settings: stored in localStorage, applied live (theme, accent, cards, subtitles, player prefs).
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const ACCENTS = {
@@ -11,12 +11,13 @@ export const ACCENTS = {
   gold: { name: 'Gold', acc: '#ffd166', acc2: '#f5a524', soft: '#fff1c9' },
 };
 const DEFAULTS = {
-  theme: 'dark', accent: 'ghost', cardLayout: 'poster', cardSize: 'm', motion: 'full', season: 'auto', pumpkinCursor: true, spookySounds: false,
+  theme: 'dark', accent: 'ghost', cardLayout: 'poster', cardSize: 'm', motion: 'full', season: 'normal', bgAnim: true, pumpkinCursor: true, spookySounds: false,
   autoplayHero: true, region: '', autoplay: true, rememberPosition: true, preferProvider: 'any', blockPopups: true,
   subs: { enabled: true, lang: 'en', size: 100, color: '#ffffff', bg: 'rgba(0,0,0,.6)', font: 'sans', edge: 'shadow' },
 };
 export const Settings = {
-  get() { try { const s = JSON.parse(localStorage.getItem('gf.settings')) || {}; return { ...DEFAULTS, ...s, subs: { ...DEFAULTS.subs, ...(s.subs || {}) } }; } catch { return structuredClone(DEFAULTS); } },
+  // season 'auto' used to be the default and was stored with every settings save; only keep it if it was picked on purpose.
+  get() { try { const s = JSON.parse(localStorage.getItem('gf.settings')) || {}; if (s.season === 'auto' && !s.seasonPicked) delete s.season; return { ...DEFAULTS, ...s, subs: { ...DEFAULTS.subs, ...(s.subs || {}) } }; } catch { return structuredClone(DEFAULTS); } },
   set(patch) { const cur = Settings.get(); const next = { ...cur, ...patch, subs: { ...cur.subs, ...(patch.subs || {}) } }; localStorage.setItem('gf.settings', JSON.stringify(next)); applySettings(next); return next; },
   reset() { localStorage.removeItem('gf.settings'); applySettings(Settings.get()); },
 };
@@ -39,7 +40,7 @@ export function applySettings(s = Settings.get()) {
 /** Signed in: adopt the seasonal theme saved on the account (Supabase user metadata gf_season). */
 export function seasonFromUser(user) {
   const v = user?.user_metadata?.gf_season; if (!SEASONS.some(([k]) => k === v) || v === Settings.get().season) return false;
-  Settings.set({ season: v }); return true;
+  Settings.set({ season: v, seasonPicked: true }); return true;
 }
 // Pop-up blocking for third-party embed players: sandbox without allow-popups / allow-top-navigation / allow-modals.
 export const POPUP_SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-presentation allow-orientation-lock allow-pointer-lock';
@@ -138,6 +139,7 @@ export function renderSettings(main, ctx, sub) {
       <div class="set-label">Seasonal theme</div><div class="set-group pad">
         <div class="themes seasons" role="radiogroup" aria-label="Seasonal theme">${SEASONS.map(([v, l]) => `<button type="button" role="radio" aria-checked="${s.season === v}" class="theme season-opt so-${v} ${s.season === v ? 'on' : ''}" data-season="${v}"><span><i></i><b class="so-art" aria-hidden="true"></b></span>${l}</button>`).join('')}</div>
         <p class="set-note">${s.season === 'auto' ? `Auto shows Halloween for all of October and the normal look the rest of the year. Right now: <b>${live ? 'Halloween' : 'Normal'}</b>.` : s.season === 'halloween' ? 'Halloween look on all year, until you change it.' : 'The normal GhostFlix look, all year.'} ${u ? 'Saved to your account.' : 'Saved on this device.'}</p>
+        ${row('Background animation', toggle('bgAnim', s.bgAnim), 'Ghosts drifting slowly behind the page')}
         ${live ? `${row('Pumpkin cursor', toggle('pumpkinCursor', s.pumpkinCursor), 'Desktop only (mouse pointers)')}
         ${row('Spooky sounds', toggle('spookySounds', s.spookySounds), 'Soft whoosh on hover and a ghostly “ooo” on click. Off by default.')}` : ''}
       </div>
@@ -153,7 +155,7 @@ export function renderSettings(main, ctx, sub) {
       <p style="margin-top:18px"><button class="btn dark sm" type="button" id="resetApp">Reset appearance</button></p></div>`;
     ctx.previewCards(main.querySelector('#appPrev'));
     const saveSeason = async (v) => {
-      Settings.set({ season: v }); re();
+      Settings.set({ season: v, seasonPicked: true }); re();
       if (u) { try { const cl = await ctx.auth.client(); const { error } = await cl.auth.updateUser({ data: { gf_season: v } }); if (error) throw error; } catch { ctx.toast('Saved on this device (account sync failed)'); } }
     };
     main.querySelectorAll('[data-season]').forEach((b) => (b.onclick = () => saveSeason(b.dataset.season)));

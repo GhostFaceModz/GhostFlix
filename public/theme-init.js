@@ -3,8 +3,9 @@
   try {
     var s = JSON.parse(localStorage.getItem('gf.settings') || '{}') || {};
     var r = document.documentElement; r.dataset.theme = s.theme || 'dark';
-    // Seasonal look (auto = Halloween all October): set before paint so there is no cyan flash.
-    if (s.season === 'halloween' || (s.season !== 'normal' && new Date().getMonth() === 9)) r.dataset.season = 'halloween';
+    // Seasonal look (default Normal; auto = Halloween all October, only if picked): set before paint so there is no colour flash.
+    if (s.season === 'halloween' || (s.season === 'auto' && s.seasonPicked && new Date().getMonth() === 9)) r.dataset.season = 'halloween';
+    if (s.bgAnim !== false) r.dataset.bganim = '1';
     var c = JSON.parse(localStorage.getItem('gf.cosmetics') || '{}') || {};
     if (c.glow) { r.style.setProperty('--gf-glow', c.glow); r.dataset.glow = '1'; }
   } catch (e) { document.documentElement.dataset.theme = 'dark'; }
