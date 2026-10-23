@@ -1,4 +1,4 @@
-// "Promote GhostFlix": personal referral links (/?ref=CODE), click counting, first-sign-up attribution, public top 10,
+// "Promote GhostFlix": personal referral links (/?ref=CODE), click + "watching" counting, first-sign-up attribution, public top 10,
 // and the admin promoter list for paying out Bloodstrike Gold. Tables: supabase/migrations/20261023_referrals.sql.
 // All writes go through the service key here; users only ever read their own rows (RLS).
 import crypto from 'node:crypto';
@@ -12,8 +12,12 @@ const NEW_ACCOUNT_MS = 2 * 3600e3; // only accounts created in the last 2 hours 
 const err = (status, message) => Object.assign(new Error(message), { status });
 const clip = (v, n) => String(v ?? '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, n);
 
-/** Leaderboard order: most sign-ups first, then clicks, then who started earliest. */
-export const rankSort = (a, b) => b.signups - a.signups || b.clicks - a.clicks || String(a.created_at).localeCompare(String(b.created_at));
+/** Leaderboard score: everyone who starts watching through the link counts; a sign-up is a bonus worth 3. */
+export const SIGNUP_BONUS = 3;
+export const scoreOf = (r) => (Number(r?.watching) || 0) + (Number(r?.signups) || 0) * SIGNUP_BONUS;
+/** Leaderboard order: highest score, then sign-ups, then clicks, then who started earliest. */
+export const rankSort = (a, b) => scoreOf(b) - scoreOf(a) || b.signups - a.signups || b.clicks - a.clicks || String(a.created_at).localeCompare(String(b.created_at));
+export const DEVICE_RE = /^[A-Za-z0-9_-]{16,64}$/;
 /** Is this account new enough to be attributed to a referrer? */
 export const isNewAccount = (createdAt, now = Date.now()) => { const t = Date.parse(createdAt || ''); return Number.isFinite(t) && now - t >= -60e3 && now - t <= NEW_ACCOUNT_MS; };
 
@@ -22,7 +26,7 @@ export function mountReferrals(app, { env, wrap, admin, store, sb, needUser }) {
   const SALT = crypto.createHash('sha256').update(`${env.SESSION_SECRET || ''}|${KEY || ''}|gf-ref`).digest('hex');
   const reward = () => clip(store.data.promo?.reward, 200) || DEFAULT_REWARD;
   const need = () => { if (!sb) throw err(503, 'Accounts aren’t set up on this server.'); };
-  const clickIp = limiter(40, 3600e3), clickCode = limiter(1, 3600e3), meLimit = limiter(30, 60e3), claimLimit = limiter(10, 3600e3);
+  const clickIp = limiter(40, 3600e3), clickCode = limiter(1, 3600e3), watchIp = limiter(40, 3600e3), watchCode = limiter(1, 3600e3), meLimit = limiter(30, 60e3), claimLimit = limiter(10, 3600e3);
 
   // Full auth record (created_at, Discord identity) via the Auth admin API.
   async function authUser(id) {
@@ -36,16 +40,16 @@ export function mountReferrals(app, { env, wrap, admin, store, sb, needUser }) {
   let board = { at: 0, rows: [] };
   async function stats(force) {
     if (!force && Date.now() - board.at < 30e3) return board.rows;
-    const rows = (await sb('ghostflix_ref_stats?select=user_id,code,display_name,discord_id,discord_username,created_at,clicks,signups,last_signup&limit=5000')) || [];
-    rows.sort(rankSort); board = { at: Date.now(), rows }; return rows;
+    const rows = (await sb('ghostflix_ref_stats?select=user_id,code,display_name,discord_id,discord_username,created_at,clicks,signups,last_signup,watching&limit=5000')) || [];
+    rows.forEach((r) => { r.watching = Number(r.watching) || 0; r.score = scoreOf(r); }); rows.sort(rankSort); board = { at: Date.now(), rows }; return rows;
   }
-  const rankOf = (rows, uid) => { const i = rows.filter((r) => r.signups > 0).findIndex((r) => r.user_id === uid); return i < 0 ? null : i + 1; };
+  const rankOf = (rows, uid) => { const i = rows.filter((r) => r.score > 0).findIndex((r) => r.user_id === uid); return i < 0 ? null : i + 1; };
 
-  // Public: promo text + top 10 by sign-ups (display names only).
+  // Public: promo text + top 10 by score (display names only).
   app.get('/api/promo', wrap(async (req, res) => {
     let top = [];
-    if (sb) { try { top = (await stats()).filter((r) => r.signups > 0).slice(0, 10).map((r, i) => ({ rank: i + 1, name: r.display_name || 'Ghost', signups: r.signups })); } catch {} }
-    res.setHeader('Cache-Control', 'no-store'); res.json({ reward: reward(), discord: 'https://discord.gg/zenclipsdaily', top });
+    if (sb) { try { top = (await stats()).filter((r) => r.score > 0).slice(0, 10).map((r, i) => ({ rank: i + 1, name: r.display_name || 'Ghost', watching: r.watching, signups: r.signups, score: r.score })); } catch {} }
+    res.setHeader('Cache-Control', 'no-store'); res.json({ reward: reward(), discord: 'https://discord.gg/zenclipsdaily', bonus: SIGNUP_BONUS, top });
   }));
 
   // Public: someone opened a ?ref= link. One click per visitor (IP hash) per code per day, plus an IP rate limit.
@@ -64,6 +68,23 @@ export function mountReferrals(app, { env, wrap, admin, store, sb, needUser }) {
     board.at = 0; res.json({ ok: true, counted, code: own.code });
   }));
 
+  // Public: a visitor who arrived via a ?ref= link started playing something. Counts once per device ever (device_id
+  // unique), at most once per visitor IP per code per day, IP rate limit, and never the promoter themselves.
+  app.post('/api/ref/watch', wrap(async (req, res) => {
+    need(); const code = String(req.body?.code || '').trim(), device = String(req.body?.device || '').trim();
+    if (!CODE_RE.test(code) || !DEVICE_RE.test(device)) throw err(400, 'Bad request');
+    const ip = String(req.get('cf-connecting-ip') || req.ip || ''); const vh = crypto.createHash('sha256').update(`${SALT}|${ip}|${code.toLowerCase()}`).digest('hex').slice(0, 40);
+    if (!watchIp(ip) || !watchCode(vh)) return res.json({ ok: true, counted: false });
+    const own = (await sb(`ghostflix_ref_codes?select=user_id,code&code=ilike.${encodeURIComponent(code)}`))?.[0];
+    if (!own) return res.status(404).json({ ok: false, error: 'Unknown code' });
+    if (req.get('authorization')) { try { const u = await needUser(req); if (u.id === own.user_id) return res.json({ ok: true, counted: false, self: true }); } catch {} }
+    let got = [];
+    try { got = (await sb('ghostflix_ref_watches?on_conflict=device_id', { method: 'POST', body: { code: own.code, device_id: device, visitor_hash: vh }, prefer: 'resolution=ignore-duplicates,return=representation' })) || []; }
+    catch { return res.json({ ok: true, counted: false }); } // same visitor + code already counted today
+    if (got.length) board.at = 0;
+    res.json({ ok: true, counted: got.length > 0, done: true, code: own.code }); // done: this device is settled (counted now or before)
+  }));
+
   // Signed in: get (or create) my stable code, with my clicks / sign-ups / rank.
   app.get('/api/me/referral', wrap(async (req, res) => {
     const u = await needUser(req); if (!meLimit(u.id)) throw err(429, 'Slow down a little.');
@@ -79,8 +100,8 @@ export function mountReferrals(app, { env, wrap, admin, store, sb, needUser }) {
       if (!mine) throw err(502, 'Couldn’t create your link. Try again.');
       board.at = 0;
     } else sb(`ghostflix_ref_codes?user_id=eq.${u.id}`, { method: 'PATCH', body: info, prefer: 'return=minimal' }).catch(() => {}); // keep names fresh for payouts
-    const rows = await stats(); const me = rows.find((r) => r.user_id === u.id) || { clicks: 0, signups: 0 };
-    res.json({ code: mine.code, link: `https://ghostflix.uk/?ref=${mine.code}`, clicks: me.clicks, signups: me.signups, rank: rankOf(rows, u.id), promoters: rows.filter((r) => r.signups > 0).length, discord: !!dc });
+    const rows = await stats(); const me = rows.find((r) => r.user_id === u.id) || { clicks: 0, signups: 0, watching: 0, score: 0 };
+    res.json({ code: mine.code, link: `https://ghostflix.uk/?ref=${mine.code}`, clicks: me.clicks, watching: me.watching, signups: me.signups, score: me.score, rank: rankOf(rows, u.id), promoters: rows.filter((r) => r.score > 0).length, discord: !!dc });
   }));
 
   // Signed in: attribute this (new) account to the code it arrived with. Once per account, never yourself, never old accounts.
@@ -101,12 +122,12 @@ export function mountReferrals(app, { env, wrap, admin, store, sb, needUser }) {
     board.at = 0; res.json({ ok: got?.referrer_id === own.user_id, reason: got?.referrer_id === own.user_id ? 'counted' : 'already' });
   }));
 
-  // Admin: every promoter with clicks, sign-ups and Discord details; editable reward text.
+  // Admin: every promoter with clicks, watching, sign-ups and Discord details; editable reward text.
   admin.get('/promo', wrap(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     let rows = [], error = null; if (sb) { try { rows = await stats(true); } catch (e) { error = 'Referral tables missing or unreachable — run supabase/migrations/20261023_referrals.sql.'; } }
     let n = 0; res.json({ reward: reward(), custom: !!store.data.promo?.reward, defaultReward: DEFAULT_REWARD, error,
-      promoters: rows.map((r) => ({ ...r, rank: r.signups > 0 ? ++n : null })) });
+      bonus: SIGNUP_BONUS, promoters: rows.map((r) => ({ ...r, rank: r.score > 0 ? ++n : null })) });
   }));
   admin.put('/promo', wrap(async (req, res) => {
     const t = clip(req.body?.reward, 200);

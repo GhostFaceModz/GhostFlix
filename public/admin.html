@@ -5,7 +5,7 @@
 <title>GhostFlix Admin</title><meta name="robots" content="noindex">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/app.css?v=20261023zp"><link rel="stylesheet" href="/admin.css?v=20261023zp">
+<link rel="stylesheet" href="/app.css?v=20261023zq"><link rel="stylesheet" href="/admin.css?v=20261023zq">
 </head>
 <body class="adm">
 <div class="bg" aria-hidden="true"></div>
@@ -154,7 +154,7 @@
         <div class="btns"><button class="btn glow sm" id="prSave" type="button">Save reward text</button><button class="btn ghost sm" id="prDefault" type="button">Use default</button></div><p class="err" id="prErr"></p>
       </section>
       <section class="panel"><h2><span class="n">🏆</span>Promoters <span class="dim small" id="prSum" style="margin-left:8px"></span><button class="btn ghost sm" id="prRefresh" type="button" style="margin-left:auto">Refresh</button></h2>
-        <p class="dim small">Everyone who has created a referral link, ranked by sign-ups (new accounts made after opening their link). Clicks are unique visitors per day. Use the Discord name/ID to pay out in the ZenClipsDaily server.</p>
+        <p class="dim small">Everyone who has created a referral link, ranked by score = watching + sign-ups×3. Watching = referred devices that started playing something (once per device ever); sign-ups = new accounts made after opening their link (bonus). Clicks are unique visitors per day. Use the Discord name/ID to pay out in the ZenClipsDaily server.</p>
         <div class="table" id="prList"><p class="dim">Loading…</p></div></section>
     </div>
     <div class="tabp" data-pane="system" role="tabpanel" hidden>
@@ -280,6 +280,6 @@
   </div>
 </main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script src="/admin.js?v=20261023zp" type="module"></script>
+<script src="/admin.js?v=20261023zq" type="module"></script>
 </body>
 </html>

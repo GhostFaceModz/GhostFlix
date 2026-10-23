@@ -1,13 +1,13 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023zp';
-import { applyCosmetics } from './cosmetics.js?v=20261023zp';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023zp';
-import { createPush } from './push.js?v=20261023zp';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023zp';
-import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023zp';
-import { createCommunity } from './community.js?v=20261023zp';
-import { createFlair } from './flair.js?v=20261023zp';
-import { createPromote } from './promote.js?v=20261023zp';
+import { createAuth, ICONS } from './auth.js?v=20261023zq';
+import { applyCosmetics } from './cosmetics.js?v=20261023zq';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023zq';
+import { createPush } from './push.js?v=20261023zq';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023zq';
+import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023zq';
+import { createCommunity } from './community.js?v=20261023zq';
+import { createFlair } from './flair.js?v=20261023zq';
+import { createPromote } from './promote.js?v=20261023zq';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -642,6 +642,7 @@ async function viewWatch(type, id, s, e, r) {
     const srcs = SrcMem.order(c, d.sources);
     if (type === 'tv' && !CARDS.get(keyOf(c))?.seasons) api(`/api/title/tv/${id}`).then((t) => { if (t?.seasons) CARDS.set(keyOf(c), { ...(CARDS.get(keyOf(c)) || {}), ...t }); }).catch(() => {});
     track('play', { t: keyOf(c), tt: d.title, src: srcLabel(srcs[0]) });
+    PROMO.watched();
     { const full = CARDS.get(keyOf(c)) || {}; COMM?.onPlay(c, { sub: s != null ? `S${s} E${e}` : '', runtime: full.runtime || (type === 'tv' ? 45 : 0), genre_ids: c.genre_ids || full.genre_ids || (full.genres || []).map((g) => g.id) }); }
     openPlayer({ ...srcs[0], title: d.title, sub, all: srcs, card: c, s: s != null ? +s : null, e: e != null ? +e : null, subs: d.subtitles || [], startAt: approxStart ? 0 : startAt, approxStart: approxStart ? startAt : 0, resume: r === '1' });
   } else if (d.trailer) {
@@ -1069,7 +1070,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023zp').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023zq').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 // Installed app: Android keeps it alive in the background and this single-page app never does a full page load, so a new

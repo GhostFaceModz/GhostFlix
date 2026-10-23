@@ -69,3 +69,10 @@ test('srt -> vtt', () => {
   const v = toVtt('1\n00:00:01,000 --> 00:00:02,500\n<script>x</script>Hello <i>there</i>\n');
   assert.match(v, /^WEBVTT/); assert.match(v, /00:00:01\.000 --> 00:00:02\.500/); assert.doesNotMatch(v, /script/); assert.match(v, /<i>there<\/i>/);
 });
+test('promoter board: score = watching + sign-ups×3', async () => {
+  const { scoreOf, rankSort, DEVICE_RE } = await import('../server/referrals.js');
+  assert.equal(scoreOf({ watching: 4, signups: 2 }), 10);
+  const rows = [{ code: 'a', watching: 5, signups: 0, clicks: 9, created_at: '1' }, { code: 'b', watching: 0, signups: 2, clicks: 1, created_at: '2' }, { code: 'c', watching: 3, signups: 1, clicks: 0, created_at: '3' }];
+  assert.deepEqual(rows.sort(rankSort).map((r) => r.code), ['b', 'c', 'a']);
+  assert.ok(DEVICE_RE.test('0123456789abcdef0123456789abcdef')); assert.ok(!DEVICE_RE.test('short'));
+});
