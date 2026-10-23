@@ -207,7 +207,13 @@ img{display:block;max-width:100%}
 /* player */
 .player{position:fixed;inset:0;z-index:1000;background:#000;display:flex;flex-direction:column;animation:fade .3s}
 @keyframes fade{from{opacity:0}}
-.player-top{position:relative;flex:none;z-index:3;display:flex;align-items:center;gap:14px;padding:10px 18px;background:#000;border-bottom:1px solid rgba(255,255,255,.08)} /* in flow above the embedded player: never covers its controls */
+.player-top{position:absolute;top:0;left:0;right:0;z-index:3;display:flex;align-items:center;gap:14px;padding:10px 18px;background:linear-gradient(180deg,rgba(0,0,0,.85),rgba(0,0,0,.55) 70%,transparent);transition:opacity .35s ease,transform .35s ease} /* overlays the top of the player; auto-hides (see .bar-off) so it never sits on the player's controls for long */
+.player.bar-off .player-top{opacity:0;transform:translateY(-12px);pointer-events:none}
+.pbar-handle{position:absolute;top:0;left:50%;z-index:4;width:56px;height:22px;margin-left:-28px;display:grid;place-items:center;border-radius:0 0 12px 12px;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.14);border-top:0;opacity:0;pointer-events:none;transition:opacity .35s ease}
+.pbar-handle svg{width:16px;height:16px;stroke:#fff;stroke-width:2.4;fill:none}
+.player.bar-off .pbar-handle{opacity:.75;pointer-events:auto}.player.bar-off .pbar-handle:hover,.pbar-handle:focus-visible{opacity:1}
+.pbar-edge{display:none}
+@media (hover:hover) and (pointer:fine){.player.bar-off .pbar-edge{display:block;position:absolute;top:0;left:0;right:0;height:10px;z-index:3}}
 .player-top .ptitle{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .player-top .pfs{width:38px;padding:0;justify-content:center;flex:none}.player-top .pfs svg{width:17px;height:17px}
 .player-top .pop-flag{position:static;transform:none;flex:none}

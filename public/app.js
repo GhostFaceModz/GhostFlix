@@ -1,12 +1,12 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023zh';
-import { applyCosmetics } from './cosmetics.js?v=20261023zh';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023zh';
-import { createPush } from './push.js?v=20261023zh';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023zh';
-import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023zh';
-import { createCommunity } from './community.js?v=20261023zh';
-import { createFlair } from './flair.js?v=20261023zh';
+import { createAuth, ICONS } from './auth.js?v=20261023zi';
+import { applyCosmetics } from './cosmetics.js?v=20261023zi';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023zi';
+import { createPush } from './push.js?v=20261023zi';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023zi';
+import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023zi';
+import { createCommunity } from './community.js?v=20261023zi';
+import { createFlair } from './flair.js?v=20261023zi';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -798,6 +798,29 @@ function openPlayer(o) {
   };
   const fsSync = () => { const on = fsEl() === el; fs.classList.toggle('on', on); fs.title = on ? 'Exit fullscreen' : 'Fullscreen'; fs.setAttribute('aria-label', fs.title); };
   document.addEventListener('fullscreenchange', fsSync); document.addEventListener('webkitfullscreenchange', fsSync);
+  // ---- top bar overlays the player and auto-hides: any tap on the page (incl. inside the embedded player, seen as
+  // window blur → iframe focused) or 4s idle hides it; the handle, a top-edge hover (desktop) or keyboard focus brings it back.
+  const top = $('.player-top', el), handle = document.createElement('button');
+  handle.type = 'button'; handle.className = 'pbar-handle'; handle.setAttribute('aria-label', 'Show player controls'); handle.title = 'Show title, sources & Report';
+  handle.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+  const edge = document.createElement('div'); edge.className = 'pbar-edge'; el.append(handle, edge);
+  let barT = 0, barMoved = 0; // last real mouse move over the bar (:hover can stay stuck after a tap or when the pointer moves into the iframe)
+  const barHide = () => { clearTimeout(barT); el.classList.add('bar-off'); top.setAttribute('aria-hidden', 'true'); top.inert = true; };
+  const barArm = () => { clearTimeout(barT); barT = setTimeout(() => { if (Date.now() - barMoved < 3000 || top.querySelector(':focus-visible')) barArm(); else barHide(); }, 4000); };
+  const barShow = () => {
+    if (!el.isConnected) return;
+    const a = document.activeElement; if (a?.tagName === 'IFRAME' && el.contains(a)) { el.tabIndex = -1; el.focus({ preventScroll: true }); } // pull focus back from the iframe to re-arm the blur detector
+    el.classList.remove('bar-off'); top.removeAttribute('aria-hidden'); top.inert = false; barArm();
+  };
+  handle.onclick = (e) => { e.stopPropagation(); barShow(); };
+  edge.addEventListener('mousemove', (e) => { if (e.movementX || e.movementY) barShow(); }); // real moves only (layout changes fire fake ones)
+  top.addEventListener('pointerdown', (e) => { e.stopPropagation(); barArm(); });
+  top.addEventListener('mousemove', (e) => { if (e.movementX || e.movementY) barMoved = Date.now(); }); top.addEventListener('focusin', barShow);
+  el.addEventListener('pointerdown', (e) => { if (!e.target.closest('.player-top,.pbar-handle,.upnext,.skipseg')) barHide(); });
+  el.addEventListener('mousemove', (e) => { if ((e.movementX || e.movementY) && e.clientY < 70 && el.classList.contains('bar-off') && matchMedia('(hover:hover)').matches) barShow(); });
+  const onBlur = () => { if (!el.isConnected) return window.removeEventListener('blur', onBlur); setTimeout(() => { const a = document.activeElement; if (a?.tagName === 'IFRAME' && el.contains(a)) barHide(); }, 0); };
+  window.addEventListener('blur', onBlur);
+  barArm();
   const switchTo = (i) => { cur = i; if (T?.real) startAt = T.time; segKey = ''; segs = null; hideSkip(); mount(o.all[i]); };
   mount(o);
   $$('[data-src]', el).forEach((b) => (b.onclick = () => { AutoRun.set(0); switchTo(+b.dataset.src); }));
@@ -1031,7 +1054,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023zh').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023zi').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
