@@ -984,7 +984,7 @@ async function render() {
 }
 async function routeTo(path) {
   clearInterval(heroTimer); if (!path.startsWith('/party/')) leaveParty();
-  document.title = 'GhostFlix — movies & series';
+  document.title = 'GhostFlix — your new movie night';
   if (Profiles.kidsAge() != null && /^\/(live|party)(\/|$)/.test(path)) return errorView(Object.assign(new Error(path.startsWith('/live') ? 'Live TV isn’t available on kids profiles.' : 'Watch parties aren’t available on kids profiles.'), { status: 403 }));
   for (const [re, fn, nav] of routes) {
     const m = path.match(re);
