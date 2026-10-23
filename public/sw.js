@@ -1,7 +1,8 @@
 // GhostFlix service worker: app shell only. Registered as /sw.js?v=<asset version>, so each deploy gets a fresh cache.
-const VERSION = new URL(self.location).searchParams.get('v') || 'dev'; // shell build 20261023a (resume, genres page, people search)
+const VERSION = new URL(self.location).searchParams.get('v') || 'dev'; // shell build 20261023i (resume, genres page, people search; offline page)
 const CACHE = `gf-shell-${VERSION}`;
-const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/img/logo.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png'];
+const OFFLINE = '/offline.html';
+const SHELL = ['/', OFFLINE, '/manifest.webmanifest', '/favicon.svg', '/img/logo.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -20,12 +21,12 @@ self.addEventListener('fetch', (e) => {
   if (url.pathname.startsWith('/api/') || url.pathname === '/sw.js') return; // API (incl. playback) always live, never cached
   if (/\.(?:mp4|webm|m3u8|ts|m4s|vtt|mp3)$/.test(url.pathname)) return; // media streams never cached
 
-  // HTML navigations: network-first, cached shell only when offline.
+  // HTML navigations: network-first; when the network is down, show the cached offline page.
   if (req.mode === 'navigate') {
     e.respondWith(fetch(req).then((res) => {
       if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put('/', copy)); }
       return res;
-    }).catch(() => caches.match('/', { cacheName: CACHE })));
+    }).catch(() => caches.match(OFFLINE, { cacheName: CACHE })));
     return;
   }
 

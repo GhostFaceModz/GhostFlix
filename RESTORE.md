@@ -88,7 +88,7 @@ Optional extras the code understands: `YOUTUBE_API_KEY`, `CRON_SECRET`, `DISCORD
 Watch Parties are postponed). See `.env.example`.
 
 Deploy, then check `https://<service>.onrender.com/healthz` returns `{"ok":true,"mode":"tmdb"}`.
-Note: the live service had auto-deploy OFF; deploy with "Manual Deploy > Deploy latest commit".
+Note: the live service has auto-deploy ON (every push to `main` deploys) and health check path `/healthz`. You can still force one with "Manual Deploy > Deploy latest commit".
 
 **Admin:** sign in with Discord as user ID `803606154365632555` – the server compares that ID and
 shows the Admin link. Nobody else gets admin.

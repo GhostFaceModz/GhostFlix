@@ -1,4 +1,4 @@
-import { Cosmetics, BORDER_GROUPS, GLOWS, avatarWrap } from './cosmetics.js?v=20261021c';
+import { Cosmetics, BORDER_GROUPS, GLOWS, avatarWrap } from './cosmetics.js?v=20261023i';
 // GhostFlix settings: stored in localStorage, applied live (theme, accent, cards, subtitles, player prefs).
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const ACCENTS = {

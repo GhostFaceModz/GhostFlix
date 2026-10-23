@@ -194,16 +194,38 @@ app.get('/api/discover', wrap(async (req, res) => {
   cacheFor(res, 120); res.json(d);
 }));
 const CURATED = JSON.parse(readFileSync(path.join(ROOT, 'data/live-channels.json'), 'utf8')).channels;
-app.get('/api/live', async (req, res) => {
+// Live TV is served in pages per group (Featured / country) and category, so the browser never
+// downloads ~1,500 channels at once. The resolved list is memoised until the iptv-org cache or the
+// admin channel list changes. GET /api/live without ?limit still returns everything (old clients).
+const LIVE_GROUPS = { featured: 'Featured', GB: 'UK', US: 'USA' };
+let LIVE_MEMO = { all: [] };
+async function liveChannels() {
   const iptv = await loadIPTVChannels();
-  const out = [];
-  for (const c of [...CURATED, ...(store.data.channels || []), ...iptv]) {
-    try { const p = playerFor(parseSource(c.url, env), env); out.push({ id: c.id, name: c.name, category: c.category || 'Other', logo: c.logo || '', official: c.official || c.url, custom: !!c.custom, player: p, iptv: !!c.iptv, country: c.country || 'Other' }); } catch {}
+  const custom = store.data.channels || [];
+  if (LIVE_MEMO.iptv === iptv && LIVE_MEMO.custom === custom && LIVE_MEMO.n === custom.length) return LIVE_MEMO.all;
+  const all = [];
+  for (const c of [...CURATED, ...custom, ...iptv]) {
+    try { const p = playerFor(parseSource(c.url, env), env); all.push({ id: c.id, name: c.name, category: c.category || 'Other', logo: c.logo || '', official: c.official || c.url, custom: !!c.custom, player: p, iptv: !!c.iptv, country: c.country || 'Other', group: c.iptv ? (c.country || 'Other') : 'featured' }); } catch {}
   }
-  // Navigation data: unique countries and categories from iptv channels
-  const countries = [...new Set(iptv.map(c => c.country).filter(Boolean))];
-  const categories = [...new Set(iptv.map(c => c.category).filter(Boolean))];
-  res.json({ channels: out, countries, categories });
+  LIVE_MEMO = { iptv, custom, n: custom.length, all };
+  return all;
+}
+app.get('/api/live', async (req, res) => {
+  const all = await liveChannels();
+  if (req.query.limit === undefined) {
+    const iptv = all.filter((c) => c.iptv);
+    return res.json({ channels: all, countries: [...new Set(iptv.map((c) => c.country))], categories: [...new Set(iptv.map((c) => c.category))] });
+  }
+  const groups = Object.entries(LIVE_GROUPS).map(([id, name]) => ({ id, name, count: all.filter((c) => c.group === id).length })).filter((g) => g.count);
+  const group = groups.some((g) => g.id === req.query.group) ? req.query.group : groups[0]?.id;
+  const inGroup = all.filter((c) => c.group === group);
+  const counts = {}; for (const c of inGroup) counts[c.category] = (counts[c.category] || 0) + 1;
+  const categories = Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([name, count]) => ({ name, count }));
+  const cat = String(req.query.cat || 'All');
+  const list = cat === 'All' ? inGroup : inGroup.filter((c) => c.category === cat);
+  const offset = Math.max(0, +req.query.offset || 0), limit = Math.min(100, Math.max(1, +req.query.limit || 40));
+  cacheFor(res, 300);
+  res.json({ group, groups, categories, cat, total: list.length, offset, channels: list.slice(offset, offset + limit).map(({ group: _g, ...c }) => c) });
 });
 app.get('/api/genres', wrap(async (req, res) => { cacheFor(res, 3600); res.json(await catalog.genres()); }));
 app.get('/api/list/:type/:category', wrap(async (req, res) => {
@@ -497,9 +519,14 @@ app.use('/vendor/hls.min.js', (req, res) => res.sendFile(path.join(ROOT, 'node_m
 // PWA: service worker from root scope (never HTTP-cached so new deploys are picked up) + manifest with its proper type.
 app.get('/sw.js', (req, res) => { res.set({ 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/' }); res.type('application/javascript'); res.sendFile(path.join(ROOT, 'public/sw.js')); });
 app.get('/manifest.webmanifest', (req, res) => { res.set('Cache-Control', 'public, max-age=3600'); res.type('application/manifest+json'); res.sendFile(path.join(ROOT, 'public/manifest.webmanifest')); });
-app.use(express.static(path.join(ROOT, 'public'), { maxAge: '1h', index: false }));
-app.get('/admin', (req, res) => res.sendFile(path.join(ROOT, 'public/admin.html')));
-app.get(/^\/(?!api\/).*/, (req, res) => res.sendFile(path.join(ROOT, 'public/index.html')));
+// Versioned assets (?v=…) change URL on every release, so browsers may keep them for a year.
+// Unversioned files keep a short cache; HTML is always revalidated.
+app.use(express.static(path.join(ROOT, 'public'), { maxAge: '1h', index: false, setHeaders(res, file) {
+  if (/\.html$/.test(file)) res.setHeader('Cache-Control', 'no-cache');
+  else if (res.req?.query?.v !== undefined) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+} }));
+app.get('/admin', (req, res) => { res.set('Cache-Control', 'no-cache'); res.sendFile(path.join(ROOT, 'public/admin.html')); });
+app.get(/^\/(?!api\/).*/, (req, res) => { res.set('Cache-Control', 'no-cache'); res.sendFile(path.join(ROOT, 'public/index.html')); });
 
 app.listen(PORT, () => {
   console.log(`GhostFlix on http://localhost:${PORT} — catalog: ${catalog.mode}${catalog.mode === 'demo' ? ' (set TMDB_API_KEY for the full catalog)' : ''}, store: ${store.backend}, admin: ${env.ADMIN_PASSWORD ? 'on' : 'off (set ADMIN_PASSWORD)'}`);

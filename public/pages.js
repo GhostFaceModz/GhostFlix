@@ -1,5 +1,5 @@
 // Discover, Live TV and Watch Parties pages.
-import { embedSandbox } from './settings.js?v=20261023a';
+import { embedSandbox } from './settings.js?v=20261023i';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -35,30 +35,68 @@ export async function viewDiscover(ctx) {
 // ---- Live TV ----------------------------------------------------------------------------
 export async function viewLive(ctx) {
   const { main, api } = ctx;
-  main.innerHTML = `<div class="page live"><h1>Live TV</h1><p class="lead">Free channels from broadcasters’ official live streams.</p><div class="live-top skel" style="aspect-ratio:16/9;border-radius:18px"></div></div>`;
-  const { channels } = await api('/api/live');
-  const cats = ['All', ...new Set(channels.map((c) => c.category))];
+  const LEAD = 'Free, publicly available channels from broadcasters’ official streams and public open feeds (iptv-org).';
+  const PAGE = 40;
+  main.innerHTML = `<div class="page live"><h1>Live TV</h1><p class="lead">${LEAD}</p><div class="live-top skel" style="aspect-ratio:16/9;border-radius:18px"></div></div>`;
   const now = new Date(); const start = new Date(now); start.setMinutes(now.getMinutes() < 30 ? 0 : 30, 0, 0);
   const slots = Array.from({ length: 6 }, (_, i) => new Date(start.getTime() + i * 30 * 60e3));
   const fmt = (d) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const nowPct = ((now - start) / (3 * 3600e3)) * 100;
-  let cat = 'All', sel = channels[0];
   const initials = (n) => esc(n.split(/\s+/).map((w) => w[0]).slice(0, 2).join(''));
-  const draw = () => {
-    const list = channels.filter((c) => cat === 'All' || c.category === cat);
-    main.innerHTML = `<div class="page live"><h1>Live TV</h1><p class="lead">Free channels from broadcasters’ official live streams.</p>
-      <div class="live-top"><div class="live-player" id="livePlayer"></div>
-        <div class="live-info"><span class="live-badge"><i></i>LIVE</span><h2>${esc(sel?.name || '')}</h2><p>${esc(sel?.category || '')} · official stream</p>
-        ${sel ? `<a class="btn dark sm" href="${esc(sel.official)}" target="_blank" rel="noopener">Open official source</a>` : ''}</div></div>
-      <div class="pills" style="margin-top:22px">${cats.map((c) => `<button class="pill ${c === cat ? 'on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>
-      <div class="guide" role="grid" aria-label="Channel guide">
-        <div class="g-head"><div class="g-ch">Channels</div><div class="g-times">${slots.map((t) => `<span>${fmt(t)}</span>`).join('')}<i class="g-now" style="left:${nowPct}%"></i></div></div>
-        ${list.map((c) => `<button class="g-row ${c === sel ? 'on' : ''}" data-ch="${esc(c.id)}" role="row"><div class="g-ch"><span class="g-logo">${c.logo ? `<img src="${esc(c.logo)}" alt="">` : initials(c.name)}</span><span><b>${esc(c.name)}</b><small>${esc(c.category)}</small></span></div>
-          <div class="g-prog"><div class="g-block"><b>${esc(c.name)} — Live</b><small>Now streaming · ${fmt(now)}</small></div><i class="g-now" style="left:${nowPct}%"></i></div></button>`).join('')}
-      </div><p class="set-note">Channels are each broadcaster’s official YouTube live stream; availability can vary by region and time.</p></div>`;
-    mount();
-    $$('[data-cat]', main).forEach((b) => (b.onclick = () => { cat = b.dataset.cat; draw(); }));
-    $$('[data-ch]', main).forEach((b) => (b.onclick = () => { sel = channels.find((c) => c.id === b.dataset.ch); draw(); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
+  // One group (Featured / UK / USA) and category at a time, fetched in pages of PAGE rows.
+  let group = '', cat = 'All', sel = null, shown = [], total = 0, loading = false, io = null, token = 0;
+  const fetchPage = (offset) => api(`/api/live?group=${encodeURIComponent(group)}&cat=${encodeURIComponent(cat)}&offset=${offset}&limit=${PAGE}`);
+  const row = (c) => `<li><button type="button" class="g-row ${c === sel ? 'on' : ''}" data-ch="${esc(c.id)}" aria-pressed="${c === sel}" aria-label="Watch ${esc(c.name)} (${esc(c.category)})">
+      <span class="g-ch"><span class="g-logo" aria-hidden="true">${c.logo ? `<img src="${esc(c.logo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-ini="${initials(c.name)}">` : initials(c.name)}</span><span><b>${esc(c.name)}</b><small>${esc(c.category)}</small></span></span>
+      <span class="g-prog" aria-hidden="true"><span class="g-block"><b>${esc(c.name)} — Live</b><small>Now streaming · ${fmt(now)}</small></span><i class="g-now" style="left:${nowPct}%"></i></span></button></li>`;
+  const info = () => {
+    const el = $('#liveInfo', main); if (!el) return;
+    el.innerHTML = sel ? `<span class="live-badge"><i></i>LIVE</span><h2>${esc(sel.name)}</h2><p>${esc(sel.category)} · ${sel.iptv ? 'public feed (iptv-org)' : 'official stream'}</p>
+      ${!sel.iptv && /^https?:/i.test(sel.official || '') ? `<a class="btn dark sm" href="${esc(sel.official)}" target="_blank" rel="noopener">Open official source</a>` : ''}` : '';
+  };
+  const select = (c) => {
+    sel = c; info(); mount();
+    $$('.g-row', main).forEach((b) => { const on = b.dataset.ch === c.id; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+  };
+  const more = async () => {
+    if (loading || shown.length >= total) return;
+    loading = true; const my = token; const btn = $('#gMore', main); if (btn) btn.disabled = true;
+    try {
+      const d = await fetchPage(shown.length); if (my !== token) return;
+      shown.push(...d.channels); total = d.total;
+      $('#gList', main).insertAdjacentHTML('beforeend', d.channels.map(row).join(''));
+    } finally { loading = false; footer(); }
+  };
+  const footer = () => {
+    const f = $('#gFoot', main); if (!f) return;
+    f.innerHTML = shown.length < total ? `<button class="btn dark sm" id="gMore" type="button">Load more channels (${total - shown.length} left)</button>` : (total ? `<span class="dim">${total} channel${total === 1 ? '' : 's'}</span>` : '<span class="dim">No channels here right now.</span>');
+    const b = $('#gMore', main); if (b) b.onclick = more;
+  };
+  const load = async () => {
+    const my = ++token; shown = []; total = 0;
+    const d = await fetchPage(0); if (my !== token) return;
+    group = d.group; cat = d.cat; shown = d.channels; total = d.total;
+    if (!sel) sel = shown[0] || null;
+    const pill = (attr, v, label, on) => `<button type="button" class="pill ${on ? 'on' : ''}" ${attr}="${esc(v)}" aria-pressed="${on}">${esc(label)}</button>`;
+    main.innerHTML = `<div class="page live"><h1>Live TV</h1><p class="lead">${LEAD}</p>
+      <div class="live-top"><div class="live-player" id="livePlayer"></div><div class="live-info" id="liveInfo"></div></div>
+      <div class="pills" role="group" aria-label="Channel group" style="margin-top:22px">${d.groups.map((g) => pill('data-grp', g.id, `${g.name} · ${g.count}`, g.id === group)).join('')}</div>
+      <div class="pills" role="group" aria-label="Category" style="margin-top:10px">${[{ name: 'All' }, ...d.categories].map((c) => pill('data-cat', c.name, c.name, c.name === cat)).join('')}</div>
+      <section class="guide" aria-label="Channel guide">
+        <div class="g-head" aria-hidden="true"><div class="g-ch">Channels</div><div class="g-times">${slots.map((t) => `<span>${fmt(t)}</span>`).join('')}<i class="g-now" style="left:${nowPct}%"></i></div></div>
+        <ul class="g-list" id="gList">${shown.map(row).join('')}</ul>
+      </section><div class="g-foot" id="gFoot"></div>
+      <p class="set-note">Channels come from broadcasters’ official streams and public open feeds listed by iptv-org; availability can vary by region and time.</p></div>`;
+    info(); mount(); footer();
+    $$('[data-grp]', main).forEach((b) => (b.onclick = () => { group = b.dataset.grp; cat = 'All'; load(); }));
+    $$('[data-cat]', main).forEach((b) => (b.onclick = () => { cat = b.dataset.cat; load(); }));
+    const list = $('#gList', main);
+    list.addEventListener('click', (e) => { const b = e.target.closest('[data-ch]'); if (!b) return; const c = shown.find((x) => x.id === b.dataset.ch); if (c) { select(c); window.scrollTo({ top: 0, behavior: 'smooth' }); } });
+    // Broken channel logos fall back to initials (no inline handlers: CSP).
+    list.addEventListener('error', (e) => { const i = e.target; if (i.tagName === 'IMG' && i.parentNode) i.parentNode.textContent = i.dataset.ini || ''; }, true);
+    // Infinite scroll: fetch the next page as the footer nears the viewport ("Load more" stays as a fallback).
+    io?.disconnect();
+    if ('IntersectionObserver' in window) { io = new IntersectionObserver((es) => { if (!document.body.contains(list)) return io.disconnect(); if (es.some((x) => x.isIntersecting)) more(); }, { rootMargin: '600px 0px' }); io.observe($('#gFoot', main)); }
   };
   const mount = () => {
       const el = $('#livePlayer', main); if (!sel || !el) return;
@@ -89,7 +127,7 @@ export async function viewLive(ctx) {
     const h = new window.Hls(); h.loadSource(src); h.attachMedia(video);
     h.on(window.Hls.Events.ERROR, (e, d) => { if (d.fatal) h.destroy(); });
   }
-  draw();
+  await load();
 }
 
 // ---- Watch Parties -----------------------------------------------------------------------

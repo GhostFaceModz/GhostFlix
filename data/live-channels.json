@@ -1,13 +1,6 @@
 {
- "note": "Curated free, legal live channels using each broadcaster's OFFICIAL YouTube live stream. Edit freely; admins can add more in /admin.",
+ "note": "Curated free, legal live channels using each broadcaster's OFFICIAL YouTube live stream. Edit freely; admins can add more in /admin. (NASA Live removed 2026-10-23: its YouTube live embed was dead.)",
  "channels": [
-  {
-   "id": "nasa",
-   "name": "NASA Live",
-   "category": "Science",
-   "url": "https://www.youtube.com/embed/live_stream?channel=UCLA_DiR1FfKNvjuUpBHmylQ",
-   "official": "https://www.youtube.com/channel/UCLA_DiR1FfKNvjuUpBHmylQ/live"
-  },
   {
    "id": "aje",
    "name": "Al Jazeera English",

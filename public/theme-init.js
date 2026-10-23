@@ -12,6 +12,10 @@
     var webkit = (/AppleWebKit/i.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Android/i.test(ua)) || /iPad|iPhone|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     var t = document.createElement('video');
     var ok = !webkit && !!t.canPlayType && t.canPlayType('video/webm; codecs="vp09.00.10.08"') !== '';
+    // Phones, Save-Data and reduced-motion users get the static logo image instead of the 158 KB video.
+    var c = navigator.connection || {};
+    var lite = (window.matchMedia && (matchMedia('(max-width: 700px)').matches || matchMedia('(prefers-reduced-motion: reduce)').matches)) || c.saveData === true || /(^|-)2g$/.test(c.effectiveType || '');
+    if (lite) ok = false;
     if (!ok) document.documentElement.classList.add('gf-novid');
     else document.addEventListener('DOMContentLoaded', function () {
       var v = document.querySelector('#nav .wm-vid'); if (!v) return;

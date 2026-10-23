@@ -460,6 +460,8 @@ html[data-cards=landscape] .card:not(.top){width:62vw}
 .gh-bubble+.x{}
 #dcBubble{bottom:164px}
 @media (max-width:760px){.sso{width:36px;height:36px}.sso svg{width:18px;height:18px}.gh-bubble{bottom:88px}#dcBubble{bottom:150px}}
+/* Phones: the floating Discord/GitHub bubbles covered content, so they live in the menu (drawer) instead. */
+@media (max-width:700px){.dc-bubble{display:none!important}}
 
 /* discover */
 .disc .mood-pills{margin-bottom:6px}
@@ -477,7 +479,9 @@ html[data-cards=landscape] .card:not(.top){width:62vw}
 .g-head{background:rgba(255,255,255,.03);border-bottom:1px solid var(--line);font-size:12px;color:var(--mute);font-weight:600}
 .g-head .g-ch{padding:12px 16px}
 .g-times{position:relative;display:grid;grid-template-columns:repeat(6,1fr)}.g-times span{padding:12px 10px;border-left:1px solid var(--line)}
-.g-row{border-bottom:1px solid var(--line);transition:background .2s}.g-row:last-child{border-bottom:0}
+.g-row{border-bottom:1px solid var(--line);transition:background .2s}.g-list li:last-child .g-row{border-bottom:0}
+.g-list{list-style:none;margin:0;padding:0}.g-list li{display:block}.g-row .g-prog,.g-row .g-block{display:block}.g-row .g-ch>span:last-child{min-width:0}
+.g-foot{display:flex;justify-content:center;padding:16px 0 4px;min-height:40px}.g-foot .dim{color:var(--mute);font-size:13px}
 .g-row:hover{background:rgba(255,255,255,.03)}.g-row.on{background:rgba(95,227,255,.07)}
 .g-row .g-ch{display:flex;align-items:center;gap:12px;padding:12px 16px}
 .g-logo{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#17324a,#0b1422);color:var(--acc);font-weight:800;font-size:14px;flex:0 0 auto;overflow:hidden}

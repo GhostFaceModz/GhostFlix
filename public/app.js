@@ -1,8 +1,8 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023a';
-import { applyCosmetics } from './cosmetics.js?v=20261021c';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023a';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023a';
+import { createAuth, ICONS } from './auth.js?v=20261023i';
+import { applyCosmetics } from './cosmetics.js?v=20261023i';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023i';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023i';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -632,7 +632,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023a').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023i').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -658,7 +658,7 @@ installEl.addEventListener('click', async (e) => {
   if (CONFIG.discordUrl) {
     const b = $('#dcBubble'); b.href = CONFIG.discordUrl; b.innerHTML = ICONS.DISCORD_SVG; b.hidden = false; $('#drawerDiscord').href = CONFIG.discordUrl;
   } else $('#drawerDiscord').hidden = true;
-  if (CONFIG.githubUrl) { const g = $('#ghBubble'); g.href = CONFIG.githubUrl; g.hidden = false; }
+  if (CONFIG.githubUrl) { const g = $('#ghBubble'); g.href = CONFIG.githubUrl; g.hidden = false; const dg = $('#drawerGithub'); dg.href = CONFIG.githubUrl; dg.hidden = false; }
   if (CONFIG.mode === 'demo' && !sessionStorage.getItem('gf.nb')) {
     $('#banner').innerHTML = `<div class="notice"><span>👻</span><span><b>Demo catalog.</b> Showing public-domain classics from the Internet Archive. Add <code>TMDB_API_KEY</code> to unlock the full movie & series catalog.</span><button class="x" aria-label="Dismiss">×</button></div>`;
     $('#banner .x').onclick = () => { sessionStorage.setItem('gf.nb', 1); $('#banner').innerHTML = ''; };

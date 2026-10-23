@@ -9,9 +9,18 @@
   "orientation": "any",
   "background_color": "#04050a",
   "theme_color": "#04050a",
+  "categories": ["entertainment"],
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Live TV", "short_name": "Live TV", "description": "Watch free live TV channels", "url": "/live", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "My List", "short_name": "My List", "description": "Your saved movies and series", "url": "/my-list", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ],
+  "screenshots": [
+    { "src": "/screenshots/narrow.webp", "sizes": "780x1688", "type": "image/webp", "form_factor": "narrow", "label": "GhostFlix home on a phone" },
+    { "src": "/screenshots/wide.webp", "sizes": "1280x800", "type": "image/webp", "form_factor": "wide", "label": "GhostFlix home on desktop" }
   ]
 }

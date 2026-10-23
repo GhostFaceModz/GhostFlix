@@ -12,11 +12,10 @@ services:
     branch: main
     buildCommand: npm ci --omit=dev
     startCommand: npm start
-    # The live service currently has NO health check path set; the app serves /healthz
-    # (and the Supabase keep-alive cron pings it), so a fresh service should use it.
+    # Render polls /healthz before switching traffic to a new deploy (the Supabase keep-alive cron pings it too).
     healthCheckPath: /healthz
-    # Live service has auto-deploy OFF (deploys are triggered manually).
-    autoDeployTrigger: "off"
+    # Every push to main deploys automatically (matches the live service since 2026-10-23).
+    autoDeployTrigger: commit
     envVars:
       - key: NODE_VERSION
         value: "20"
