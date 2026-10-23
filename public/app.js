@@ -1,8 +1,9 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023r';
-import { applyCosmetics } from './cosmetics.js?v=20261023r';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023r';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023r';
+import { createAuth, ICONS } from './auth.js?v=20261023tc';
+import { applyCosmetics } from './cosmetics.js?v=20261023tc';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023tc';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023tc';
+import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023tc';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -24,10 +25,16 @@ let AUTH = null;
 const region = () => Settings.get().region || (navigator.language || 'en-US').split('-')[1] || 'US';
 
 // ---- storage (watchlist + continue watching) ----------------------------------
+// list/continue/eps/remind/ratings are per viewer profile (see profiles.js); everything else is per device.
+let PROF = null;
 const LS = {
-  get(k, d) { try { return JSON.parse(localStorage.getItem('gf.' + k)) ?? d; } catch { return d; } },
-  set(k, v) { try { localStorage.setItem('gf.' + k, JSON.stringify(v)); } catch {} },
+  get(k, d) { try { return JSON.parse(localStorage.getItem(lsKey(k))) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(lsKey(k), JSON.stringify(v)); } catch {} PROF?.touched(k); },
 };
+// Account sync (auth.js) only ever reads/writes the first ('main') profile's list + history, whichever profile is active.
+const mainLS = (k, max) => ({ all: () => { try { return JSON.parse(localStorage.getItem('gf.' + k)) || []; } catch { return []; } }, replace(arr) { try { localStorage.setItem('gf.' + k, JSON.stringify(arr.slice(0, max))); } catch {} } });
+const MainList = mainLS('list', 300), MainHistory = mainLS('continue', 200);
+const AUTHM = () => (Profiles.active().id === 'main' ? AUTH : null);
 const keyOf = (c) => `${c.media_type}:${c.id}`;
 const slim = (c) => ({ id: c.id, media_type: c.media_type, title: c.title, year: c.year, poster: c.poster, backdrop: c.backdrop_sm || c.backdrop, rating: c.rating, playable: c.playable, ...(c.demo ? { demo: true } : {}) });
 const List = {
@@ -36,7 +43,7 @@ const List = {
   toggle(c) {
     let l = List.all(); const on = List.has(c);
     l = on ? l.filter((x) => keyOf(x) !== keyOf(c)) : [slim(c), ...l];
-    LS.set('list', l.slice(0, 300)); toast(on ? `Removed from My List` : `Added “${c.title}” to My List`); AUTH?.onToggle(c, !on); return !on;
+    LS.set('list', l.slice(0, 300)); toast(on ? `Removed from My List` : `Added “${c.title}” to My List`); AUTHM()?.onToggle(c, !on); return !on;
   },
   replace(arr) { LS.set('list', arr.slice(0, 300)); },
 };
@@ -49,10 +56,10 @@ const Continue = {
     // A different episode starts fresh: don't carry the old episode's position/progress over.
     if ('s' in extra && (prev.s ?? null) != (extra.s ?? null) || 'e' in extra && (prev.e ?? null) != (extra.e ?? null)) { const { time, progress, dur, done, next, approx, ...rest } = prev; prev = rest; }
     const entry = { ...prev, ...slim(c), ...extra, at: Date.now() };
-    l.unshift(entry); LS.set('continue', l.slice(0, 200)); AUTH?.onHistory(entry); EpLog.note(entry);
+    l.unshift(entry); LS.set('continue', l.slice(0, 200)); AUTHM()?.onHistory(entry); EpLog.note(entry);
   },
-  remove(c) { LS.set('continue', Continue.all().filter((x) => keyOf(x) !== keyOf(c))); AUTH?.onHistoryRemove(c); },
-  clear() { LS.set('continue', []); AUTH?.onHistoryClear(); },
+  remove(c) { LS.set('continue', Continue.all().filter((x) => keyOf(x) !== keyOf(c))); AUTHM()?.onHistoryRemove(c); },
+  clear() { LS.set('continue', []); AUTHM()?.onHistoryClear(); },
   replace(arr) { LS.set('continue', arr.slice(0, 200)); },
 };
 
@@ -84,6 +91,48 @@ const Remind = {
   due() { const t = todayISO(), l = Remind.all(), due = l.filter((x) => x.date && x.date <= t && !x.told); if (due.length) LS.set('remind', l.map((x) => (due.includes(x) ? { ...x, told: 1 } : x))); return due; },
 };
 const remindBtn = (c, date, label = '', cls = 'btn dark') => `<button class="${cls} remind${Remind.has(c) ? ' on' : ''}" type="button" data-remind="${keyOf(c)}" data-date="${esc(date)}" data-label="${esc(label)}" aria-pressed="${Remind.has(c)}">${Remind.has(c) ? '🔔 Reminder set' : '🔔 Remind me'}</button>`;
+// Thumbs down / up / Love: gf.ratings {"movie:1": {v: -1|1|2, at, ...card, genre_ids}} (per profile).
+const Ratings = {
+  all: () => LS.get('ratings', {}),
+  of: (c) => Ratings.all()[keyOf(c)]?.v || 0,
+  set(c, v) {
+    const a = Ratings.all(), k = keyOf(c), cur = a[k]?.v || 0;
+    if (cur === v) delete a[k]; else a[k] = { ...slim(c), genre_ids: c.genre_ids || (c.genres || []).map((g) => g.id), v, at: Date.now() };
+    const ks = Object.keys(a); if (ks.length > 1000) delete a[ks.sort((x, y) => a[x].at - a[y].at)[0]];
+    LS.set('ratings', a); return cur === v ? 0 : v;
+  },
+};
+const RATE = [[-1, '👎', 'Not for me'], [1, '👍', 'I like this'], [2, '❤️', 'Love this!']];
+const rateHTML = (c) => { const v = Ratings.of(c); return `<span class="rate" role="group" aria-label="Rate this title">${RATE.map(([n, e, l]) => `<button class="btn icon rt${v === n ? ' on' : ''}" type="button" data-rate="${keyOf(c)}" data-v="${n}" aria-pressed="${v === n}" aria-label="${l}" title="${l}"><span aria-hidden="true">${e}</span></button>`).join('')}</span>`; };
+/** "Because you …" rows: seeds are the newest Loved, then Liked titles, then recent watches you didn't thumbs-down.
+ *  Recommendations from the seeds are merged, ranked by how many seeds suggest them and how well their genres match
+ *  what you liked vs. disliked; thumbs-down titles (and finished ones) are left out. */
+async function because(n = 1) {
+  const r = Ratings.all(), vals = Object.values(r), hist = Continue.all();
+  const down = new Set(vals.filter((x) => x.v < 0).map(keyOf)), done = new Set(hist.filter((x) => x.done && x.media_type === 'movie').map(keyOf));
+  const seeds = [];
+  const add = (x, why) => { if (x && !down.has(keyOf(x)) && !seeds.some((s) => keyOf(s.c) === keyOf(x))) seeds.push({ c: x, why }); };
+  vals.filter((x) => x.v === 2).sort((a, b) => b.at - a.at).forEach((x) => add(x, 'loved'));
+  vals.filter((x) => x.v === 1).sort((a, b) => b.at - a.at).forEach((x) => add(x, 'liked'));
+  hist.forEach((x) => add(x, 'watched'));
+  if (!seeds.length) return [];
+  const g = {}; for (const x of vals) for (const id of x.genre_ids || []) g[id] = (g[id] || 0) + (x.v < 0 ? -1.5 : x.v);
+  const pool = seeds.slice(0, n + 2);
+  const recs = await Promise.all(pool.map((s) => api(`/api/title/${s.c.media_type}/${s.c.id}?region=${region()}`).then((t) => ({ s, t })).catch(() => null)));
+  const freq = new Map();
+  for (const x of recs) for (const c of x?.t.recommendations || []) freq.set(keyOf(c), (freq.get(keyOf(c)) || 0) + 1);
+  const seen = new Set(pool.map((s) => keyOf(s.c)));
+  const score = (c) => (freq.get(keyOf(c)) || 0) * 2 + (c.genre_ids || []).reduce((a, id) => a + (g[id] || 0), 0) * 0.3 + (c.rating || 0) * 0.05;
+  const out = [];
+  for (const x of recs) {
+    if (!x || out.length >= n) continue;
+    const items = (x.t.recommendations || []).filter((c) => !down.has(keyOf(c)) && !done.has(keyOf(c)) && !seen.has(keyOf(c)));
+    if (items.length < 4) continue;
+    items.sort((a, b) => score(b) - score(a)); items.forEach((c) => seen.add(keyOf(c)));
+    out.push({ seed: x.s.c, title: `Because you ${x.s.why} ${x.t.title}`, items: items.slice(0, 20) });
+  }
+  return out;
+}
 /** Release date in the future for a title (movie release, or a series' next episode/premiere), else null. */
 function upcoming(c) {
   const t = todayISO();
@@ -130,11 +179,14 @@ function prefetch(path) {
   if (PREF.size > 40) PREF.delete(PREF.keys().next().value);
   return p;
 }
+/** On a kids profile every catalogue request carries ?kids=<max age> so the server drops titles above it. */
+const kidsUrl = (path) => { const a = Profiles.kidsAge(); if (a == null || !path.startsWith('/api/') || /[?&]kids=/.test(path)) return path; return path + (path.includes('?') ? '&' : '?') + 'kids=' + a; };
 async function api(path, noCache) {
   const h = !noCache && PREF.get(path); if (h) { PREF.delete(path); if (Date.now() - h.at < 120e3) return h.p; }
-  const r = await fetch(path, { headers: { accept: 'application/json' } });
+  const r = await fetch(kidsUrl(path), { headers: { accept: 'application/json' } });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error(d.error || `Request failed (${r.status})`), { status: r.status });
+  if (d && d.kids && d.blocked) throw Object.assign(new Error(d.error || 'Not available on this kids profile.'), { status: 403 }); // sent as 200 so it isn't logged as a failed request
   return d;
 }
 let toastT;
@@ -223,7 +275,7 @@ function heroHTML(c, { detail = false, items = [] } = {}) {
       <p class="ov">${esc(c.overview)}</p>
       <div class="btns">
         <a class="btn cta${rs ? ' resume' : ''}" href="${rs ? rs.href : watchHref(c)}" data-link>${ICON.play}${esc(rs ? rs.label : 'Play')}</a>
-        ${detail ? `<button class="btn icon ${List.has(c) ? 'on' : ''}" data-list="${keyOf(c)}" aria-label="My List">${List.has(c) ? ICON.check : ICON.plus}</button>${upcoming(c) ? remindBtn(c, upcoming(c).date, upcoming(c).label) : ''}${CONFIG.parties ? `<a class="btn dark" href="/party/${Math.random().toString(36).slice(2, 8)}?t=${keyOf(c)}" data-link>👻 Watch together</a>` : ''}`
+        ${detail ? `<button class="btn icon ${List.has(c) ? 'on' : ''}" data-list="${keyOf(c)}" aria-label="My List">${List.has(c) ? ICON.check : ICON.plus}</button>${rateHTML(c)}${upcoming(c) ? remindBtn(c, upcoming(c).date, upcoming(c).label) : ''}${CONFIG.parties && Profiles.kidsAge() == null ? `<a class="btn dark" href="/party/${Math.random().toString(36).slice(2, 8)}?t=${keyOf(c)}" data-link>👻 Watch together</a>` : ''}`
           : `<a class="btn dark" href="${href(c)}" data-link>${ICON.info}Details</a>`}
       </div>
       ${rs && (rs.pct > 0 || rs.sub) ? `<div class="resume-bar"${rs.approx ? ' title="Approximate — this player doesn’t report its exact position"' : ''}>${rs.pct > 0 ? `<span class="rb"><i style="width:${Math.max(3, rs.pct).toFixed(1)}%"></i></span>` : ''}<small>${rs.sub ? esc(rs.sub) : `${Math.round(rs.pct)}% watched${rs.approx ? ' (approx.)' : ''}`}${detail && rs.t ? ` · <a href="${rs.href.replace('r=1', 'r=0')}" data-link>Start over</a>` : ''}</small></div>` : ''}
@@ -249,7 +301,8 @@ function mountHero(items) {
 // ---- views ----------------------------------------------------------------------
 async function viewHome() {
   skeleton();
-  const d = await api('/api/home');
+  const kids = Profiles.kidsAge() != null;
+  const d = await api(kids ? '/api/kids/home' : '/api/home');
   main.innerHTML = '';
   const cont = Continue.all().map((c) => ({ ...c }));
   const rows = [...d.rows];
@@ -260,6 +313,12 @@ async function viewHome() {
   mountHero(d.hero.length ? d.hero : shown[0]?.items.slice(0, 5) || []);
   wireRows(); markNewEpisodes($('[data-row="mylist"]', main));
   const rowsEl = $('.rows', main), after = (id) => $(`[data-row="${id}"]`, rowsEl);
+  if (SITE.rows?.because !== false) because(2).then((bs) => {
+    if (!rowsEl.isConnected) return;
+    for (const b of bs.reverse()) { const tmp = document.createElement('div'); tmp.innerHTML = rowHTML({ id: 'because-' + b.seed.id, title: b.title, items: b.items }); const ref = after('mylist') || after('continue'); ref ? ref.after(tmp.firstElementChild) : rowsEl.prepend(tmp.firstElementChild); }
+    if (bs.length) wireRows(rowsEl);
+  }).catch(() => {});
+  if (kids) return;
   if (SITE.rows?.collections !== false) api('/api/collections/featured').then((c) => {
     if (!rowsEl.isConnected || !c.items?.length) return;
     const tmp = document.createElement('div'); tmp.innerHTML = collRowHTML(c.items);
@@ -486,7 +545,7 @@ async function previewCards(el) {
   try { previewCache ||= (await api('/api/list/all/trending')).results.slice(0, 6); } catch { previewCache = []; }
   remember(previewCache); el.innerHTML = `<div class="track" style="padding:6px 0 10px;margin:0">${previewCache.map((c) => cardHTML(c)).join('')}</div>`;
 }
-const pageCtx = () => ({ main, api, rowHTML, wireRows, history: Continue, list: List, go, auth: AUTH, toast, config: CONFIG });
+const pageCtx = () => ({ because, main, api, rowHTML, wireRows, history: Continue, list: List, go, auth: AUTH, toast, config: CONFIG });
 const settingsCtx = () => ({ auth: AUTH, list: List, history: Continue, toast, watchHref, previewCards, discordUrl: CONFIG.discordUrl, githubUrl: CONFIG.githubUrl });
 async function viewTitle(type, id) {
   if (!PREF.has(`/api/title/${type}/${id}?region=${region()}`)) titleSkeleton();
@@ -823,6 +882,7 @@ const routes = [
   [/^\/party\/([a-z0-9]{4,12})$/i, (m) => (CONFIG.parties ? viewParty(pageCtx(), m[1].toLowerCase()) : (history.replaceState({}, '', '/'), render())), 'party'],
   [/^\/settings$/, () => renderSettings(main, settingsCtx()), 'settings'],
   [/^\/profile$/, () => renderSettings(main, settingsCtx(), 'profile'), 'settings'],
+  [/^\/(?:settings\/)?profiles$/, () => PROF.renderManage(main, new URLSearchParams(location.search)), 'settings'],
   [/^\/settings\/(history|appearance|subtitles|player|preferences|account|connections|tv|profiles|profile)$/, (m) => renderSettings(main, settingsCtx(), m[1]), 'settings'],
   [/^\/title\/(movie|tv)\/(\d+)$/, (m) => viewTitle(m[1], m[2]), null],
   [/^\/person\/(\d+)$/, (m) => viewPerson(m[1]), 'search'],
@@ -849,7 +909,7 @@ async function render() {
   if (w) {
     const q = new URLSearchParams(location.search);
     if (!lastPage) { lastPage = `/title/${w[1]}/${w[2]}`; await routeTo(lastPage); }
-    try { await viewWatch(w[1], w[2], q.get('s'), q.get('e'), q.get('r')); } catch (e) { toast(e.message); }
+    try { await viewWatch(w[1], w[2], q.get('s'), q.get('e'), q.get('r')); } catch (e) { toast(e.message); if (e.status === 403) history.replaceState({}, '', lastPage || '/'); }
     return;
   }
   closePlayer();
@@ -860,6 +920,7 @@ async function render() {
 async function routeTo(path) {
   clearInterval(heroTimer); if (!path.startsWith('/party/')) leaveParty();
   document.title = 'GhostFlix — movies & series';
+  if (Profiles.kidsAge() != null && /^\/(live|party)(\/|$)/.test(path)) return errorView(Object.assign(new Error(path.startsWith('/live') ? 'Live TV isn’t available on kids profiles.' : 'Watch parties aren’t available on kids profiles.'), { status: 403 }));
   for (const [re, fn, nav] of routes) {
     const m = path.match(re);
     if (m) {
@@ -881,6 +942,15 @@ document.addEventListener('click', (e) => {
     const c = CARDS.get(lb.dataset.list); if (!c) return;
     const on = List.toggle(c);
     $$(`[data-list="${lb.dataset.list}"]`).forEach((b) => { b.innerHTML = on ? ICON.check : ICON.plus; b.classList.toggle('on', on); });
+    return;
+  }
+  const rt = e.target.closest('[data-rate]');
+  if (rt) {
+    e.preventDefault(); e.stopPropagation();
+    const c = CARDS.get(rt.dataset.rate); if (!c) return;
+    const v = Ratings.set(c, +rt.dataset.v);
+    $$(`[data-rate="${rt.dataset.rate}"]`).forEach((b) => { const on = +b.dataset.v === v; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    toast(v === 2 ? 'Loved — we’ll recommend more like this' : v === 1 ? 'Thanks — we’ll find more like this' : v === -1 ? 'Got it — we’ll show less like this' : 'Rating removed');
     return;
   }
   const rb = e.target.closest('[data-remind]');
@@ -920,7 +990,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023r').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023tc').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -941,8 +1011,13 @@ installEl.addEventListener('click', async (e) => {
 (async () => {
   try { SITE = await api('/api/site-config'); } catch {} applySite();
   try { CONFIG = await api('/api/config'); GENRES = await api('/api/genres'); } catch {} document.querySelectorAll('[data-feature=parties]').forEach((el) => (el.hidden = !CONFIG.parties));
-  AUTH = createAuth({ config: CONFIG, list: List, history: Continue, toast, onChange: () => { if (/^\/(my-list|settings.*)?$/.test(location.pathname)) { lastPage = null; render(); } } });
+  AUTH = createAuth({ config: CONFIG, list: MainList, history: MainHistory, toast, onChange: () => { if (/^\/(my-list|settings.*)?$/.test(location.pathname)) { lastPage = null; render(); } } });
   AUTH.subscribe(() => { if (location.pathname.startsWith('/settings')) { lastPage = null; render(); } });
+  PROF = createProfiles({ auth: AUTH, toast, onSwitch: () => {
+    PREF.clear(); lastPage = null;
+    if (Profiles.kidsAge() != null && /^\/(live|party|profiles|settings\/profiles)(\/|$)/.test(location.pathname)) history.replaceState({}, '', '/');
+    render();
+  } });
   if (CONFIG.discordUrl) {
     const b = $('#dcBubble'); b.href = CONFIG.discordUrl; b.innerHTML = ICONS.DISCORD_SVG; b.hidden = false; $('#drawerDiscord').href = CONFIG.discordUrl;
   } else $('#drawerDiscord').hidden = true;

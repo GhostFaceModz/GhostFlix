@@ -1,5 +1,5 @@
 // Discover, Live TV and Watch Parties pages.
-import { embedSandbox } from './settings.js?v=20261023r';
+import { embedSandbox } from './settings.js?v=20261023tc';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -11,7 +11,9 @@ export async function viewDiscover(ctx) {
   const d = await api('/api/discover');
   const last = history.all()[0];
   let because = null;
-  if (last) { try { const t = await api(`/api/title/${last.media_type}/${last.id}`); if (t.recommendations?.length) because = { id: 'because', title: `Because you watched ${t.title}`, items: t.recommendations }; } catch {} }
+  // Ratings-aware (loved/liked seeds, thumbs-down excluded) when the app provides it; else the last watched title.
+  if (ctx.because) { try { const [b] = await ctx.because(1); if (b) because = { id: 'because', title: b.title, items: b.items }; } catch {} }
+  else if (last) { try { const t = await api(`/api/title/${last.media_type}/${last.id}`); if (t.recommendations?.length) because = { id: 'because', title: `Because you watched ${t.title}`, items: t.recommendations }; } catch {} }
   // Continue watching / resume positions
   const resume = { id: 'resume', title: 'Continue Watching', items: [] };
   try { const r = await api('/api/watch-position'); if (r && r.positions) { for (const [type, ids] of Object.entries(r.positions)) { for (const [id, pos] of Object.entries(ids)) { const title = history.all().find((c) => c.media_type === type && String(c.id) === id); if (title) { resume.items.push({ ...title, position: pos }); } } } } } catch {}

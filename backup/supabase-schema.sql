@@ -75,8 +75,54 @@ alter table public.ghostflix_source_reports enable row level security;  -- no po
 revoke all on public.ghostflix_source_reports from anon, authenticated;
 revoke all on sequence public.ghostflix_source_reports_id_seq from anon, authenticated;
 
+-- ===== public.ghostflix_profiles (Who's watching? — up to 5 per account; kids flag + age limit + PIN hash) =====
+create table if not exists public.ghostflix_profiles (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  id text not null check (id ~ '^[a-z0-9]{1,16}$'),
+  name text not null check (char_length(name) between 1 and 24),
+  color text not null default '#5fe3ff' check (color ~ '^#[0-9a-fA-F]{6}$'),
+  kids boolean not null default false,
+  max_age integer check (max_age in (0, 8, 14, 15)),
+  pin_hash text check (pin_hash is null or char_length(pin_hash) = 64),
+  position integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, id)
+);
+alter table public.ghostflix_profiles enable row level security;
+create or replace function public.ghostflix_profiles_limit() returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if (select count(*) from public.ghostflix_profiles where user_id = new.user_id) >= 5 then
+    raise exception 'GhostFlix allows up to 5 profiles per account' using errcode = 'P0001';
+  end if;
+  return new;
+end $$;
+revoke all on function public.ghostflix_profiles_limit() from public, anon, authenticated;
+drop trigger if exists ghostflix_profiles_limit on public.ghostflix_profiles;
+create trigger ghostflix_profiles_limit before insert on public.ghostflix_profiles for each row execute function public.ghostflix_profiles_limit();
+drop policy if exists "ghostflix profiles: own rows" on public.ghostflix_profiles;
+create policy "ghostflix profiles: own rows" on public.ghostflix_profiles as permissive for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+revoke all on public.ghostflix_profiles from anon, authenticated;
+grant select, insert, update, delete on public.ghostflix_profiles to authenticated;
+
+-- ===== public.ghostflix_profile_data (per-profile list / continue / ratings / episode log / reminders, one JSON blob per kind;
+-- the 'main' profile keeps list + history in ghostflix_watchlist / ghostflix_history) =====
+create table if not exists public.ghostflix_profile_data (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  profile_id text not null,
+  kind text not null check (kind in ('list','continue','ratings','eps','remind')),
+  data jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, profile_id, kind)
+);
+alter table public.ghostflix_profile_data enable row level security;
+drop policy if exists "ghostflix profile data: own rows" on public.ghostflix_profile_data;
+create policy "ghostflix profile data: own rows" on public.ghostflix_profile_data as permissive for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+revoke all on public.ghostflix_profile_data from anon, authenticated;
+grant select, insert, update, delete on public.ghostflix_profile_data to authenticated;
+
 -- ===== GhostFlix-related functions / triggers =====
--- None found in the live project (checked public functions and triggers referencing 'ghostflix').
+-- ghostflix_profiles_limit() + trigger: defined with ghostflix_profiles above.
 
 -- ===== pg_cron keep-alive (stops the Render free instance from sleeping) =====
 select cron.unschedule('ghostflix-keepalive') where exists (select 1 from cron.job where jobname = 'ghostflix-keepalive');
