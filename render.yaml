@@ -1,28 +1,46 @@
-# Render Blueprint — free web service (no paid add-ons).
+# Render Blueprint for GhostFlix — mirrors the live service srv-dbc36d6q1p3s73c4la4g
+# (read from the Render API on 2026-10-23). Free plan, no paid add-ons.
+# To relaunch: Render Dashboard > New > Blueprint > pick GhostFaceModz/GhostFlix. See RESTORE.md.
+# Secret values are NOT stored here (sync: false = Render asks for them on creation).
+# Values to paste live in the private backup /workspace/ghostflix-backups/render-env.secret.
 services:
   - type: web
     name: ghostflix
     runtime: node
     plan: free
+    region: frankfurt
+    branch: main
     buildCommand: npm ci --omit=dev
     startCommand: npm start
+    # The live service currently has NO health check path set; the app serves /healthz
+    # (and the Supabase keep-alive cron pings it), so a fresh service should use it.
     healthCheckPath: /healthz
+    # Live service has auto-deploy OFF (deploys are triggered manually).
+    autoDeployTrigger: "off"
     envVars:
       - key: NODE_VERSION
         value: "20"
+      - key: TMDB_REGION
+        value: GB
+      # Discord user ID allowed into /admin via Discord sign-in (public ID, not a secret).
+      - key: ADMIN_DISCORD_ID
+        value: "803606154365632555"
       - key: TMDB_API_KEY
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+      - key: ADMIN_PASSWORD_SHA256
+        sync: false
       - key: SESSION_SECRET
-        generateValue: true
-      - key: TMDB_REGION
-        value: US
+        sync: false
       - key: SUPABASE_PUBLIC_URL
         sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
-      - key: YOUTUBE_API_KEY
+      - key: SUPABASE_URL
         sync: false
-      - key: CRON_SECRET
-        generateValue: true
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      # Set on the live service but not read by the current code (kept for parity).
+      - key: NEXSTREAM_API_KEY
+        sync: false

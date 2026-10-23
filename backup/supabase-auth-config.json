@@ -1,0 +1,35 @@
+{
+  "_note": "Non-secret Supabase Auth settings exported 2026-10-23 from project rswtambjckwmlagydsvf (shared with GhostGames). OAuth client SECRETS are deliberately excluded.",
+  "disable_signup": false,
+  "external_discord_client_id": "1558950916823195718",
+  "external_discord_email_optional": false,
+  "external_discord_enabled": true,
+  "external_email_enabled": true,
+  "external_google_additional_client_ids": null,
+  "external_google_client_id": "662864326417-g6uji281f5is42ecqfud5l9kf3b390lm.apps.googleusercontent.com",
+  "external_google_email_optional": false,
+  "external_google_enabled": true,
+  "external_google_skip_nonce_check": false,
+  "jwt_exp": 3600,
+  "mailer_autoconfirm": false,
+  "refresh_token_rotation_enabled": true,
+  "security_manual_linking_enabled": false,
+  "site_url": "https://ghostgames.app/ghostgames/",
+  "uri_allow_list": [
+    "https://ghostgames.app/**",
+    "https://ghostfacezen-portfolio.onrender.com/**",
+    "https://ghostfacemodz.github.io/**",
+    "https://ghostgames.app/ghostgames/",
+    "https://ghostgames.app/ghostgames/home/",
+    "https://ghostflix.onrender.com",
+    "https://ghostflix.onrender.com/**",
+    "https://ghostflix.uk",
+    "https://ghostflix.uk/**",
+    "https://www.ghostflix.uk/**"
+  ],
+  "enabled_providers": [
+    "discord",
+    "email",
+    "google"
+  ]
+}
