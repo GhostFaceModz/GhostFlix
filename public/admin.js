@@ -479,6 +479,6 @@ renderCards();
 
 const F = {};
 window.__gfAdmin = { $, $$, esc, toast, api, box, bars, fmt, F, reloadUsers: () => { UT = 0; loadUsers(UPAGE); }, loadSite };
-await import('/admin-f.js?v=20261023zo');
-await import('/admin-promo.js?v=20261023zo');
+await import('/admin-f.js?v=20261023zp');
+await import('/admin-promo.js?v=20261023zp');
 boot();

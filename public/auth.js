@@ -3,8 +3,8 @@
 const GOOGLE_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3Z"/><path fill="#34A853" d="M12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.4 14c-.2-.6-.3-1.3-.3-2s.1-1.4.3-2V7.4H3.1a10 10 0 0 0 0 9.2L6.4 14Z"/><path fill="#EA4335" d="M12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.4L6.4 10C7.2 7.7 9.4 6 12 6Z"/></svg>';
 export const DISCORD_SVG = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.6 1.3a18.4 18.4 0 0 0-5.5 0L8.6 3a19.7 19.7 0 0 0-4.9 1.5C.6 9.1-.3 13.6.1 18.1a19.9 19.9 0 0 0 6 3l1.3-2a12.9 12.9 0 0 1-2-1l.5-.4a14.2 14.2 0 0 0 12.2 0l.5.4c-.6.4-1.3.7-2 1l1.3 2a19.8 19.8 0 0 0 6-3c.5-5.2-.8-9.7-3.6-13.7ZM8.3 15.3c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Zm7.4 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4Z"/></svg>';
 export const ICONS = { DISCORD_SVG };
-import { Cosmetics, avatarWrap } from './cosmetics.js?v=20261023zo';
-import { seasonFromUser } from './settings.js?v=20261023zo';
+import { Cosmetics, avatarWrap } from './cosmetics.js?v=20261023zp';
+import { seasonFromUser } from './settings.js?v=20261023zp';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const WL = 'ghostflix_watchlist', HI = 'ghostflix_history';
 
@@ -125,6 +125,16 @@ export function createAuth({ config, list, history, toast, onChange }) {
 
   window.addEventListener('gf:cosmetics', () => render());
   render();
+  // Supabase sends sign-in failures back as ?error=…&error_description=… (and #error=…). Show why and tidy the URL,
+  // otherwise the page looks like nothing happened (and the error would be carried into the next redirectTo).
+  { const u = new URL(location.href), h = new URLSearchParams(u.hash.slice(1)), why = u.searchParams.get('error_description') || h.get('error_description') || u.searchParams.get('error') || h.get('error');
+    if (why) {
+      ['error', 'error_code', 'error_description'].forEach((k) => u.searchParams.delete(k)); if (h.has('error')) u.hash = '';
+      window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash);
+      const msg = /user email/i.test(why) ? 'Sign-in failed: your Discord account has no verified email. Add/verify one in Discord (User Settings → My Account) or use Google, then try again.'
+        : /access_denied/i.test(why) ? 'Sign-in was cancelled.' : /state/i.test(why) ? 'Sign-in timed out. Please try again.' : `Sign-in failed: ${why}`;
+      setTimeout(() => toast(msg), 600);
+    } }
   // Only load the SDK eagerly when a session might exist (stored session or OAuth callback ?code=).
   if (A && (localStorage.getItem('ghostflix-auth') || /[?&]code=/.test(location.search))) client().then(async (c) => {
     const { data } = await c.auth.getSession(); user = data.session?.user || null; if (user) { Cosmetics.fromUser(user); seasonFromUser(user); } render(); if (user) sync();
