@@ -309,5 +309,23 @@ export function mountStats(app, { env, wrap, admin, catalog, store, user = async
     }
     return { subs: rows.length, sent, failed };
   }
-  return { runSender: () => runSender(), broadcast };
+  // Personal message to one account (e.g. a reply to their bug report). Respects that profile's choice:
+  // 'off' -> nothing, 'site' -> bell only, 'push' -> bell + phone push. NOT counted toward the DAILY release-alert cap;
+  // the caller applies its own small cap. Returns what was delivered.
+  async function notifyUser(uid, pid, payload) {
+    if (!sb || !uid) return 'not signed in';
+    pid = /^[a-z0-9]{1,20}$/i.test(String(pid || '')) ? String(pid) : 'main';
+    const p = (await sb(`ghostflix_notify_prefs?select=mode&user_id=eq.${uid}&profile_id=eq.${encodeURIComponent(pid)}`).catch(() => []))?.[0];
+    const mode = p?.mode || 'off'; if (mode === 'off') return 'notifications off';
+    await sb('ghostflix_notes', { method: 'POST', body: { user_id: uid, profile_id: pid, title: clip(payload.title, 200), body: clip(payload.body, 300) || '', url: payload.url || '/', tag: payload.tag || '' }, prefer: 'return=minimal' });
+    if (mode !== 'push' || !pushOn || !pushFeat()) return 'bell';
+    const subs = (await sb(`ghostflix_push_subs?select=endpoint,p256dh,auth,user_id,profile_id&user_id=eq.${uid}&profile_id=eq.${encodeURIComponent(pid)}`).catch(() => [])) || [];
+    let sent = 0;
+    for (const r of subs) {
+      try { await send(r, payload); sent++; }
+      catch (e) { if (e.statusCode === 410 || e.statusCode === 404) await sb(`ghostflix_push_subs?endpoint=eq.${encodeURIComponent(r.endpoint)}`, { method: 'DELETE', prefer: 'return=minimal' }).catch(() => {}); }
+    }
+    return sent ? 'bell+push' : 'bell';
+  }
+  return { runSender: () => runSender(), broadcast, notifyUser };
 }

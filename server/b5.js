@@ -217,6 +217,7 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
     const data = {};
     if (kind === 'request') { const c = cardOf(b.title_card); if (c) data.card = c; }
     if (kind === 'bug') { data.page = clip(b.page, 200); data.ua = clip(req.get('user-agent'), 200); data.viewport = clip(b.viewport, 20); data.app = clip(b.app, 20); }
+    if (u && /^[a-z0-9]{1,20}$/i.test(String(b.profile || ''))) data.profile = String(b.profile); // where a reply notification should land
     let title = clip(b.title, 200), body = clip(b.body, 2000);
     if (kind === 'chat') {
       const id = parseInt(b.message_id, 10); if (!(id > 0)) throw err(400, 'Bad report');
@@ -404,13 +405,51 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
       reports: (inbox || []).map((x) => ({ id: x.id, kind: x.kind, status: x.status, title: x.title, by_them: x.user_id === uid, at: x.created_at })) });
   }));
   // Reports inbox + Flags (admin view of everything)
+  // ---- replies to reporters (bug reports + title requests)
+  const REPLY_KINDS = ['bug', 'request'];
+  const REPLY_CAP = 5; // reply notifications per account per day (separate from the 3-a-day release alerts)
+  const REPLY_COLS = 'id,inbox_id,by_name,by_role,body,status,delivered,created_at';
+  async function repliesFor(q, rows) {
+    const ids = rows.filter((r) => REPLY_KINDS.includes(r.kind)).map((r) => r.id); const out = {}; if (!ids.length) return out;
+    for (const x of (await q(`ghostflix_inbox_replies?inbox_id=in.(${ids.join(',')})&select=${REPLY_COLS}&order=created_at.asc&limit=1000`).catch(() => [])) || []) (out[x.inbox_id] ||= []).push(x);
+    return out;
+  }
+  async function deliverReply(r, text, status) {
+    if (!r.user_id) return 'not signed in';
+    const today = new Date().toISOString().slice(0, 10);
+    const n = (await sb(`ghostflix_notes?select=id&user_id=eq.${r.user_id}&tag=like.gf-rep-*&created_at=gte.${today}T00:00:00Z&limit=${REPLY_CAP}`).catch(() => [])) || [];
+    if (n.length >= REPLY_CAP) return 'daily cap';
+    const what = r.kind === 'request' ? 'title request' : 'bug report';
+    const head = status === 'done' ? `Fixed: your ${what}` : status === 'wontfix' ? `Update on your ${what}` : `Reply to your ${what}`;
+    return stats.notifyUser ? stats.notifyUser(r.user_id, r.data?.profile, { title: head, body: `${clip(r.title, 60) || ''} — ${clip(text, 200)}`, url: '/my-reports', tag: `gf-rep-${r.id}` }).catch(() => 'not delivered') : 'not delivered';
+  }
+  // write = PostgREST caller: service role for the owner, the moderator's own token (RLS) for mods.
+  async function replyTo(r, b, who, write, noteBy) {
+    if (!REPLY_KINDS.includes(r.kind)) throw err(400, 'Replies are for bug reports and title requests.');
+    const text = clip(String(b?.body || '').trim(), 1000); const status = STATUSES.includes(b?.status) ? b.status : null;
+    if (!text) throw err(400, 'Write a reply first.');
+    const row = (await write('ghostflix_inbox_replies', { method: 'POST', body: { inbox_id: r.id, ...who, body: text, status }, prefer: 'return=representation' }))?.[0];
+    const patch = { updated_at: new Date().toISOString(), notes: addNote(r.notes, noteBy, `Replied${status ? ` (${status})` : ''}: ${text}`) }; if (status) patch.status = status;
+    await write(`ghostflix_inbox?id=eq.${r.id}`, { method: 'PATCH', body: patch, prefer: 'return=minimal' });
+    const delivered = await deliverReply(r, text, status);
+    if (row?.id) await sb(`ghostflix_inbox_replies?id=eq.${row.id}`, { method: 'PATCH', body: { delivered }, prefer: 'return=minimal' }).catch(() => {});
+    return { ok: true, delivered, signed_in: !!r.user_id };
+  }
+  // The reporter's own reports (signed-in reports only). Internal notes / visitor hash / screenshot are never returned.
+  app.get('/api/me/reports', wrap(async (req, res) => {
+    const u = await needUser(req);
+    const rows = (await sb(`ghostflix_inbox?user_id=eq.${u.id}&kind=in.(bug,request)&select=id,kind,status,title,body,created_at,updated_at&order=created_at.desc&limit=50`)) || [];
+    const reps = await repliesFor(asUser(u.token), rows); // RLS: only replies on the caller's own reports
+    res.set('Cache-Control', 'no-store').json({ items: rows.map((r) => ({ ...r, replies: (reps[r.id] || []).map((x) => ({ by_name: x.by_name, by_role: x.by_role, body: x.body, status: x.status, created_at: x.created_at })) })) });
+  }));
   const INBOX_COLS = 'id,kind,status,title,body,data,user_id,visitor,by_mod,notes,created_at,updated_at';
   admin.get('/inbox', wrap(async (req, res) => {
     needSb(); const flags = req.query.flags === '1';
     const kinds = flags ? 'kind=in.(flag_title,flag_kids,flag_user,flag_chat,flag_comment,announce)' : 'kind=in.(request,bug,chat)';
     const st = ['open', 'in_progress', 'done', 'wontfix'].includes(req.query.status) ? `&status=eq.${req.query.status}` : '';
     const rows = (await sb(`ghostflix_inbox?${kinds}${st}&select=${INBOX_COLS},has_shot:screenshot&order=created_at.desc&limit=200`)) || [];
-    res.set('Cache-Control', 'no-store').json({ items: rows.map((r) => ({ ...r, has_shot: !!r.has_shot, user_id: r.user_id ? r.user_id.slice(0, 8) : null })) });
+    const reps = await repliesFor(sb, rows);
+    res.set('Cache-Control', 'no-store').json({ items: rows.map((r) => ({ ...r, has_shot: !!r.has_shot, signed_in: !!r.user_id, user_id: r.user_id ? r.user_id.slice(0, 8) : null, replies: reps[r.id] || [] })) });
   }));
   admin.get('/inbox/:id/shot', wrap(async (req, res) => {
     needSb(); const r = (await sb(`ghostflix_inbox?id=eq.${parseInt(req.params.id, 10) || 0}&select=screenshot`))?.[0];
@@ -423,6 +462,11 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
     needSb(); const id = parseInt(req.params.id, 10) || 0; const cur = (await sb(`ghostflix_inbox?id=eq.${id}&select=notes`))?.[0]; if (!cur) throw err(404, 'Not found');
     const patch = { updated_at: new Date().toISOString() }; if (STATUSES.includes(req.body?.status)) patch.status = req.body.status; if (clip(req.body?.note, 500)) patch.notes = addNote(cur.notes, 'admin', req.body.note);
     await sb(`ghostflix_inbox?id=eq.${id}`, { method: 'PATCH', body: patch, prefer: 'return=minimal' }); res.json({ ok: true });
+  }));
+  // Reply to the reporter (owner). Shown in their "My reports"; bell/push per their notification setting.
+  admin.post('/inbox/:id/reply', wrap(async (req, res) => {
+    needSb(); const id = parseInt(req.params.id, 10) || 0; const r = (await sb(`ghostflix_inbox?id=eq.${id}&select=id,kind,title,user_id,data,notes`))?.[0]; if (!r) throw err(404, 'Not found');
+    res.json(await replyTo(r, req.body, { by_user: null, by_name: 'GhostFlix', by_role: 'owner' }, (path, o) => sb(path, o), 'admin'));
   }));
   admin.delete('/inbox/:id', wrap(async (req, res) => { needSb(); await sb(`ghostflix_inbox?id=eq.${parseInt(req.params.id, 10) || 0}`, { method: 'DELETE', prefer: 'return=minimal' }); res.json({ ok: true }); }));
   // Approving a moderator suggestion / acting on a flag
@@ -501,13 +545,20 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
     const { q } = await needMod(req);
     const kinds = { requests: 'request', bugs: 'bug', chat: 'chat', flags: 'flag_title,flag_kids,flag_user,flag_chat,flag_comment,announce' }[req.query.kind] || 'request,bug,chat';
     const st = STATUSES.includes(req.query.status) ? `&status=eq.${req.query.status}` : '';
-    const rows = (await q(`ghostflix_inbox?kind=in.(${kinds})${st}&select=id,kind,status,title,body,data,notes,created_at,updated_at&order=created_at.desc&limit=200`)) || [];
-    res.set('Cache-Control', 'no-store').json({ items: rows.map((r) => ({ ...r, data: { ...r.data, ua: undefined } })) });
+    const rows = (await q(`ghostflix_inbox?kind=in.(${kinds})${st}&select=id,kind,status,title,body,data,notes,user_id,created_at,updated_at&order=created_at.desc&limit=200`)) || [];
+    const reps = await repliesFor(q, rows);
+    res.set('Cache-Control', 'no-store').json({ items: rows.map(({ user_id, ...r }) => ({ ...r, signed_in: !!user_id, data: { ...r.data, ua: undefined }, replies: reps[r.id] || [] })) });
   }));
   app.get('/api/mod/inbox/:id/shot', wrap(async (req, res) => {
     const { q } = await needMod(req); const r = (await q(`ghostflix_inbox?id=eq.${parseInt(req.params.id, 10) || 0}&select=screenshot`))?.[0];
     const m = r?.screenshot?.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/); if (!m) return res.status(404).json({ error: 'No screenshot' });
     res.set('Cache-Control', 'no-store').json({ src: r.screenshot });
+  }));
+  app.post('/api/mod/inbox/:id/reply', wrap(async (req, res) => {
+    const { q, log, u } = await needMod(req); const id = parseInt(req.params.id, 10) || 0;
+    const r = (await q(`ghostflix_inbox?id=eq.${id}&select=id,kind,title,user_id,data,notes`))?.[0]; if (!r) throw err(404, 'Not found');
+    const out = await replyTo(r, req.body, { by_user: u.id, by_name: clip(u.name, 60) || 'Moderator', by_role: 'mod' }, q, u.name);
+    log('inbox.reply', `#${id} ${r.title || ''}`, { status: req.body?.status || null }); res.json(out);
   }));
   app.patch('/api/mod/inbox/:id', wrap(async (req, res) => {
     const { q, log, u } = await needMod(req); const id = parseInt(req.params.id, 10) || 0;

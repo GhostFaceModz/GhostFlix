@@ -186,3 +186,21 @@ details.shot{margin-top:8px;font-size:12.5px}details.shot summary{cursor:pointer
 /* Promote tab */
 .tr.prow{grid-template-columns:44px 1.6fr 72px 72px 72px 1fr}.tr.prow>div>span,.tr.prow .dim.small b{display:block}
 @media (max-width:640px){.tr.prow{grid-template-columns:36px 1fr 56px 56px 56px}.tr.prow>div:last-child{grid-column:2/-1}}
+/* Tab bar: wrapper carries the sticky position so the ‹ › overflow buttons stay put (tabscroll.js) */
+.tabs-wrap{position:sticky;top:62px;z-index:300;margin:0 calc(-1 * var(--pad)) 20px}
+.tabs-wrap>.tabs{position:relative;top:auto;margin:0;z-index:0}
+@media (hover:hover){.tabs-wrap>.tabs{scroll-snap-type:none}}
+.tabs-wrap>.tabs.dragging{scroll-behavior:auto;cursor:grabbing;scroll-snap-type:none}.tabs-wrap>.tabs.dragging a{pointer-events:none}
+.tabs-arr{position:absolute;top:0;bottom:1px;width:46px;border:0;padding:0;z-index:2;color:#fff;font:700 24px/1 system-ui,sans-serif;cursor:pointer;display:flex;align-items:center}
+.tabs-arr[hidden]{display:none}
+.tabs-arr.l{left:0;justify-content:flex-start;padding-left:8px;background:linear-gradient(90deg,rgba(6,8,14,.98) 55%,rgba(6,8,14,0))}
+.tabs-arr.r{right:0;justify-content:flex-end;padding-right:8px;background:linear-gradient(270deg,rgba(6,8,14,.98) 55%,rgba(6,8,14,0))}
+.tabs-arr:hover{color:#5fe3ff}.tabs-arr:focus-visible{outline:2px solid #5fe3ff;outline-offset:-2px}
+@media (max-width:760px){.tabs-wrap{top:56px}}
+@media (hover:none){.tabs-arr{display:none}}
+/* Replies to reporters (bug reports / title requests) */
+.ib-rep{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.ib-r{padding:8px 10px;border-radius:10px;background:rgba(95,227,255,.06);border:1px solid rgba(95,227,255,.18);font-size:12.5px}.ib-r p{margin:4px 0 0;font-size:13.5px;white-space:pre-wrap;word-break:break-word}
+.ib-anon{margin:0;font-size:12.5px;color:#ffd68a}.ib .pv.anon{color:#ffd68a}
+.ib-rbox{width:100%;min-height:58px;resize:vertical;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.04);color:inherit;font:inherit;font-size:13.5px;box-sizing:border-box}
+.iba button[data-sendreply]{font-weight:700;background:rgba(61,220,132,.08)}.iba button:disabled{opacity:.5}

@@ -1160,3 +1160,12 @@ html[data-theme=light] .gf-bell-pop{background:rgba(255,255,255,.98);color:#0b12
 .pr-none{text-align:center;padding:8px 0}
 html[data-theme=light] .pr-reward b{color:#a8610a}html[data-theme=light] .pr-link input{background:#fff;color:#0b1220}
 @media (max-width:520px){.pr-board li,.pr-bh{grid-template-columns:28px minmax(0,1fr) 58px 58px;gap:6px}.pr-bh{font-size:11px;letter-spacing:0}.pr-hero img{width:44px;height:44px}.pr-big{width:100%;padding:0 20px}.pr-stats b{font-size:20px}}
+/* My reports (replies from the owner/mods) */
+.gf-myrep .mr-item{border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:14px 16px;margin:12px 0;background:rgba(255,255,255,.03)}
+.gf-myrep .mr-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.gf-myrep .mr-h b{flex:1 1 160px;min-width:0;overflow-wrap:anywhere}
+.gf-myrep .mr-k{font-size:12px;opacity:.75}.gf-myrep .mr-b{margin:8px 0 4px;white-space:pre-wrap;overflow-wrap:anywhere}
+.gf-myrep .mr-st{font:700 12px/1 system-ui,sans-serif;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.1);white-space:nowrap}
+.gf-myrep .mr-st.prog{background:rgba(95,227,255,.16);color:#8ff0ff}.gf-myrep .mr-st.fixed{background:rgba(46,204,113,.2);color:#6dff9e}.gf-myrep .mr-st.wont{background:rgba(255,120,120,.14);color:#ffb0b0}
+.gf-myrep .mr-rep{list-style:none;margin:10px 0 0;padding:0 0 0 12px;border-left:3px solid rgba(95,227,255,.45)}.gf-myrep .mr-rep li+li{margin-top:10px}
+.gf-myrep .mr-rep p{margin:4px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+[data-theme=light] .gf-myrep .mr-item{border-color:rgba(0,0,0,.12);background:rgba(0,0,0,.03)}

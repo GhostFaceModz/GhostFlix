@@ -1,3 +1,4 @@
+import { scrollTabs } from '/tabscroll.js?v=20261023zr';
 // GhostFlix moderator panel (/mod). Uses the visitor's own Supabase session; every /api/mod/* call is checked
 // server-side (role row read under RLS as the user) — this page only decides what to show.
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -6,6 +7,11 @@ let toastT; const toast = (m) => { const t = $('#toast'); t.textContent = m; t.c
 const ago = (x) => { if (!x) return 'never'; const s = Math.max(0, (Date.now() - new Date(x)) / 1000); return s < 60 ? 'just now' : s < 3600 ? `${Math.round(s / 60)}m ago` : s < 86400 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`; };
 const when = (x) => (x ? new Date(x).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
 const STATUS = { open: 'Open', in_progress: 'In progress', done: 'Done', wontfix: 'Won’t fix' };
+// Bug reports / title requests: 'done' reads as Fixed, and the owner/mods can reply to the reporter.
+const RSTATUS = { ...STATUS, done: 'Fixed' }; const canReply = (r) => r.kind === 'bug' || r.kind === 'request';
+const repliesHTML = (r) => (canReply(r) ? `<div class="ib-rep">${(r.replies || []).map((x) => `<div class="ib-r"><b>${esc(x.by_name)}</b> <span class="pv">${x.by_role === 'owner' ? 'Owner' : 'Mod'}</span>${x.status ? ` <span class="st st-${esc(x.status)}">${RSTATUS[x.status] || esc(x.status)}</span>` : ''} <span class="dim small">${ago(x.created_at)}${x.delivered ? ` · ${esc(x.delivered)}` : ''}</span><p>${esc(x.body)}</p></div>`).join('')}`
+  + (r.signed_in ? '' : '<p class="ib-anon">Reporter not signed in — they can’t see replies. Your reply is kept here for the record.</p>')
+  + '<textarea class="ib-rbox" data-reply maxlength="1000" rows="2" aria-label="Reply to the reporter" placeholder="Reply to the reporter, e.g. Fixed, try again now (sent with the status on the left)"></textarea></div>' : '');
 const KIND = { request: '🎬 Request', bug: '🐞 Bug', chat: '💬 Chat report', flag_title: '⚑ Title', flag_kids: '🧒 Kids safety', flag_user: '👤 User', flag_chat: '💬 Chat', flag_comment: '🗨️ Comment', announce: '📣 Suggestion' };
 
 let SB = null;
@@ -46,9 +52,9 @@ const notesHTML = (n) => (Array.isArray(n) && n.length ? `<ul class="notes">${n.
 function itemHTML(r, { flag = true, edit = true } = {}) {
   const d = r.data || {}; const tl = d.key ? `/title/${d.key.replace(':', '/')}` : d.card ? `/title/${d.card.media_type}/${d.card.id}` : null;
   const extra = [d.page && `Page <code>${esc(d.page)}</code>`, d.viewport && esc(d.viewport), d.room && `Room <code>${esc(d.room)}</code>`, d.message && `“${esc(d.message)}”`, d.author && `by ${esc(d.author)}`, d.type && esc(d.type)].filter(Boolean).join(' · ');
-  return `<div class="ib" data-id="${r.id}"><div class="ibh"><span class="pv">${KIND[r.kind] || esc(r.kind)}</span><b>${tl ? `<a href="${tl}" target="_blank" rel="noopener">${esc(r.title || '')}</a>` : esc(r.title || '')}</b><span class="st st-${esc(r.status)}">${STATUS[r.status] || esc(r.status)}</span><time class="dim small">${ago(r.created_at)}</time></div>
-    ${r.body ? `<p class="ibb">${esc(r.body)}</p>` : ''}${extra ? `<p class="dim small">${extra}</p>` : ''}${r.kind === 'bug' ? `<details class="shot" data-shot="${r.id}"><summary>Screenshot (if attached)</summary></details>` : ''}${notesHTML(r.notes)}
-    ${edit ? `<div class="iba"><div class="select sm"><select data-st aria-label="Status">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}"${k === r.status ? ' selected' : ''}>${v}</option>`).join('')}</select></div><input data-note maxlength="500" placeholder="Add a note…"><button type="button" data-save>Save</button>${flag && r.kind === 'chat' && +d.message_id > 0 ? `<button type="button" class="danger" data-flagchat="${+d.message_id}">Flag for admin</button>` : ''}</div>` : ''}</div>`;
+  return `<div class="ib" data-id="${r.id}"><div class="ibh"><span class="pv">${KIND[r.kind] || esc(r.kind)}</span><b>${tl ? `<a href="${tl}" target="_blank" rel="noopener">${esc(r.title || '')}</a>` : esc(r.title || '')}</b><span class="st st-${esc(r.status)}">${(canReply(r) ? RSTATUS : STATUS)[r.status] || esc(r.status)}</span>${canReply(r) && !r.signed_in ? '<span class="pv anon">Reporter not signed in</span>' : ''}<time class="dim small">${ago(r.created_at)}</time></div>
+    ${r.body ? `<p class="ibb">${esc(r.body)}</p>` : ''}${extra ? `<p class="dim small">${extra}</p>` : ''}${r.kind === 'bug' ? `<details class="shot" data-shot="${r.id}"><summary>Screenshot (if attached)</summary></details>` : ''}${notesHTML(r.notes)}${edit ? repliesHTML(r) : ''}
+    ${edit ? `<div class="iba"><div class="select sm"><select data-st aria-label="Status">${Object.entries(canReply(r) ? RSTATUS : STATUS).map(([k, v]) => `<option value="${k}"${k === r.status ? ' selected' : ''}>${v}</option>`).join('')}</select></div><input data-note maxlength="500" placeholder="Add a note…">${canReply(r) ? '<button type="button" class="ok" data-sendreply>Send reply</button>' : ''}<button type="button" data-save>Save note/status</button>${flag && r.kind === 'chat' && +d.message_id > 0 ? `<button type="button" class="danger" data-flagchat="${+d.message_id}">Flag for admin</button>` : ''}</div>` : ''}</div>`;
 }
 function wireItems(el, reload) {
   $$('details[data-shot]', el).forEach((dt) => dt.addEventListener('toggle', async () => {
@@ -58,6 +64,8 @@ function wireItems(el, reload) {
   $$('.ib', el).forEach((it) => {
     const id = it.dataset.id, q = (s) => it.querySelector(s); if (!q('[data-save]')) return;
     q('[data-save]').onclick = async () => { try { await api(`/api/mod/inbox/${id}`, { method: 'PATCH', body: { status: q('[data-st]').value, note: q('[data-note]').value } }); toast('Saved'); reload(); } catch (e) { toast(e.message); } };
+    const sr = q('[data-sendreply]'); if (sr) sr.onclick = async () => { const body = q('[data-reply]').value.trim(); if (!body) return toast('Write a reply first'); sr.disabled = true;
+      try { const j = await api(`/api/mod/inbox/${id}/reply`, { method: 'POST', body: { body, status: q('[data-st]').value } }); toast(j.signed_in ? `Reply sent (${j.delivered})` : 'Saved — reporter wasn’t signed in, so they won’t see it'); reload(); } catch (e) { sr.disabled = false; toast(e.message); } };
     const fc = q('[data-flagchat]'); if (fc) fc.onclick = async () => { const c = await confirmBox('Flag this chat message?', 'The admin can hide it for everyone.', 'Flag', true); if (!c) return; try { await api('/api/mod/flag', { method: 'POST', body: { kind: 'flag_chat', message_id: +fc.dataset.flagchat, inbox_id: +id, title: `Chat message (report #${id})`, body: c.reason || it.querySelector('.ibb')?.textContent || '' } }); await api(`/api/mod/inbox/${id}`, { method: 'PATCH', body: { status: 'in_progress', note: 'Flagged for admin' } }); toast('Flagged for the admin'); reload(); } catch (e) { toast(e.message); } };
   });
 }
@@ -143,6 +151,7 @@ async function loadLog() {
   try {
     if (!(await token())) { $('#gateMsg').innerHTML = 'Sign in on <a href="/">GhostFlix</a> first, then come back here.'; return; }
     const me = await api('/api/mod/me'); $('#who').textContent = me.name || ''; $('#gate').hidden = true; $('#dash').hidden = false;
+    scrollTabs($('#tabs'));
     $('#tabs').addEventListener('click', (e) => { const a = e.target.closest('[data-tab]'); if (!a) return; e.preventDefault(); history.replaceState(null, '', `#${a.dataset.tab}`); showTab(a.dataset.tab); });
     window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
     let saved = 'inbox'; try { saved = localStorage.getItem('gf.modTab') || 'inbox'; } catch {}

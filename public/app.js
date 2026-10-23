@@ -1,13 +1,13 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023zq';
-import { applyCosmetics } from './cosmetics.js?v=20261023zq';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023zq';
-import { createPush } from './push.js?v=20261023zq';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023zq';
-import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023zq';
-import { createCommunity } from './community.js?v=20261023zq';
-import { createFlair } from './flair.js?v=20261023zq';
-import { createPromote } from './promote.js?v=20261023zq';
+import { createAuth, ICONS } from './auth.js?v=20261023zr';
+import { applyCosmetics } from './cosmetics.js?v=20261023zr';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023zr';
+import { createPush } from './push.js?v=20261023zr';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023zr';
+import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023zr';
+import { createCommunity } from './community.js?v=20261023zr';
+import { createFlair } from './flair.js?v=20261023zr';
+import { createPromote } from './promote.js?v=20261023zr';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -953,6 +953,7 @@ const routes = [
   [/^\/collection\/(\d+)$/, (m) => viewCollection(m[1]), 'movies'],
   [/^\/coming-soon$/, () => viewComingSoon(), 'movies'],
   [/^\/friends$/, () => COMM.viewFriends(), 'friends'],
+  [/^\/my-reports$/, () => COMM.viewMyReports(), 'settings'],
   [/^\/promote$/, () => PROMO.viewPromote(), 'promote'],
   [/^\/shared\/(\d{1,12})$/, (m) => FLAIR.viewShared(m[1]), 'friends'],
   [/^\/u\/([a-z0-9]{10})$/, (m) => COMM.viewPublic(m[1]).then(() => FLAIR.publicPage(m[1])), null],
@@ -1070,7 +1071,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023zq').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023zr').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 // Installed app: Android keeps it alive in the background and this single-page app never does a full page load, so a new

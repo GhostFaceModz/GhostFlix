@@ -181,7 +181,7 @@ export function createCommunity(ctx) {
       $('#rqGo', m).onclick = async (e) => {
         const title = pick ? `${pick.title}${pick.year ? ` (${pick.year})` : ''}` : q.value.trim(); if (!title) { $('#rqEr', m).textContent = 'Type a title first.'; return; }
         e.target.disabled = true;
-        try { await call('/api/inbox', { method: 'POST', body: { kind: 'request', title, body: $('#rqN', m).value, title_card: pick ? { id: pick.id, media_type: pick.media_type, title: pick.title, year: pick.year, poster: pick.poster } : null } }); close(); ctx.toast('Thanks! Your request was sent.'); }
+        try { await call('/api/inbox', { method: 'POST', body: { kind: 'request', title, body: $('#rqN', m).value, profile: ctx.profiles?.active?.()?.id, title_card: pick ? { id: pick.id, media_type: pick.media_type, title: pick.title, year: pick.year, poster: pick.poster } : null } }); close(); ctx.toast('Thanks! Your request was sent.'); }
         catch (err) { $('#rqEr', m).textContent = err.message; e.target.disabled = false; }
       };
     });
@@ -214,7 +214,7 @@ export function createCommunity(ctx) {
         const body = $('#bgB', m).value.trim(); if (body.length < 3) { $('#bgEr', m).textContent = 'Tell us a little about the problem.'; return; }
         e.target.disabled = true; e.target.textContent = 'Sending…';
         const screenshot = $('#bgS', m).checked ? await pending : null;
-        try { await call('/api/inbox', { method: 'POST', body: { kind: 'bug', title: body.slice(0, 80), body, page, viewport: `${innerWidth}x${innerHeight}`, app: where || 'menu', screenshot } }); close(); ctx.toast('Thanks! Your bug report was sent.'); }
+        try { await call('/api/inbox', { method: 'POST', body: { kind: 'bug', title: body.slice(0, 80), body, page, viewport: `${innerWidth}x${innerHeight}`, app: where || 'menu', screenshot, profile: ctx.profiles?.active?.()?.id } }); close(); ctx.toast(signedIn() ? 'Thanks! We’ll reply in My reports.' : 'Thanks! Your bug report was sent.'); }
         catch (err) { $('#bgEr', m).textContent = err.message; e.target.disabled = false; e.target.textContent = 'Send report'; }
       };
     });
@@ -342,5 +342,21 @@ export function createCommunity(ctx) {
     const cp = $('#pbCopy', box); if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(`${location.origin}/u/${cur.slug}`); ctx.toast('Link copied'); } catch {} };
   }
 
-  return { feat, refreshMe, applyFeatures, countdownHTML, onPlay, homeExtras, openRequest, openBug, mountChat, viewFriends, viewPublic, profileExtras, pullActivity, call, get state() { return state; } };
+  // ---- My reports: the signed-in viewer's bug reports / title requests with status + replies from the owner/mods
+  const REP_ST = { open: ['Open', ''], in_progress: ['In progress', 'prog'], done: ['Fixed', 'fixed'], wontfix: ['Won’t fix', 'wont'] };
+  async function viewMyReports() {
+    const main = ctx.main; document.title = 'My reports · GhostFlix';
+    main.innerHTML = '<div class="page narrow gf-myrep"><h1>My reports</h1><p class="lead">Bug reports and title requests you’ve sent while signed in, with replies from the GhostFlix team.</p><div id="mrList"><p class="dim">Loading…</p></div></div>';
+    await authReady(); const el = $('#mrList', main);
+    if (!signedIn()) { el.innerHTML = '<p class="dim">Sign in to see your reports and replies. Reports sent while signed out can’t get replies.</p>'; return; }
+    try {
+      const d = await call('/api/me/reports');
+      el.innerHTML = d.items.length ? d.items.map((r) => { const [lbl, cls] = REP_ST[r.status] || [r.status, ''];
+        return `<article class="mr-item"><div class="mr-h"><span class="mr-k">${r.kind === 'request' ? '🎬 Request' : '🐞 Bug'}</span><b>${esc(r.title || '')}</b><span class="mr-st ${cls}">${r.status === 'done' ? '✓ ' : ''}${esc(lbl)}</span></div>
+          ${r.body && r.body !== r.title ? `<p class="mr-b">${esc(r.body)}</p>` : ''}<p class="dim small">Sent ${ago(r.created_at)}</p>
+          ${r.replies.length ? `<ul class="mr-rep">${r.replies.map((x) => `<li><div class="mr-by"><b>${esc(x.by_name)}</b>${tagHTML(x.by_role)}<span class="dim small"> · ${ago(x.created_at)}</span></div><p>${esc(x.body)}</p></li>`).join('')}</ul>` : '<p class="dim small mr-none">No reply yet — we’ll notify you when there is one.</p>'}</article>`; }).join('')
+        : '<p class="dim">You haven’t sent any reports while signed in. Use “Report a bug” in the menu if something’s wrong.</p>';
+    } catch (e) { el.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  }
+  return { viewMyReports, feat, refreshMe, applyFeatures, countdownHTML, onPlay, homeExtras, openRequest, openBug, mountChat, viewFriends, viewPublic, profileExtras, pullActivity, call, get state() { return state; } };
 }

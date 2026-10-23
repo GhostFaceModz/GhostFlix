@@ -1,3 +1,4 @@
+import { scrollTabs } from '/tabscroll.js?v=20261023zr';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -361,6 +362,7 @@ function initTabs() {
   const h = location.hash.slice(1);
   showTab(TABS.includes(h) ? h : saved, false);
   window.addEventListener('hashchange', () => showTab(location.hash.slice(1), true));
+  scrollTabs($('#tabs'));
   $('#tabs').addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
     const i = TABS.indexOf(document.activeElement?.dataset?.tab); if (i < 0) return;
@@ -479,6 +481,6 @@ renderCards();
 
 const F = {};
 window.__gfAdmin = { $, $$, esc, toast, api, box, bars, fmt, F, reloadUsers: () => { UT = 0; loadUsers(UPAGE); }, loadSite };
-await import('/admin-f.js?v=20261023zq');
-await import('/admin-promo.js?v=20261023zq');
+await import('/admin-f.js?v=20261023zr');
+await import('/admin-promo.js?v=20261023zr');
 boot();
