@@ -1,5 +1,5 @@
-import { Cosmetics, BORDER_GROUPS, GLOWS, avatarWrap } from './cosmetics.js?v=20261023w1';
-import { SEASONS, HALLOWEEN, applySeason, resolveSeason, SFX } from './season.js?v=20261023w1';
+import { Cosmetics, BORDER_GROUPS, GLOWS, avatarWrap } from './cosmetics.js?v=20261023w2';
+import { SEASONS, HALLOWEEN, applySeason, resolveSeason, SFX } from './season.js?v=20261023w2';
 // GhostFlix settings: stored in localStorage, applied live (theme, accent, cards, subtitles, player prefs).
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const ACCENTS = {
@@ -94,7 +94,7 @@ export function renderSettings(main, ctx, sub) {
       ${group('App', [item('/settings/preferences', 'sliders', 'Preferences', 'Language, content and behavior'), item('/settings/appearance', 'palette', 'Appearance', 'Theme, seasonal look, layout and cards')])}
       ${group('Playback', [item('/settings/player', 'play', 'Player', 'Playback, gestures and sources'), item('/settings/subtitles', 'subs', 'Subtitles', 'Style, size and languages')])}
       ${group('Integrations', [item('/settings/connections', 'link', 'Connections', 'Discord, GitHub')])}
-      <p class="set-foot">GhostFlix · legit sources only</p></div>`;
+      <p class="set-foot">GhostFlix · a personal project · no video files hosted here</p></div>`;
     return;
   }
   if (sub === 'profile') {

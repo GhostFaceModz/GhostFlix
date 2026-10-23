@@ -1,9 +1,9 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023w1';
-import { applyCosmetics } from './cosmetics.js?v=20261023w1';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023w1';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023w1';
-import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023w1';
+import { createAuth, ICONS } from './auth.js?v=20261023w2';
+import { applyCosmetics } from './cosmetics.js?v=20261023w2';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023w2';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023w2';
+import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023w2';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -996,7 +996,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023w1').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023w2').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
