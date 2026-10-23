@@ -1,5 +1,5 @@
-import { Cosmetics, BORDER_GROUPS, GLOWS, avatarWrap } from './cosmetics.js?v=20261023xe';
-import { SEASONS, HALLOWEEN, applySeason, resolveSeason, SFX } from './season.js?v=20261023xe';
+import { Cosmetics, BORDER_GROUPS, GLOWS, avatarWrap } from './cosmetics.js?v=20261023yf';
+import { SEASONS, HALLOWEEN, applySeason, resolveSeason, SFX } from './season.js?v=20261023yf';
 // GhostFlix settings: stored in localStorage, applied live (theme, accent, cards, subtitles, player prefs).
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const ACCENTS = {
@@ -108,7 +108,8 @@ export function renderSettings(main, ctx, sub) {
       ${BORDER_GROUPS.map((g) => `<div class="set-group pad cos-group" data-cat="${g.id}"><div class="cos-cat">${esc(g.name)}</div><div class="cos-grid">${g.items.map(([id, label]) => `<button type="button" class="cos-opt ${c.border === id ? 'on' : ''}" data-border="${id}" aria-pressed="${c.border === id}">${avatarWrap(av, id)}<span>${esc(label)}</span></button>`).join('')}</div></div>`).join('')}
       <div class="set-label">Name glow</div><div class="set-group pad"><div class="glows">${GLOWS.map(([v, l]) => `<button type="button" class="glow-sw ${c.glow === v ? 'on' : ''}" data-glow="${v}" title="${l}" aria-label="${l}" style="${v ? `--sw:${v}` : ''}">${v ? '' : '⌀'}</button>`).join('')}
         <label class="glow-custom ${custom ? 'on' : ''}" title="Custom colour"><input type="color" id="glowCustom" value="${c.glow || '#5fe3ff'}" aria-label="Custom glow colour"><span>Custom</span></label></div>
-        <p class="set-note">Shown as a glow on your display name (here and in the header).</p></div></div>`;
+        <p class="set-note">Shown as a glow on your display name (here and in the header).</p></div><div id="gfCommunityProfile"></div></div>`;
+    ctx.community?.profileExtras(main.querySelector('#gfCommunityProfile'));
     const save = async (patch) => {
       Cosmetics.set(patch); re();
       if (u) { try { const cl = await ctx.auth.client(); const cur = Cosmetics.get(); const { error } = await cl.auth.updateUser({ data: { gf_border: cur.border, gf_glow: cur.glow } }); if (error) throw error; } catch (e) { ctx.toast('Saved on this device (account sync failed)'); } }

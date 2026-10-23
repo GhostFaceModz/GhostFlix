@@ -13,6 +13,7 @@ import { mountB3 } from './b3.js';
 import { mountSeasonal } from './seasonal.js';
 import { mountKids } from './b3-kids.js';
 import { mountStats } from './b3-stats.js';
+import { mountB5, activeScheduled, FEATURE_KEYS } from './b5.js';
 
 import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -143,8 +144,23 @@ const siteCfg = () => {
     sections: Object.fromEntries(SECTION_KEYS.map((k) => [k, d.sections?.[k] !== false])),
     rows: { ...(d.rows || {}) },
     maintenance: !!d.maintenance,
+    // Stage F: scheduled banner (overrides the manual announcement while active), scheduled theme, feature switches.
+    ...(() => {
+      const b = activeScheduled(d.schedule, 'banner'), t = activeScheduled(d.schedule, 'theme');
+      const features = Object.fromEntries(FEATURE_KEYS.map(([k]) => [k, k === 'live' ? d.sections?.live !== false : d.features?.[k] !== false]));
+      return { ...(b ? { announcement: { on: true, text: b.text, color: b.color, until: b.end, scheduled: true } } : {}), theme: features.themes && t ? { name: t.theme, until: t.end } : null, features };
+    })(),
   };
 };
+// Stage F (47): titles hidden site-wide by the admin disappear from every catalog response (cards pruned; title/play pages 404).
+const HIDDEN = () => { const h = store.data.content?.hidden; if (!h?.length) return null; if (HIDDEN.src !== h) { HIDDEN.src = h; HIDDEN.set = new Set(h.map((x) => x.key)); } return HIDDEN.set; };
+const isCardObj = (x) => x && typeof x === 'object' && !Array.isArray(x) && (x.media_type === 'movie' || x.media_type === 'tv') && Number.isFinite(+x.id) && x.id !== '';
+function pruneHidden(o, set, depth = 0) {
+  if (!o || typeof o !== 'object' || depth > 6) return o;
+  if (Array.isArray(o)) return o.filter((x) => !isCardObj(x) || !set.has(`${x.media_type}:${x.id}`)).map((x) => pruneHidden(x, set, depth + 1));
+  for (const [k, v] of Object.entries(o)) if (v && typeof v === 'object') o[k] = pruneHidden(v, set, depth + 1);
+  return o;
+}
 const MAINT_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>GhostFlix — back soon</title><meta name="robots" content="noindex"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/app.css"></head>
 <body><div class="bg" aria-hidden="true"></div><main class="maint"><img src="/img/logo.svg" alt="" width="84" height="84"><h1>GHOST<em>FLIX</em> is getting a tune-up</h1><p>We’re doing a bit of maintenance and will be back soon. Thanks for your patience!</p></main></body></html>`;
 app.use((req, res, next) => {
@@ -167,6 +183,15 @@ const patternFor = (type) => store.data.patterns?.[type] || '';
 const withPlayable = (c) => (c ? { ...c, playable: catalog.mode === 'demo' ? (!!c.demo || store.hasAnyFor(c.media_type, c.id) || !!patternFor(c.media_type)) : true } : c);
 const markList = (d) => ({ ...d, results: d.results.map(withPlayable) });
 const KIDS = mountKids(app, { env, wrap, cacheFor, catalog }); // kids-profile filter: must come before the catalog routes
+app.use('/api', (req, res, next) => {
+  const set = HIDDEN(); if (!set || req.method !== 'GET' || /^\/api\/(admin|mod|site-config|config|stats|push|track|me|friends|chat|u\/)/.test(req.originalUrl) || isAdmin(req)) return next();
+  const m = req.originalUrl.match(/^\/api\/(?:title|play|tv)\/(movie|tv)?\/?(\d+)/);
+  const key = m ? `${m[1] || 'tv'}:${m[2]}` : null;
+  if (key && set.has(key)) return res.status(404).json({ error: 'This title isn’t available on GhostFlix.' });
+  const json = res.json.bind(res);
+  res.json = (body) => json(res.statusCode < 400 && body && typeof body === 'object' ? pruneHidden(body, set) : body);
+  next();
+});
 mountSeasonal(app, { wrap, cacheFor, catalog, mark: withPlayable }); // Halloween Horror Picks (home row while the Halloween look is on)
 
 // ---- public API ---------------------------------------------------------------
@@ -192,6 +217,19 @@ app.get('/api/home', wrap(async (req, res) => {
   const site = siteCfg();
   d.rows = d.rows.filter((r) => site.rows[r.id] !== false);
   if (site.hero) { try { const h = withPlayable({ ...(await catalog.title(site.hero.type, site.hero.id)), media_type: site.hero.type }); d.hero = [h, ...d.hero.filter((x) => !(x.id === h.id && x.media_type === h.media_type))]; } catch {} }
+  // Stage F (47): pinned/featured titles — 'hero' goes first in the hero, 'featured' builds a row at the top, any other row id goes to the front of that row.
+  const pins = store.data.content?.pins || [];
+  if (pins.length && catalog.mode !== 'demo') {
+    const cardsOf = await Promise.all(pins.map(async (p) => { const [t, id] = p.key.split(':'); try { const x = await catalog.title(t, +id); return { p, c: withPlayable({ id: x.id, media_type: t, title: x.title, year: x.year, overview: x.overview, poster: x.poster, backdrop: x.backdrop, backdrop_sm: x.backdrop_sm, rating: x.rating, genre_ids: x.genre_ids, pinned: true }) }; } catch { return null; } }));
+    const same = (a, b) => a.id === b.id && a.media_type === b.media_type;
+    const feat = [];
+    for (const z of cardsOf.filter(Boolean).reverse()) {
+      if (z.p.row === 'hero') d.hero = [z.c, ...d.hero.filter((x) => !same(x, z.c))];
+      else if (z.p.row === 'featured') feat.unshift(z.c);
+      else { const r = d.rows.find((x) => x.id === z.p.row); if (r) r.items = [z.c, ...r.items.filter((x) => !same(x, z.c))]; }
+    }
+    if (feat.length) d.rows.unshift({ id: 'featured', title: 'Featured on GhostFlix', items: feat });
+  }
   cacheFor(res, 60); res.json(d);
 }));
 app.get('/api/discover', wrap(async (req, res) => {
@@ -352,7 +390,8 @@ const admin = express.Router();
 admin.use((req, res, next) => (isAdmin(req) ? next() : res.status(401).json({ error: 'Not signed in.' })));
 app.use('/api/admin', admin);
 const B3 = mountB3(app, { env, wrap, cacheFor, isAdmin, admin, store, catalog, markList });
-const STATS = mountStats(app, { env, wrap, admin, catalog }); // first-party stats + web push (Stage D)
+const STATS = mountStats(app, { env, wrap, admin, catalog, store }); // first-party stats + web push (Stage D)
+const B5 = mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catalog, stats: STATS, siteCfg }); // community, admin tools, moderators (Stages E/F)
 
 admin.get('/state', (req, res) => res.json({ mode: catalog.mode, backend: store.backend, sources: store.allSources().reverse(),
   subs: Object.entries(store.data.subs || {}).flatMap(([key, list]) => list.map(({ vtt, ...t }) => ({ key, ...t, title: store.data.titles[key.split(':').slice(0, 2).join(':')]?.title || key }))), unmatched: store.data.unmatched, jobs: store.data.jobs,
@@ -526,6 +565,7 @@ app.get(['/healthz', '/health'], (req, res) => res.json({ ok: true, mode: catalo
 // ---- static + SPA ---------------------------------------------------------------
 app.use('/vendor/supabase.js', (req, res) => res.sendFile(path.join(ROOT, 'node_modules/@supabase/supabase-js/dist/umd/supabase.js')));
 app.use('/vendor/hls.min.js', (req, res) => res.sendFile(path.join(ROOT, 'node_modules/hls.js/dist/hls.min.js')));
+app.use('/vendor/html2canvas.min.js', (req, res) => { res.set('Cache-Control', 'public, max-age=604800'); res.sendFile(path.join(ROOT, 'node_modules/html2canvas/dist/html2canvas.min.js')); }); // bug-report screenshots (self-hosted for CSP)
 // PWA: service worker from root scope (never HTTP-cached so new deploys are picked up) + manifest with its proper type.
 app.get('/sw.js', (req, res) => { res.set({ 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/' }); res.type('application/javascript'); res.sendFile(path.join(ROOT, 'public/sw.js')); });
 app.get('/manifest.webmanifest', (req, res) => { res.set('Cache-Control', 'public, max-age=3600'); res.type('application/manifest+json'); res.sendFile(path.join(ROOT, 'public/manifest.webmanifest')); });
@@ -537,6 +577,7 @@ app.use(express.static(path.join(ROOT, 'public'), { maxAge: '1h', index: false, 
   else if (res.req?.query?.v !== undefined) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
 } }));
 app.get('/admin', (req, res) => { res.set('Cache-Control', 'no-cache'); res.sendFile(path.join(ROOT, 'public/admin.html')); });
+app.get('/mod', (req, res) => { res.set('Cache-Control', 'no-cache'); res.sendFile(path.join(ROOT, 'public/mod.html')); }); // moderator panel (separate from /admin; its API is RLS-enforced)
 app.get(/^\/(?!api\/).*/, (req, res) => { res.set('Cache-Control', 'no-cache'); res.sendFile(path.join(ROOT, 'public/index.html')); });
 
 app.listen(PORT, () => {

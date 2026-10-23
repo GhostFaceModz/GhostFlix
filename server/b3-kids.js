@@ -61,7 +61,7 @@ export function mountKids(app, { env, wrap, cacheFor, catalog }) {
     for (const [k, v] of Object.entries(o)) if (v && typeof v === 'object') o[k] = prune(v, ok, depth + 1);
     return o;
   }
-  const SKIP = /^\/api\/(config|site-config|genres|segments|report-source|tv-status|admin|kids\/cert|cert|stats|push|track|profiles)/;
+  const SKIP = /^\/api\/(config|site-config|genres|segments|report-source|tv-status|admin|kids\/cert|cert|stats|push|track|profiles|me\/|friends|chat|inbox|mod\/|u\/|moods)/;
   // Must be registered before the catalog routes.
   const middleware = (req, res, next) => {
     const max = KIDS_LEVELS.includes(+req.query.kids) && req.query.kids !== '' ? +req.query.kids : null;

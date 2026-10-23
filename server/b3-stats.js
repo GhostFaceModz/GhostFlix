@@ -13,7 +13,8 @@ const LIVE_MS = 2 * 60 * 1000;
 const clip = (v, n) => (v == null ? null : String(v).slice(0, n) || null);
 const today = () => new Date().toISOString().slice(0, 10);
 
-export function mountStats(app, { env, wrap, admin, catalog }) {
+export function mountStats(app, { env, wrap, admin, catalog, store }) {
+  const pushFeat = () => store?.data?.site?.features?.push !== false; // admin feature switch (Stage F)
   const sb = supa(env);
   const secret = env.SESSION_SECRET || env.SUPABASE_SERVICE_KEY || 'gf-stats';
   const visitorOf = (req) => crypto.createHmac('sha256', secret).update(`${today()}|${req.ip}|${req.get('user-agent') || ''}`).digest('hex').slice(0, 24);
@@ -50,7 +51,18 @@ export function mountStats(app, { env, wrap, admin, catalog }) {
       title_key: /^(movie|tv):\d{1,10}$/.test(b.t || '') ? b.t : null, title: clip(b.tt, 200), source: kind === 'play' ? clip(b.src, 80) : null,
       country: /^[A-Z]{2}$/.test(cc) && cc !== 'XX' ? cc : null });
     if (queue.length >= 50) flush();
+    if (kind === 'play' && /^(movie|tv):\d{1,10}$/.test(b.t || '')) addFeed(b.t, device);
   });
+
+  // ---- live anonymous activity feed (admin): "Someone started a Drama episode". In memory, this instance only.
+  const feed = [];
+  async function addFeed(key, device) {
+    const [type, id] = key.split(':'); let genre = '';
+    try { const d = await catalog.get(`/${type}/${id}`, {}, 6 * 3600e3); genre = d?.genres?.[0]?.name || ''; } catch {}
+    feed.unshift({ at: Date.now(), type, genre, device, text: `Someone started ${genre ? `${/^[aeiou]/i.test(genre) ? 'an' : 'a'} ${genre}` : 'a'} ${type === 'tv' ? 'episode' : 'film'}` });
+    feed.length = Math.min(feed.length, 60);
+  }
+  admin.get('/feed', (req, res) => res.set('Cache-Control', 'no-store').json({ items: feed.slice(0, 40), live: liveNow().length, note: 'This server instance only, since its last restart' }));
 
   const liveNow = () => { const now = Date.now(); const out = []; for (const [k, v] of live) { if (now - v.at > LIVE_MS) live.delete(k); else out.push(v); } return out; };
 
@@ -73,7 +85,7 @@ export function mountStats(app, { env, wrap, admin, catalog }) {
   const showOf = (x) => { const id = parseInt(x?.id, 10); return id > 0 ? { id, title: clip(x.title, 120) || '' } : null; };
   const remOf = (x) => (/^(movie|tv):\d{1,10}$/.test(x?.key || '') && /^\d{4}-\d{2}-\d{2}$/.test(x?.date || '') ? { key: x.key, title: clip(x.title, 120) || '', date: x.date, label: clip(x.label, 60) } : null);
 
-  app.get('/api/push/key', (req, res) => res.set('Cache-Control', 'no-store').json({ key: pushOn ? env.VAPID_PUBLIC_KEY : null }));
+  app.get('/api/push/key', (req, res) => res.set('Cache-Control', 'no-store').json({ key: pushOn && pushFeat() ? env.VAPID_PUBLIC_KEY : null }));
   app.post('/api/push/subscribe', wrap(async (req, res) => {
     if (!pushOn) return res.status(503).json({ error: 'Notifications aren’t set up yet' });
     if (!okPush(req.ip)) return res.status(429).json({ error: 'Slow down a moment' });
@@ -105,6 +117,7 @@ export function mountStats(app, { env, wrap, admin, catalog }) {
   let running = null;
   let runSender = async function () {
     if (!pushOn) return { skipped: 'not configured' };
+    if (!pushFeat()) return { skipped: 'switched off' };
     if (running) return running;
     running = (async () => {
       const rows = (await sb('ghostflix_push_subs?select=*&order=updated_at.desc&limit=2000')) || [];
@@ -172,14 +185,36 @@ export function mountStats(app, { env, wrap, admin, catalog }) {
     const r = await fetch(`${env.SUPABASE_URL.replace(/\/$/, '')}/auth/v1/admin/users?page=${page}&per_page=50`, { headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_KEY}` } });
     if (!r.ok) return res.status(502).json({ error: `Auth said ${r.status}` });
     const total = r.headers.get('x-total-count'); const j = await r.json(); const list = j.users || [];
-    let prof = {};
-    if (list.length) { try { const ids = list.map((u) => u.id).join(','); for (const x of (await sb(`ghostflix_profiles?select=user_id&user_id=in.(${ids})`)) || []) prof[x.user_id] = (prof[x.user_id] || 0) + 1; } catch {} }
+    // Every account has the 'main' profile, which isn't stored as a ghostflix_profiles row (profiles.js keeps it in the original
+    // tables) unless it was renamed/recoloured. So the count is 1 + the extra (non-main) rows.
+    let prof = {}, roles = {}, bans = {}, seen = {};
+    if (list.length) {
+      const ids = list.map((u) => u.id).join(',');
+      await Promise.all([
+        sb(`ghostflix_profiles?select=user_id,id&user_id=in.(${ids})`).then((r) => { for (const x of r || []) if (x.id !== 'main') prof[x.user_id] = (prof[x.user_id] || 0) + 1; }).catch(() => {}),
+        sb(`ghostflix_roles?select=user_id,role&user_id=in.(${ids})`).then((r) => { for (const x of r || []) roles[x.user_id] = x.role; }).catch(() => {}),
+        sb(`ghostflix_bans?select=user_id,reason,banned_at&user_id=in.(${ids})`).then((r) => { for (const x of r || []) bans[x.user_id] = x; }).catch(() => {}),
+        sb(`ghostflix_social?select=user_id,last_seen&user_id=in.(${ids})`).then((r) => { for (const x of r || []) seen[x.user_id] = x.last_seen; }).catch(() => {}),
+      ]);
+    }
     res.set('Cache-Control', 'no-store').json({ page, total: total != null ? +total : (j.total ?? null), users: list.map((u) => {
       const m = u.user_metadata || {};
       return { id: u.id.slice(0, 8), name: clip(m.full_name || m.name || m.user_name || m.custom_claims?.global_name || '', 60), email: mask(u.email),
-        providers: (u.app_metadata?.providers || [u.app_metadata?.provider]).filter(Boolean), created: u.created_at, last: u.last_sign_in_at, profiles: prof[u.id] || 0,
+        providers: (u.app_metadata?.providers || [u.app_metadata?.provider]).filter(Boolean), created: u.created_at, last: u.last_sign_in_at, seen: [seen[u.id], u.last_sign_in_at].filter(Boolean).sort().pop() || null, profiles: 1 + (prof[u.id] || 0), uid: u.id, role: roles[u.id] || null, banned: bans[u.id] || null,
         admin: m.provider_id === '803606154365632555' || m.sub === '803606154365632555' };
     }) });
   }));
-  return { runSender: () => runSender() };
+  // One-off message to every subscriber (admin-approved announcements). 410/404 subscriptions are removed.
+  async function broadcast(payload) {
+    if (!pushOn) return { skipped: 'not configured' };
+    if (!pushFeat()) return { skipped: 'push switched off' };
+    const rows = (await sb('ghostflix_push_subs?select=endpoint,p256dh,auth&limit=5000')) || [];
+    let sent = 0, failed = 0;
+    for (const r of rows) {
+      try { await send(r, payload); sent++; }
+      catch (e) { failed++; if (e.statusCode === 410) await sb(`ghostflix_push_subs?endpoint=eq.${encodeURIComponent(r.endpoint)}`, { method: 'DELETE', prefer: 'return=minimal' }).catch(() => {}); }
+    }
+    return { subs: rows.length, sent, failed };
+  }
+  return { runSender: () => runSender(), broadcast };
 }

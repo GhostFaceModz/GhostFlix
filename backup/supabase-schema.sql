@@ -224,3 +224,230 @@ grant execute on function public.ghostflix_stats(int) to service_role;
 -- ===== pg_cron: hourly web-push sender (secret is read from Vault inside the job, never stored in plain text) =====
 select cron.unschedule('ghostflix-push') where exists (select 1 from cron.job where jobname = 'ghostflix-push');
 select cron.schedule('ghostflix-push', '17 * * * *', $cron$select net.http_post(url := 'https://ghostflix.uk/api/cron/push', body := '{}'::jsonb, headers := jsonb_build_object('Content-Type', 'application/json', 'User-Agent', 'gg-cron', 'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'ghostflix_cron_secret' limit 1)), timeout_milliseconds := 60000)$cron$);
+
+-- ===== Stage E/F + moderator panel (migration: ghostflix_stage_e_f_community_mod, applied 2026-10-23) =====
+-- GhostFlix Stages E/F: community (public profiles, friends, chat, activity), inbox (requests, bug reports, chat reports,
+-- moderator flags & suggestions), roles (moderators), bans, moderator activity log. Additive only; RLS on everything.
+-- Default: no policies (server-only via the service key). Moderators get narrow RLS policies so the /api/mod routes,
+-- which call PostgREST with the moderator's own JWT, are limited by the database itself.
+
+create table if not exists public.ghostflix_roles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  role text not null check (role in ('moderator')),
+  granted_at timestamptz not null default now(),
+  granted_by text not null default ''
+);
+create table if not exists public.ghostflix_bans (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  reason text not null default '',
+  banned_at timestamptz not null default now(),
+  banned_by text not null default ''
+);
+create table if not exists public.ghostflix_social (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  display_name text not null default '',
+  friend_code text unique check (friend_code ~ '^[a-z0-9]{8}$'),
+  friends_on boolean not null default false,
+  share_watching boolean not null default false,
+  watching jsonb,
+  watching_at timestamptz,
+  last_seen timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.ghostflix_public_profiles (
+  slug text primary key check (slug ~ '^[a-z0-9]{10}$'),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  profile_id text not null,
+  enabled boolean not null default false,
+  name text not null default '',
+  color text not null default '#5fe3ff',
+  avatar text,
+  bio text not null default '' check (char_length(bio) <= 300),
+  genres int[] not null default '{}',
+  lists jsonb not null default '[]'::jsonb,
+  show_history boolean not null default false,
+  history jsonb not null default '[]'::jsonb,
+  badges jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now(),
+  unique (user_id, profile_id)
+);
+create table if not exists public.ghostflix_friends (
+  a uuid not null references auth.users(id) on delete cascade,
+  b uuid not null references auth.users(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending','accepted')),
+  requested_by uuid not null,
+  created_at timestamptz not null default now(),
+  primary key (a, b),
+  check (a < b)
+);
+create index if not exists ghostflix_friends_b on public.ghostflix_friends (b);
+create table if not exists public.ghostflix_chat (
+  id bigint generated always as identity primary key,
+  room text not null check (room ~ '^(movie|tv):[0-9]{1,10}(:[0-9]{1,3}:[0-9]{1,4})?$'),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null default '',
+  body text not null check (char_length(body) between 1 and 500),
+  hidden boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index if not exists ghostflix_chat_room on public.ghostflix_chat (room, created_at desc);
+create table if not exists public.ghostflix_activity (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  profile_id text not null default 'main',
+  day date not null,
+  minutes int not null default 0 check (minutes between 0 and 1440),
+  plays int not null default 0,
+  genres jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now(),
+  primary key (user_id, profile_id, day)
+);
+create table if not exists public.ghostflix_inbox (
+  id bigint generated always as identity primary key,
+  kind text not null check (kind in ('request','bug','chat','flag_title','flag_kids','flag_user','flag_chat','flag_comment','announce')),
+  status text not null default 'open' check (status in ('open','in_progress','done','wontfix')),
+  title text not null default '' check (char_length(title) <= 200),
+  body text not null default '' check (char_length(body) <= 2000),
+  data jsonb not null default '{}'::jsonb,
+  screenshot text check (screenshot is null or char_length(screenshot) <= 900000),
+  user_id uuid,
+  visitor text,
+  by_mod uuid,
+  notes jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists ghostflix_inbox_kind on public.ghostflix_inbox (kind, status, created_at desc);
+create table if not exists public.ghostflix_mod_log (
+  id bigint generated always as identity primary key,
+  mod_id uuid not null,
+  mod_name text not null default '',
+  action text not null,
+  target text not null default '',
+  detail jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+alter table public.ghostflix_source_reports add column if not exists status text not null default 'open';
+alter table public.ghostflix_source_reports add column if not exists notes jsonb not null default '[]'::jsonb;
+alter table public.ghostflix_source_reports add column if not exists updated_at timestamptz;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'ghostflix_source_reports_status_check') then
+    alter table public.ghostflix_source_reports add constraint ghostflix_source_reports_status_check check (status in ('open','in_progress','done','wontfix'));
+  end if;
+end $$;
+
+-- helpers (security definer so policies can use them without exposing the role/ban/friend tables)
+create or replace function public.ghostflix_is_banned(uid uuid) returns boolean language sql stable security definer set search_path = public as
+$$ select exists (select 1 from public.ghostflix_bans where user_id = uid) $$;
+create or replace function public.ghostflix_is_mod(uid uuid) returns boolean language sql stable security definer set search_path = public as
+$$ select exists (select 1 from public.ghostflix_roles r where r.user_id = uid and r.role = 'moderator') and not public.ghostflix_is_banned(uid) $$;
+create or replace function public.ghostflix_are_friends(x uuid, y uuid) returns boolean language sql stable security definer set search_path = public as
+$$ select exists (select 1 from public.ghostflix_friends f where f.status = 'accepted' and f.a = least(x, y) and f.b = greatest(x, y)) $$;
+revoke all on function public.ghostflix_is_banned(uuid), public.ghostflix_is_mod(uuid), public.ghostflix_are_friends(uuid, uuid) from public, anon;
+grant execute on function public.ghostflix_is_banned(uuid), public.ghostflix_is_mod(uuid), public.ghostflix_are_friends(uuid, uuid) to authenticated, service_role;
+
+-- RLS on, no default access
+do $$ declare t text; begin
+  foreach t in array array['ghostflix_roles','ghostflix_bans','ghostflix_social','ghostflix_public_profiles','ghostflix_friends','ghostflix_chat','ghostflix_activity','ghostflix_inbox','ghostflix_mod_log'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('revoke all on public.%I from anon, authenticated', t);
+  end loop;
+end $$;
+
+-- roles: a signed-in user can see their own role row (to show the Moderator menu link)
+grant select on public.ghostflix_roles to authenticated;
+drop policy if exists ghostflix_roles_own on public.ghostflix_roles;
+create policy ghostflix_roles_own on public.ghostflix_roles for select to authenticated using (user_id = auth.uid());
+
+-- chat: Realtime subscribers only receive their own messages and messages from accepted friends; never hidden ones.
+grant select on public.ghostflix_chat to authenticated;
+drop policy if exists ghostflix_chat_friends on public.ghostflix_chat;
+create policy ghostflix_chat_friends on public.ghostflix_chat for select to authenticated
+  using (not hidden and not public.ghostflix_is_banned(auth.uid()) and (user_id = auth.uid() or public.ghostflix_are_friends(auth.uid(), user_id)));
+
+-- activity (streaks/achievements): own rows only
+grant select, insert, update on public.ghostflix_activity to authenticated;
+drop policy if exists ghostflix_activity_own on public.ghostflix_activity;
+create policy ghostflix_activity_own on public.ghostflix_activity for all to authenticated
+  using (user_id = auth.uid() and not public.ghostflix_is_banned(auth.uid())) with check (user_id = auth.uid() and not public.ghostflix_is_banned(auth.uid()));
+
+-- moderators: inbox (read all; update status/notes only; insert flags & suggestions as themselves)
+grant select on public.ghostflix_inbox to authenticated;
+grant update (status, notes, updated_at) on public.ghostflix_inbox to authenticated;
+grant insert (kind, title, body, data, by_mod) on public.ghostflix_inbox to authenticated;
+grant usage on sequence public.ghostflix_inbox_id_seq to authenticated;
+drop policy if exists ghostflix_inbox_mod_read on public.ghostflix_inbox;
+drop policy if exists ghostflix_inbox_mod_update on public.ghostflix_inbox;
+drop policy if exists ghostflix_inbox_mod_insert on public.ghostflix_inbox;
+create policy ghostflix_inbox_mod_read on public.ghostflix_inbox for select to authenticated using (public.ghostflix_is_mod(auth.uid()));
+create policy ghostflix_inbox_mod_update on public.ghostflix_inbox for update to authenticated using (public.ghostflix_is_mod(auth.uid())) with check (public.ghostflix_is_mod(auth.uid()));
+create policy ghostflix_inbox_mod_insert on public.ghostflix_inbox for insert to authenticated
+  with check (public.ghostflix_is_mod(auth.uid()) and by_mod = auth.uid() and kind in ('flag_title','flag_kids','flag_user','flag_chat','flag_comment','announce'));
+
+-- moderators: broken-source reports (read; update status/notes only — "tested, works now")
+grant select on public.ghostflix_source_reports to authenticated;
+grant update (status, notes, updated_at) on public.ghostflix_source_reports to authenticated;
+drop policy if exists ghostflix_reports_mod_read on public.ghostflix_source_reports;
+drop policy if exists ghostflix_reports_mod_update on public.ghostflix_source_reports;
+create policy ghostflix_reports_mod_read on public.ghostflix_source_reports for select to authenticated using (public.ghostflix_is_mod(auth.uid()));
+create policy ghostflix_reports_mod_update on public.ghostflix_source_reports for update to authenticated using (public.ghostflix_is_mod(auth.uid())) with check (public.ghostflix_is_mod(auth.uid()));
+
+-- moderators: users = display name + last seen only (column grant; no emails live in this table)
+grant select (user_id, display_name, last_seen) on public.ghostflix_social to authenticated;
+drop policy if exists ghostflix_social_mod_read on public.ghostflix_social;
+create policy ghostflix_social_mod_read on public.ghostflix_social for select to authenticated using (public.ghostflix_is_mod(auth.uid()));
+
+-- moderators: activity log (insert as themselves, read their own; the admin reads all via the server)
+grant select, insert (mod_id, mod_name, action, target, detail) on public.ghostflix_mod_log to authenticated;
+grant usage on sequence public.ghostflix_mod_log_id_seq to authenticated;
+drop policy if exists ghostflix_modlog_insert on public.ghostflix_mod_log;
+drop policy if exists ghostflix_modlog_read on public.ghostflix_mod_log;
+create policy ghostflix_modlog_insert on public.ghostflix_mod_log for insert to authenticated with check (public.ghostflix_is_mod(auth.uid()) and mod_id = auth.uid());
+create policy ghostflix_modlog_read on public.ghostflix_mod_log for select to authenticated using (public.ghostflix_is_mod(auth.uid()) and mod_id = auth.uid());
+
+-- bans: banned users lose account features immediately (restrictive policies on the existing per-user tables; additive)
+do $$ declare t text; begin
+  foreach t in array array['ghostflix_watchlist','ghostflix_history','ghostflix_profiles','ghostflix_profile_data'] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('drop policy if exists ghostflix_not_banned on public.%I', t);
+      execute format('create policy ghostflix_not_banned on public.%I as restrictive for all to authenticated using (not public.ghostflix_is_banned(auth.uid())) with check (not public.ghostflix_is_banned(auth.uid()))', t);
+    end if;
+  end loop;
+end $$;
+
+-- Realtime for the watch-together chat
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'ghostflix_chat') then
+    alter publication supabase_realtime add table public.ghostflix_chat;
+  end if;
+end $$;
+
+-- Top 10 this week (anonymous plays; distinct visitors per title). Service only.
+create or replace function public.ghostflix_top10(days int default 7) returns table (title_key text, title text, viewers bigint, plays bigint)
+language sql stable security definer set search_path = public as $$
+  select title_key, (array_agg(title order by at desc) filter (where title is not null and title <> ''))[1], count(distinct visitor), count(*)
+  from public.ghostflix_events where kind = 'play' and title_key is not null and at > now() - make_interval(days => greatest(1, least(days, 31)))
+  group by title_key order by 3 desc, 4 desc limit 30 $$;
+-- Visitor charts: page views by hour of day (UK time) for the peak-hours chart. Service only.
+create or replace function public.ghostflix_hours(days int default 30) returns table (hour int, views bigint, visitors bigint)
+language sql stable security definer set search_path = public as $$
+  select extract(hour from at at time zone 'Europe/London')::int, count(*), count(distinct visitor)
+  from public.ghostflix_events where kind = 'pv' and at > now() - make_interval(days => greatest(1, least(days, 90))) group by 1 order by 1 $$;
+-- Site health: GhostFlix pg_cron jobs' last runs + keep-alive uptime (last 6 h of net responses from /healthz). Service only.
+create or replace function public.ghostflix_health() returns jsonb language plpgsql stable security definer set search_path = public, cron, net as $$
+declare jobs jsonb; ka jsonb;
+begin
+  select coalesce(jsonb_agg(x order by x->>'job'), '[]'::jsonb) into jobs from (
+    select jsonb_build_object('job', j.jobname, 'schedule', j.schedule, 'active', j.active,
+      'last', (select jsonb_build_object('status', d.status, 'start', d.start_time, 'end', d.end_time) from cron.job_run_details d where d.jobid = j.jobid order by d.start_time desc limit 1),
+      'runs24h', (select count(*) from cron.job_run_details d where d.jobid = j.jobid and d.start_time > now() - interval '24 hours'),
+      'failed24h', (select count(*) from cron.job_run_details d where d.jobid = j.jobid and d.start_time > now() - interval '24 hours' and d.status <> 'succeeded')) x
+    from cron.job j where j.jobname like 'ghostflix%') s;
+  select jsonb_build_object(
+    'pings', (select count(*) from cron.job_run_details d join cron.job j on j.jobid = d.jobid where j.jobname = 'ghostflix-keepalive' and d.start_time > now() - interval '6 hours'),
+    'ok', (select count(*) from net._http_response r where r.created > now() - interval '6 hours' and r.status_code = 200 and r.content like '%"mode":"tmdb"%'),
+    'window_hours', 6) into ka;
+  return jsonb_build_object('cron', jobs, 'keepalive', ka);
+end $$;
+revoke all on function public.ghostflix_top10(int), public.ghostflix_hours(int), public.ghostflix_health() from public, anon, authenticated;
+grant execute on function public.ghostflix_top10(int), public.ghostflix_hours(int), public.ghostflix_health() to service_role;

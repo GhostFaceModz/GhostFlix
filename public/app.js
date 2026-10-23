@@ -1,10 +1,11 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023xe';
-import { applyCosmetics } from './cosmetics.js?v=20261023xe';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023xe';
-import { createPush } from './push.js?v=20261023xe';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023xe';
-import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023xe';
+import { createAuth, ICONS } from './auth.js?v=20261023yf';
+import { applyCosmetics } from './cosmetics.js?v=20261023yf';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023yf';
+import { createPush } from './push.js?v=20261023yf';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023yf';
+import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023yf';
+import { createCommunity } from './community.js?v=20261023yf';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -27,7 +28,7 @@ const region = () => Settings.get().region || (navigator.language || 'en-US').sp
 
 // ---- storage (watchlist + continue watching) ----------------------------------
 // list/continue/eps/remind/ratings are per viewer profile (see profiles.js); everything else is per device.
-let PROF = null, PUSH = null;
+let PROF = null, PUSH = null, COMM = null;
 const LS = {
   get(k, d) { try { return JSON.parse(localStorage.getItem(lsKey(k))) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(lsKey(k), JSON.stringify(v)); } catch {} PROF?.touched(k); if (k === 'list' || k === 'continue' || k === 'remind') PUSH?.sync(); },
@@ -276,7 +277,7 @@ function heroHTML(c, { detail = false, items = [] } = {}) {
       <p class="ov">${esc(c.overview)}</p>
       <div class="btns">
         <a class="btn cta${rs ? ' resume' : ''}" href="${rs ? rs.href : watchHref(c)}" data-link>${ICON.play}${esc(rs ? rs.label : 'Play')}</a>
-        ${detail ? `<button class="btn icon ${List.has(c) ? 'on' : ''}" data-list="${keyOf(c)}" aria-label="My List">${List.has(c) ? ICON.check : ICON.plus}</button>${rateHTML(c)}${upcoming(c) ? remindBtn(c, upcoming(c).date, upcoming(c).label) : ''}${CONFIG.parties && Profiles.kidsAge() == null ? `<a class="btn dark" href="/party/${Math.random().toString(36).slice(2, 8)}?t=${keyOf(c)}" data-link>👻 Watch together</a>` : ''}`
+        ${detail ? `<button class="btn icon ${List.has(c) ? 'on' : ''}" data-list="${keyOf(c)}" aria-label="My List">${List.has(c) ? ICON.check : ICON.plus}</button>${rateHTML(c)}${upcoming(c) ? remindBtn(c, upcoming(c).date, upcoming(c).label) + (COMM?.countdownHTML(upcoming(c).date, upcoming(c).label) || '') : ''}${CONFIG.parties && Profiles.kidsAge() == null ? `<a class="btn dark" href="/party/${Math.random().toString(36).slice(2, 8)}?t=${keyOf(c)}" data-link>👻 Watch together</a>` : ''}`
           : `<a class="btn dark" href="${href(c)}" data-link>${ICON.info}Details</a>`}
       </div>
       ${rs && (rs.pct > 0 || rs.sub) ? `<div class="resume-bar"${rs.approx ? ' title="Approximate — this player doesn’t report its exact position"' : ''}>${rs.pct > 0 ? `<span class="rb"><i style="width:${Math.max(3, rs.pct).toFixed(1)}%"></i></span>` : ''}<small>${rs.sub ? esc(rs.sub) : `${Math.round(rs.pct)}% watched${rs.approx ? ' (approx.)' : ''}`}${detail && rs.t ? ` · <a href="${rs.href.replace('r=1', 'r=0')}" data-link>Start over</a>` : ''}</small></div>` : ''}
@@ -325,6 +326,7 @@ async function viewHome() {
     const tmp = document.createElement('div'); tmp.innerHTML = rowHTML({ id: 'halloween', title: h.title, items: h.items, link: h.kids == null ? '/genre/movie/27' : '' }, 'halloween');
     const ref = after('mylist') || after('continue'); ref ? ref.after(tmp.firstElementChild) : rowsEl.prepend(tmp.firstElementChild); wireRows(rowsEl);
   }).catch(() => {});
+  if (!kids) COMM?.homeExtras(rowsEl, after);
   if (kids) return;
   if (SITE.rows?.collections !== false) api('/api/collections/featured').then((c) => {
     if (!rowsEl.isConnected || !c.items?.length) return;
@@ -499,7 +501,7 @@ function viewMyList() {
   remember([...list, ...cont, ...rem]);
   main.innerHTML = `<div class="page"><h1>My List</h1><p class="lead">Saved on this device.</p>
     ${list.length ? `<div class="grid">${list.map((c) => cardHTML(c)).join('')}</div>` : `<div class="empty"><img src="/img/logo.svg" alt=""><h2>Your list is empty</h2><p>Tap <b>+</b> on any title to save it here.</p></div>`}
-    ${rem.length ? `<h1 id="reminders" style="margin-top:46px;font-size:24px">Reminders</h1><p class="lead"><a class="pill" href="/coming-soon" data-link>Coming soon ›</a></p><div class="grid">${rem.map((c) => cardHTML(c, { tag: c.date <= todayISO() ? 'Out now' : fmtDate(c.date) })).join('')}</div>` : ''}
+    ${rem.length ? `<h1 id="reminders" style="margin-top:46px;font-size:24px">Reminders</h1><p class="lead"><a class="pill" href="/coming-soon" data-link>Coming soon ›</a></p><div class="grid">${rem.map((c) => `<div class="cs-item">${cardHTML(c, { tag: c.date <= todayISO() ? 'Out now' : fmtDate(c.date) })}${c.date > todayISO() && COMM?.countdownHTML(c.date, c.label) ? `<div class="cs-meta">${COMM.countdownHTML(c.date, c.label)}</div>` : ''}</div>`).join('')}</div>` : ''}
     ${cont.length ? `<h1 id="continue" style="margin-top:46px;font-size:24px">Continue watching</h1><p class="lead"><a class="pill" href="/settings/history" data-link>Manage history</a></p><div class="grid">${cont.map((c) => cardHTML(c, contOpts(c))).join('')}</div>` : ''}</div>`;
   markNewEpisodes($('.grid', main));
 }
@@ -537,7 +539,7 @@ async function viewComingSoon() {
     <div class="seg" role="group" aria-label="Type"><a href="/coming-soon" data-link class="${type === 'movie' ? 'on' : ''}">Movies</a><a href="/coming-soon?type=tv" data-link class="${type === 'tv' ? 'on' : ''}">Series</a></div></div>
     <div class="grid cs-grid">${'<div class="card"><div class="pic skel"></div></div>'.repeat(12)}</div><div class="more"></div></div>`;
   const grid = $('.cs-grid', main), more = $('.more', main); let page = 1;
-  const item = (c) => `<div class="cs-item">${cardHTML(c, { tag: fmtDate(c.release_date) })}<div class="cs-meta"><span>${type === 'tv' ? 'Premieres' : 'Out'} <b>${esc(fmtDate(c.release_date))}</b></span>${remindBtn(c, c.release_date, type === 'tv' ? 'Premieres' : 'Out', 'pill remind')}</div></div>`;
+  const item = (c) => `<div class="cs-item">${cardHTML(c, { tag: fmtDate(c.release_date) })}<div class="cs-meta"><span>${type === 'tv' ? 'Premieres' : 'Out'} <b>${esc(fmtDate(c.release_date))}</b></span>${remindBtn(c, c.release_date, type === 'tv' ? 'Premieres' : 'Out', 'pill remind')}${COMM?.countdownHTML(c.release_date, type === 'tv' ? 'Premieres' : 'Out') || ''}</div></div>`;
   const load = async () => {
     const d = await api(`/api/coming-soon/${type}?page=${page}&region=${region()}`); remember(d.results);
     if (page === 1) grid.innerHTML = d.results.length ? '' : '<div class="empty"><h2>Nothing scheduled yet</h2></div>';
@@ -559,7 +561,7 @@ PUSH = createPush({
   reminders: () => Remind.all().filter((x) => x.date).map((x) => ({ key: keyOf(x), title: x.title, date: x.date, label: x.label || '' })).slice(0, 200),
   toast,
 });
-const settingsCtx = () => ({ push: PUSH, auth: AUTH, list: List, history: Continue, toast, watchHref, previewCards, discordUrl: CONFIG.discordUrl, githubUrl: CONFIG.githubUrl });
+const settingsCtx = () => ({ community: COMM, push: PUSH, auth: AUTH, list: List, history: Continue, toast, watchHref, previewCards, discordUrl: CONFIG.discordUrl, githubUrl: CONFIG.githubUrl });
 async function viewTitle(type, id) {
   if (!PREF.has(`/api/title/${type}/${id}?region=${region()}`)) titleSkeleton();
   const d = await api(`/api/title/${type}/${id}?region=${region()}`);
@@ -581,15 +583,16 @@ async function viewTitle(type, id) {
   <aside class="facts"><dl>
     ${d.directors?.length ? `<dt>Director</dt><dd>${esc(d.directors.join(', '))}</dd>` : ''}
     ${d.created_by?.length ? `<dt>Created by</dt><dd>${esc(d.created_by.join(', '))}</dd>` : ''}
-    ${d.release_date ? `<dt>${type === 'tv' ? 'First aired' : 'Released'}</dt><dd>${esc(d.release_date)}</dd>` : ''}
+    ${d.release_date ? `<dt>${d.release_date > todayISO() ? (type === 'tv' ? 'Premieres' : 'Release date') : type === 'tv' ? 'First aired' : 'Released'}</dt><dd>${esc(d.release_date)}${d.release_date > todayISO() && COMM?.countdownHTML(d.release_date) ? `<br>${COMM.countdownHTML(d.release_date)}` : ''}</dd>` : ''}
     ${d.status ? `<dt>Status</dt><dd>${esc(d.status)}</dd>` : ''}
-    ${d.next_episode?.air_date ? `<dt>Next episode</dt><dd>S${d.next_episode.s} E${d.next_episode.e} · ${esc(fmtDate(d.next_episode.air_date))}</dd>` : ''}
+    ${d.next_episode?.air_date ? `<dt>Next episode</dt><dd>S${d.next_episode.s} E${d.next_episode.e} · ${esc(fmtDate(d.next_episode.air_date))}${COMM?.countdownHTML(d.next_episode.air_date, 'Next episode') ? `<br>${COMM.countdownHTML(d.next_episode.air_date, 'Next episode')}` : ''}</dd>` : ''}
     ${d.languages?.length ? `<dt>Languages</dt><dd>${esc(d.languages.slice(0, 4).join(', '))}</dd>` : ''}
     ${d.license ? `<dt>License</dt><dd>${esc(d.license)}</dd>` : ''}
     ${d.cast?.length ? `<dt>Starring</dt><dd>${esc(d.cast.slice(0, 4).map((c) => c.name).join(', '))}</dd>` : ''}
     ${d.imdb_id ? `<dt>Links</dt><dd><a href="https://www.imdb.com/title/${esc(d.imdb_id)}/" target="_blank" rel="noopener" style="color:var(--acc)">IMDb</a>${d.homepage ? ` · <a href="${esc(d.homepage)}" target="_blank" rel="noopener" style="color:var(--acc)">Official site</a>` : ''}</dd>` : ''}
   </dl>${provHTML}</aside></div>`;
   wireRows();
+  if (Profiles.kidsAge() == null) { const cur = d.media_type === 'tv' ? Continue.get(d) : null; COMM?.mountChat($('.dwrap > div', main), d, { episodes: cur?.s != null ? [{ s: cur.s, e: cur.e }] : [] }); }
   $$('[data-yt]', main).forEach((el) => { const open = () => openPlayer({ kind: 'iframe', src: `https://www.youtube-nocookie.com/embed/${el.dataset.yt}?autoplay=1&rel=0&modestbranding=1&playsinline=1`, title: d.title, sub: 'Trailer', trailer: true }); el.onclick = open; el.onkeydown = (e) => e.key === 'Enter' && open(); });
   if ($('#seasonSel')) {
     const sel = $('#seasonSel'); const cont = resumeInfo(d);
@@ -632,6 +635,7 @@ async function viewWatch(type, id, s, e, r) {
     const srcs = SrcMem.order(c, d.sources);
     if (type === 'tv' && !CARDS.get(keyOf(c))?.seasons) api(`/api/title/tv/${id}`).then((t) => { if (t?.seasons) CARDS.set(keyOf(c), { ...(CARDS.get(keyOf(c)) || {}), ...t }); }).catch(() => {});
     track('play', { t: keyOf(c), tt: d.title, src: srcLabel(srcs[0]) });
+    { const full = CARDS.get(keyOf(c)) || {}; COMM?.onPlay(c, { sub: s != null ? `S${s} E${e}` : '', runtime: full.runtime || (type === 'tv' ? 45 : 0), genre_ids: c.genre_ids || full.genre_ids || (full.genres || []).map((g) => g.id) }); }
     openPlayer({ ...srcs[0], title: d.title, sub, all: srcs, card: c, s: s != null ? +s : null, e: e != null ? +e : null, subs: d.subtitles || [], startAt: approxStart ? 0 : startAt, approxStart: approxStart ? startAt : 0, resume: r === '1' });
   } else if (d.trailer) {
     openPlayer({ kind: 'iframe', src: d.trailer.src, title: d.title, sub: d.trailer.name || 'Trailer', trailer: true });
@@ -735,7 +739,7 @@ function openPlayer(o) {
   closePlayer();
   const el = document.createElement('div'); el.className = 'player'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', `Playing ${o.title}`);
   const playable = !o.trailer && /^(iframe|video|hls)$/.test(o.kind);
-  const tools = playable && o.card ? `<div class="ptools">${o.all?.length > 1 ? `<div class="srcs" role="group" aria-label="Video source">${o.all.map((x, i) => `<button class="pill" data-src="${i}">${esc(srcLabel(x))}</button>`).join('')}</div>` : ''}<button class="ptool" data-report title="Report this source as broken"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 0h11l-2 4 2 4H5"/></svg><span>Report broken</span></button></div>` : '';
+  const tools = playable && o.card ? `<div class="ptools">${o.all?.length > 1 ? `<div class="srcs" role="group" aria-label="Video source">${o.all.map((x, i) => `<button class="pill" data-src="${i}">${esc(srcLabel(x))}</button>`).join('')}</div>` : ''}<button class="ptool" data-report title="Report this source as broken"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 0h11l-2 4 2 4H5"/></svg><span>Report broken</span></button>${COMM?.feat('bugs') ? '<button class="ptool" data-bug title="Report a bug"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 9a4 4 0 0 1 8 0v5a4 4 0 0 1-8 0zM12 9v9M4 13h4m8 0h4M5 7l3 2m11-2-3 2M5 19l3-2m11 2-3-2"/></svg><span>Bug</span></button>' : ''}</div>` : '';
   const fsBtn = `<button class="ptool pfs" type="button" data-fs title="Fullscreen" aria-label="Fullscreen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>`;
   el.innerHTML = `<div class="player-top"><button class="back" aria-label="Close player"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><div class="ptitle"><b>${esc(o.title)}</b> <span class="psub">${esc(o.sub || '')}</span></div>${tools}${fsBtn}</div><div class="player-stage"></div><button class="skipseg" hidden></button><div class="upnext" hidden></div>${o.trailer ? '<div class="trailer-flag">Trailer · full title not available on GhostFlix</div>' : ''}`;
   document.body.appendChild(el); document.body.style.overflow = 'hidden';
@@ -798,6 +802,7 @@ function openPlayer(o) {
   $$('[data-src]', el).forEach((b) => (b.onclick = () => { AutoRun.set(0); switchTo(+b.dataset.src); }));
 
   // ---- Report broken: per device it moves this source to the back for this title, and it's sent to the admin. ----
+  const bugB = $('[data-bug]', el); if (bugB) bugB.onclick = () => COMM?.openBug('player');
   const rep = $('[data-report]', el);
   if (rep) rep.onclick = () => {
     const x = o.all?.[cur] || o; const label = srcLabel(x); const c = o.card;
@@ -916,6 +921,9 @@ const routes = [
   [/^\/person\/(\d+)$/, (m) => viewPerson(m[1]), 'search'],
   [/^\/collection\/(\d+)$/, (m) => viewCollection(m[1]), 'movies'],
   [/^\/coming-soon$/, () => viewComingSoon(), 'movies'],
+  [/^\/friends$/, () => COMM.viewFriends(), 'friends'],
+  [/^\/u\/([a-z0-9]{10})$/, (m) => COMM.viewPublic(m[1]), null],
+  [/^\/request$/, () => { const q = new URLSearchParams(location.search).get('q') || ''; history.replaceState({}, '', '/'); render(); setTimeout(() => COMM.openRequest(q), 300); }, 'home'],
 ];
 let lastPage = null;
 // After closing the player the page underneath isn't re-rendered, so refresh its Resume buttons/progress bars.
@@ -990,6 +998,8 @@ document.addEventListener('click', (e) => {
     $$(`[data-remind="${rb.dataset.remind}"]`).forEach((b) => { b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '🔔 Reminder set' : '🔔 Remind me'; });
     return;
   }
+  const ob = e.target.closest('[data-open-bug],[data-open-request]');
+  if (ob) { e.preventDefault(); if (ob.hasAttribute('data-open-bug')) COMM?.openBug('menu'); else COMM?.openRequest(); return; }
   const a = e.target.closest('a[data-link]');
   if (a && !e.metaKey && !e.ctrlKey && !e.shiftKey && a.origin === location.origin) { e.preventDefault(); go(a.pathname + a.search); }
 });
@@ -1012,14 +1022,14 @@ $('#themeTgl').onclick = () => { const light = Settings.get().theme === 'light';
 const drawerEl = $('#drawer'), scrim = $('#scrim'), burger = $('#burger');
 function setDrawer(open) {
   drawerEl.classList.toggle('open', open); drawerEl.setAttribute('aria-hidden', String(!open)); scrim.hidden = !open; burger.setAttribute('aria-expanded', String(open));
-  if (open) { $('#drawerX').focus(); fetch('/api/admin/me').then((r) => r.json()).then((d) => ($('#adminLink').hidden = !d.admin)).catch(() => {}); }
+  if (open) { $('#drawerX').focus(); COMM?.refreshMe(); fetch('/api/admin/me').then((r) => r.json()).then((d) => ($('#adminLink').hidden = !d.admin)).catch(() => {}); }
 }
 burger.onclick = () => setDrawer(true); $('#drawerX').onclick = () => setDrawer(false); scrim.onclick = () => setDrawer(false);
 drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin],[data-signout]')) setDrawer(false); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023xe').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023yf').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -1039,6 +1049,8 @@ installEl.addEventListener('click', async (e) => {
 
 (async () => {
   try { SITE = await api('/api/site-config'); } catch {} applySite();
+  // Stage F: admin-scheduled theme applies unless this viewer picked a seasonal look themselves; the switch can turn themes off.
+  { const st = Settings.get(); if (SITE.features?.themes === false) applySettings({ ...st, season: 'normal' }); else if (SITE.theme?.name && !st.seasonPicked) applySettings({ ...st, season: SITE.theme.name }); }
   try { CONFIG = await api('/api/config'); GENRES = await api('/api/genres'); } catch {} document.querySelectorAll('[data-feature=parties]').forEach((el) => (el.hidden = !CONFIG.parties));
   AUTH = createAuth({ config: CONFIG, list: MainList, history: MainHistory, toast, onChange: () => { if (/^\/(my-list|settings.*)?$/.test(location.pathname)) { lastPage = null; render(); } } });
   AUTH.subscribe(() => { if (location.pathname.startsWith('/settings')) { lastPage = null; render(); } });
@@ -1047,6 +1059,8 @@ installEl.addEventListener('click', async (e) => {
     if (Profiles.kidsAge() != null && /^\/(live|party|profiles|settings\/profiles)(\/|$)/.test(location.pathname)) history.replaceState({}, '', '/');
     render();
   } });
+  COMM = createCommunity({ api, auth: () => AUTH, toast, rowHTML, wireRows, cardHTML, remember, keyOf, genreName, profiles: Profiles, list: () => List.all(), history: () => Continue.all(), site: () => SITE, genres: () => GENRES, main });
+  COMM.applyFeatures(); AUTH.subscribe(() => { COMM.refreshMe(); COMM.pullActivity(); }); setTimeout(() => { COMM.refreshMe(); COMM.pullActivity(); }, 1500);
   if (CONFIG.discordUrl) {
     const b = $('#dcBubble'); b.href = CONFIG.discordUrl; b.innerHTML = ICONS.DISCORD_SVG; b.hidden = false; $('#drawerDiscord').href = CONFIG.discordUrl;
   } else $('#drawerDiscord').hidden = true;
