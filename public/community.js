@@ -324,7 +324,7 @@ export function createCommunity(ctx) {
       <label class="chk"><input type="checkbox" id="pbList" ${cur.lists?.length || !cur.slug ? 'checked' : ''}> Show My List</label>
       <label class="chk"><input type="checkbox" id="pbHist" ${cur.show_history ? 'checked' : ''}> Show recently watched <span class="dim">(off by default)</span></label>
       <label class="chk"><input type="checkbox" id="pbStats" ${fl.show_stats ? 'checked' : ''}> Show my rank, watch stats &amp; badges</label>
-      <label class="chk"><input type="checkbox" id="pbWatch" ${fl.show_watching ? 'checked' : ''}> Show what I’m watching now <span class="dim">(off by default · also needs Friends › Share what I’m watching)</span></label>
+      <label class="chk"><input type="checkbox" id="pbWatch" ${fl.show_watching ? 'checked' : ''}> Show what I’m watching now <span class="dim">(off by default · also posts it to the ZenClipsDaily Discord · also needs Friends › Share what I’m watching)</span></label>
       <label class="chk"><input type="checkbox" id="pbAv" ${cur.avatar || !cur.slug ? 'checked' : ''}> Show my account avatar</label></div>
       <div class="pb-act"><button class="btn cta sm" id="pbSave" type="button">Save</button>${cur.enabled && cur.slug ? `<a class="btn dark sm" href="/u/${cur.slug}" data-link>View</a><button class="btn dark sm" id="pbCopy" type="button">Copy link</button>` : ''}</div>`;
     $$('[data-g]', box).forEach((b) => (b.onclick = () => { const id = +b.dataset.g; if (picked.has(id)) picked.delete(id); else if (picked.size < 8) picked.add(id); b.classList.toggle('on', picked.has(id)); }));
