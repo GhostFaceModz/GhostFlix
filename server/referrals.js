@@ -52,7 +52,7 @@ export function mountReferrals(app, { env, wrap, admin, store, sb, needUser }) {
   app.post('/api/ref/click', wrap(async (req, res) => {
     need(); const code = String(req.body?.code || '').trim();
     if (!CODE_RE.test(code)) throw err(400, 'Bad code');
-    const ip = String(req.ip || ''); const vh = crypto.createHash('sha256').update(`${SALT}|${ip}|${code.toLowerCase()}`).digest('hex').slice(0, 40);
+    const ip = String(req.get('cf-connecting-ip') || req.ip || ''); // Render sits behind Cloudflare: req.ip alone is an edge address const vh = crypto.createHash('sha256').update(`${SALT}|${ip}|${code.toLowerCase()}`).digest('hex').slice(0, 40);
     if (!clickIp(ip) || !clickCode(vh)) return res.json({ ok: true, counted: false });
     const own = (await sb(`ghostflix_ref_codes?select=user_id,code&code=ilike.${encodeURIComponent(code)}`))?.[0];
     if (!own) return res.status(404).json({ ok: false, error: 'Unknown code' });
