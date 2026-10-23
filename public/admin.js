@@ -306,7 +306,7 @@ async function loadSite() {
   try { SITE = await api('/api/admin/site'); } catch (e) { $('#siteErr').textContent = e.message; return; }
   const s = SITE.site;
   $('#anText').value = s.announcement.text; $('#anOn').checked = s.announcement.on; $('#anColor').value = s.announcement.color || '#5fe3ff';
-  $('#maintOn').checked = s.maintenance; HERO = s.hero; renderHero();
+  $('#maintOn').checked = s.maintenance; HERO = s.hero; renderHero(); F.maint?.(s.maintenance);
   $('#secChecks').innerHTML = SITE.sectionKeys.map((k) => `<label class="check"><input type="checkbox" data-sec="${k}" ${s.sections[k] ? 'checked' : ''}> ${SECTION_NAMES[k] || k}</label>`).join('');
   $('#rowChecks').innerHTML = SITE.rows.map((r) => `<label class="check"><input type="checkbox" data-row="${esc(r.id)}" ${s.rows[r.id] === false ? '' : 'checked'}> ${esc(r.title)}</label>`).join('') || '<p class="dim small">No rows</p>';
   USERS = SITE.stats?.users ?? null; renderCards();
@@ -342,7 +342,7 @@ $('#siteSave').onclick = () => {
 $('#siteReset').onclick = () => { if (confirm('Reset site settings to defaults (no banner, auto hero, all sections and rows on, maintenance off)?')) saveSite({ announcement: { on: false, text: '', color: '#5fe3ff' }, hero: null, maintenance: false, sections: {}, rows: {} }); };
 
 // ---- one panel: sticky tab bar (Overview · Stats · Site · Reports · Users · Notifications · Content · Live TV) ----
-const TABS = ['overview', 'stats', 'site', 'reports', 'users', 'notifications', 'content', 'live'];
+const TABS = ['overview', 'stats', 'activity', 'reports', 'users', 'team', 'site', 'schedule', 'features', 'notifications', 'content', 'live', 'system'];
 const TAB_KEY = 'gf.admin.tab';
 let tabsInit = false;
 function showTab(t, scroll) {
@@ -353,6 +353,7 @@ function showTab(t, scroll) {
   if (location.hash.slice(1) !== t) history.replaceState(null, '', `#${t}`);
   if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
   if (t === 'users') loadUsers(); if (t === 'notifications') loadPush();
+  F.onTab?.(t);
 }
 function initTabs() {
   if (tabsInit) return; tabsInit = true;
@@ -377,7 +378,9 @@ async function loadUsers(page = UPAGE) {
     if (d.error) $('#usersErr').textContent = d.error;
     $('#usersTot').textContent = d.total != null ? `(${fmt(d.total)})` : '';
     const when = (x) => (x ? new Date(x).toLocaleString(undefined, { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
-    $('#usersTable').innerHTML = d.users.length ? d.users.map((u) => `<div class="tr urow"><div><b>${esc(u.name || u.email || u.id)}${u.admin ? ' <span class="pv">admin</span>' : ''}</b><span class="dim small">${esc(u.email)}${u.providers.length ? ' · ' + esc(u.providers.join(', ')) : ''}</span></div><span class="small"><span class="dim">Joined</span> ${when(u.created)}</span><span class="small"><span class="dim">Last sign-in</span> ${when(u.last)}</span><span class="small">${u.profiles} profile${u.profiles === 1 ? '' : 's'}</span></div>`).join('') : '<p class="dim">No users yet.</p>';
+    $('#usersTable').innerHTML = d.users.length ? d.users.map((u) => `<div class="tr urow${u.banned ? ' banned' : ''}"><div><b>${esc(u.name || u.email || u.id)}${u.admin ? ' <span class="pv">admin</span>' : ''}${u.role ? ` <span class="pv">${esc(u.role)}</span>` : ''}${u.banned ? ' <span class="pv bad">banned</span>' : ''}</b><span class="dim small">${esc(u.email)}${u.providers.length ? ' · ' + esc(u.providers.join(', ')) : ''}</span></div><span class="small"><span class="dim">Joined</span> ${when(u.created)}</span><span class="small"><span class="dim">Last seen</span> ${when(u.seen || u.last)}</span><span class="small">${u.profiles} profile${u.profiles === 1 ? '' : 's'}</span>
+      <span class="uact">${u.admin ? '' : u.banned ? `<button type="button" data-unban="${esc(u.uid)}" data-n="${esc(u.name || u.email)}">Unban</button>` : `<button type="button" data-ban="${esc(u.uid)}" data-n="${esc(u.name || u.email)}">Ban</button>`}${u.admin ? '' : `<button type="button" class="danger" data-rm="${esc(u.uid)}" data-n="${esc(u.name || u.email)}">Remove</button>`}</span></div>`).join('') : '<p class="dim">No users yet.</p>';
+    F.wireUsers?.();
     $('#usersPrev').hidden = page <= 1; $('#usersNext').hidden = !(d.total && page * 50 < d.total);
   } catch (e) { $('#usersErr').textContent = e.message; UT = 0; }
 }
@@ -474,4 +477,7 @@ async function loadStats() {
 $('#range').addEventListener('click', (e) => { const b = e.target.closest('[data-days]'); if (b) { DAYS = +b.dataset.days; loadStats(); } });
 renderCards();
 
+const F = {};
+window.__gfAdmin = { $, $$, esc, toast, api, box, bars, fmt, F, reloadUsers: () => { UT = 0; loadUsers(UPAGE); }, loadSite };
+await import('/admin-f.js?v=20261023zg');
 boot();

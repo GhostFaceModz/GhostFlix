@@ -408,6 +408,12 @@ export function mountB5(app, { env, wrap, cacheFor, isAdmin, admin, store, catal
     store.data.meta = { ...(store.data.meta || {}), lastBackup: { at: out.made, bytes: body.length, rows: Object.values(out.counts).reduce((a, b) => a + b, 0) } }; await store.save();
     res.set({ 'Content-Type': 'application/json', 'Content-Disposition': `attachment; filename="ghostflix-backup-${out.made.slice(0, 10)}.json"`, 'Cache-Control': 'no-store' }).send(body);
   }));
+  // 32: maintenance check — fetch the public site without the admin cookie, as a visitor would.
+  admin.get('/maint-check', wrap(async (req, res) => {
+    const pub = (env.PUBLIC_URL || 'https://ghostflix.uk').replace(/\/$/, ''); const h = { 'User-Agent': 'gf-maint-check', DNT: '1' };
+    const [a, b] = await Promise.all([fetch(`${pub}/`, { headers: h, signal: AbortSignal.timeout(10000) }).catch(() => null), fetch(`${pub}/api/home`, { headers: h, signal: AbortSignal.timeout(10000) }).catch(() => null)]);
+    res.set('Cache-Control', 'no-store').json({ maintenance: !!store.data.site?.maintenance, page: a?.status ?? null, api: b?.status ?? null });
+  }));
   // 46: site health (Render API server-side with RENDER_API_KEY, never sent to the browser)
   const started = Date.now();
   admin.get('/health', wrap(async (req, res) => {

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GhostFlix Moderator</title><meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css?v=20261023zg"><link rel="stylesheet" href="/admin.css?v=20261023zg">
+</head>
+<body class="adm">
+<div class="bg" aria-hidden="true"></div>
+<header class="nav solid">
+  <a class="logo" href="/"><img src="/img/logo.svg" alt="" width="30" height="30"><span class="wm"><span class="name">GHOST<em>FLIX</em></span></span></a>
+  <span class="tag">Moderator</span>
+  <div class="nav-r"><span id="who" class="dim"></span></div>
+</header>
+<main class="admin" id="app">
+  <section id="gate" class="panel login"><img src="/img/logo.svg" alt="" width="54"><h1>Moderator panel</h1><p class="dim" id="gateMsg">Checking your account…</p></section>
+  <div id="dash" hidden>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Moderator sections">
+      <a href="#inbox" role="tab" data-tab="inbox">📥 Inbox <span class="cnt" id="ibCnt" hidden></span></a>
+      <a href="#sources" role="tab" data-tab="sources">📺 Broken sources <span class="cnt" id="srcCnt" hidden></span></a>
+      <a href="#flags" role="tab" data-tab="flags">⚑ Flags</a>
+      <a href="#users" role="tab" data-tab="users">👥 Users</a>
+      <a href="#suggest" role="tab" data-tab="suggest">📣 Suggest</a>
+      <a href="#log" role="tab" data-tab="log">🧾 My log</a>
+    </nav>
+    <section class="tabp" data-pane="inbox" hidden><div class="panel">
+      <h2>Inbox</h2><p class="dim">Title requests, bug reports and chat reports. Set a status and leave notes for the team; the admin sees everything here too.</p>
+      <div class="fbar"><div class="seg" id="ibKind"><button type="button" data-k="" class="on">All</button><button type="button" data-k="requests">Requests</button><button type="button" data-k="bugs">Bugs</button><button type="button" data-k="chat">Chat reports</button></div>
+        <div class="select sm"><select id="ibStatus" aria-label="Status filter"><option value="">Any status</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="done">Done</option><option value="wontfix">Won’t fix</option></select></div></div>
+      <div class="ibl" id="ibList"><p class="dim">Loading…</p></div></div></section>
+    <section class="tabp" data-pane="sources" hidden><div class="panel">
+      <h2>Broken sources</h2><p class="dim">Viewer reports that a video source didn’t play. Try it yourself; if it plays, mark it “Tested, works now”.</p>
+      <div class="fbar"><div class="select sm"><select id="srcStatus" aria-label="Status filter"><option value="open">Open</option><option value="in_progress">In progress</option><option value="done">Done</option><option value="wontfix">Won’t fix</option><option value="">Any status</option></select></div></div>
+      <div class="ibl" id="srcList"><p class="dim">Loading…</p></div></div></section>
+    <section class="tabp" data-pane="flags" hidden>
+      <div class="panel"><h2>Flag a title</h2><p class="dim">Send a title to the admin for review: general review, or a kids-safety concern (e.g. it’s showing in Kids mode but shouldn’t). The admin decides whether to hide it.</p>
+        <div class="lookup"><input id="ftQ" placeholder="Search a movie or series…" autocomplete="off"><div class="results" id="ftRes"></div></div>
+        <div class="picked" id="ftPicked"><span class="dim small">No title picked.</span></div>
+        <div class="schf"><div><label>Type</label><div class="select"><select id="ftKind"><option value="flag_title">Title review</option><option value="flag_kids">Kids safety</option></select></div></div></div>
+        <label for="ftWhy">Why?</label><textarea id="ftWhy" maxlength="1000" placeholder="What’s wrong with it?"></textarea>
+        <button class="btn glow sm" id="ftGo" type="button">Send flag</button><p class="err" id="ftErr"></p></div>
+      <div class="panel"><h2>Flag a comment or chat message</h2><p class="dim">Paste the message (and where you saw it). Chat reports in the Inbox also have a “Flag for admin” button.</p>
+        <div class="schf"><div><label>Type</label><div class="select"><select id="fcKind"><option value="flag_comment">Comment</option><option value="flag_chat">Chat message</option></select></div></div><div><label for="fcWhere">Where</label><input id="fcWhere" maxlength="200" placeholder="Title page / link"></div></div>
+        <label for="fcText">Message and reason</label><textarea id="fcText" maxlength="1000"></textarea>
+        <button class="btn glow sm" id="fcGo" type="button">Send flag</button><p class="err" id="fcErr"></p></div>
+      <div class="panel"><h2>My flags</h2><div class="ibl" id="flagList"><p class="dim">Loading…</p></div></div>
+    </section>
+    <section class="tabp" data-pane="users" hidden><div class="panel">
+      <h2>Users</h2><p class="dim">Display names and when they were last seen — nothing else. Flag someone for the admin to look at.</p>
+      <input id="uQ" class="filter" placeholder="Search names…" autocomplete="off">
+      <div class="table" id="uList"><p class="dim">Loading…</p></div></div></section>
+    <section class="tabp" data-pane="suggest" hidden><div class="panel">
+      <h2>Suggest a banner or push message</h2><p class="dim">Nothing goes out until the admin approves it.</p>
+      <div class="schf"><div><label>Type</label><div class="select"><select id="sgType"><option value="banner">Site banner</option><option value="push">Push notification</option></select></div></div><div id="sgColorW"><label for="sgColor">Banner colour</label><input type="color" id="sgColor" value="#5fe3ff" style="padding:4px"></div></div>
+      <label for="sgText">Message <small id="sgMax">(max 280)</small></label><textarea id="sgText" maxlength="280"></textarea>
+      <button class="btn glow sm" id="sgGo" type="button">Send to admin</button><p class="err" id="sgErr"></p></div></section>
+    <section class="tabp" data-pane="log" hidden><div class="panel">
+      <h2>My activity</h2><p class="dim">Everything you do here is logged and visible to the admin.</p>
+      <div class="table" id="logList"><p class="dim">Loading…</p></div></div></section>
+  </div>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/mod.js?v=20261023zg"></script>
+</body>
+</html>

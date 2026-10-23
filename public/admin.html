@@ -5,7 +5,7 @@
 <title>GhostFlix Admin</title><meta name="robots" content="noindex">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/app.css?v=20261023yf"><link rel="stylesheet" href="/admin.css?v=20261023yf">
+<link rel="stylesheet" href="/app.css?v=20261023zg"><link rel="stylesheet" href="/admin.css?v=20261023zg">
 </head>
 <body class="adm">
 <div class="bg" aria-hidden="true"></div>
@@ -27,13 +27,19 @@
     <nav class="tabs" id="tabs" role="tablist" aria-label="Admin sections">
       <a href="#overview" role="tab" data-tab="overview">🏠 Overview</a>
       <a href="#stats" role="tab" data-tab="stats">📈 Stats</a>
-      <a href="#site" role="tab" data-tab="site">★ Site controls</a>
+      <a href="#activity" role="tab" data-tab="activity">⚡ Activity</a>
       <a href="#reports" role="tab" data-tab="reports">🚩 Reports <b class="cnt" id="repCnt" hidden></b></a>
       <a href="#users" role="tab" data-tab="users">👥 Users</a>
+      <a href="#team" role="tab" data-tab="team">🛡️ Team</a>
+      <a href="#site" role="tab" data-tab="site">★ Site controls</a>
+      <a href="#schedule" role="tab" data-tab="schedule">🗓️ Schedule</a>
+      <a href="#features" role="tab" data-tab="features">🎛️ Features</a>
       <a href="#notifications" role="tab" data-tab="notifications">🔔 Notifications</a>
       <a href="#content" role="tab" data-tab="content">🎬 Content</a>
       <a href="#live" role="tab" data-tab="live">📺 Live TV</a>
+      <a href="#system" role="tab" data-tab="system">🩺 Health &amp; backup</a>
     </nav>
+    <div class="maintbar" id="maintBar" role="alert" hidden><b>🔧 Maintenance mode is ON.</b> Visitors (and moderators) only see the “back soon” page; the API answers 503. You still see the site because you’re signed in as admin. <a href="#site">Turn it off in Site controls</a></div>
     <div class="tabp" data-pane="overview" role="tabpanel">
       <div class="stats" id="stats" aria-label="Site stats at a glance"></div>
       <p class="dim small ovnote">Tap a card for the full breakdown. Visitors are first-party, anonymous and counted per UTC day; numbers refresh every minute.</p>
@@ -48,6 +54,18 @@
       </section>
     </div>
     <div class="tabp" data-pane="reports" role="tabpanel" hidden>
+      <section class="panel" id="inboxPanel">
+        <h2><span class="n">📥</span>Reports inbox</h2>
+        <p class="dim small">Title requests, bug reports (with optional screenshot) and chat reports from viewers. Moderators work this list too; their notes show here.</p>
+        <div class="fbar"><div class="seg" id="ibKind"><button type="button" data-k="" class="on">All</button><button type="button" data-k="request">Requests</button><button type="button" data-k="bug">Bugs</button><button type="button" data-k="chat">Chat</button></div>
+          <div class="select sm"><select id="ibStatus" aria-label="Status"><option value="">Any status</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="done">Done</option><option value="wontfix">Won’t fix</option></select></div></div>
+        <div class="ibl" id="ibList"><p class="dim">Loading…</p></div>
+      </section>
+      <section class="panel" id="flagsPanel">
+        <h2><span class="n">⚑</span>Flags <small class="dim">from moderators</small> <b class="cnt" id="flagCnt" hidden></b></h2>
+        <p class="dim small">Title, kids-safety, user, chat and comment flags, plus banner / push suggestions waiting for your approval. Approve = hide the title site-wide · hide the chat message · publish the banner · send the push.</p>
+        <div class="ibl" id="flagList"><p class="dim">Loading…</p></div>
+      </section>
       <section class="panel" id="reportsPanel">
         <h2><span class="n">🚩</span>Broken-source reports <small class="dim" id="repRange"></small></h2>
         <p class="dim small">What viewers flagged with “Report broken source” in the player, grouped by title/episode and source.</p>
@@ -67,8 +85,9 @@
           <div class="lookup"><input id="heroQ" placeholder="Search a title or TMDB id…" autocomplete="off"><div class="results" id="heroRes"></div></div>
           <div class="picked" id="heroPicked"><span class="dim">Auto (trending)</span></div>
           <div class="btns"><button class="btn ghost sm" id="heroAuto" type="button">Use auto</button></div>
-          <label style="margin-top:18px">Maintenance mode</label>
-          <label class="check"><input type="checkbox" id="maintOn"> On — visitors see a “back soon” page (admins still see the site)</label>
+          <label style="margin-top:18px">Maintenance mode <span class="mstate" id="maintState"></span></label>
+          <label class="check"><input type="checkbox" id="maintOn"> On — visitors and moderators see a “back soon” page and the API answers 503 (you still see the site as admin)</label>
+          <div class="btns"><button class="btn ghost sm" id="maintCheck" type="button">Check what visitors see</button></div><p class="dim small" id="maintOut"></p>
         </div>
         <div>
           <label>Site sections</label><div class="checks" id="secChecks"></div>
@@ -82,11 +101,51 @@
     <div class="tabp" data-pane="users" role="tabpanel" hidden>
       <section class="panel" id="usersPanel">
         <h2><span class="n">👥</span>Signed-up users <small class="dim" id="usersTot"></small></h2>
-        <p class="dim small">Accounts in Supabase Auth (newest first). Emails are partly hidden on purpose. Viewer profiles are counted per account.</p>
+        <p class="dim small">Accounts in Supabase Auth (newest first). Emails are partly hidden on purpose. Viewer profiles are counted per account. Ban is reversible (Unban); Remove deletes the account and its GhostFlix data for good.</p>
         <div class="table" id="usersTable"><p class="dim">Loading…</p></div>
         <div class="btns"><button class="btn ghost sm" id="usersPrev" type="button" hidden>← Newer</button><button class="btn ghost sm" id="usersNext" type="button" hidden>Older →</button></div>
         <p class="err" id="usersErr"></p>
       </section>
+    </div>
+    <div class="tabp" data-pane="activity" role="tabpanel" hidden>
+      <section class="panel"><h2><span class="n">⚡</span>Live activity <small class="dim" id="feedLive"></small></h2>
+        <p class="dim small">Anonymous — no names, accounts or IPs, just “someone started a Drama episode”. Refreshes every 10 s while this tab is open. <span id="feedNote"></span></p>
+        <ol class="feed" id="feed"><li class="dim">Loading…</li></ol></section>
+      <section class="panel"><h2><span class="n">📊</span>Visitors <span class="range" id="vRange"><button type="button" data-days="7">7d</button><button type="button" data-days="30" class="on">30d</button><button type="button" data-days="90">90d</button></span></h2>
+        <div class="sgrid" id="vGrid"><p class="dim">Loading…</p></div></section>
+    </div>
+    <div class="tabp" data-pane="team" role="tabpanel" hidden>
+      <section class="panel"><h2><span class="n">🛡️</span>Team &amp; roles</h2>
+        <p class="dim small">Moderators get the separate <a href="/mod" target="_blank">/mod</a> panel (inbox, flags, users list, suggestions) — no stats, backups, health, switches, themes, roles, settings, deletes or this admin panel. Enforced server-side with Supabase RLS. Only the admin Discord account (803606154365632555) can change roles: be signed in with Discord on the main site in this browser.</p>
+        <p class="small" id="roleWho"></p>
+        <h3 class="sub">Moderators</h3><div class="table" id="modList"><p class="dim">Loading…</p></div>
+        <h3 class="sub">Add a moderator</h3><input id="teamQ" placeholder="Search users by name, email or id…" autocomplete="off" class="filter"><div class="table" id="teamRes"></div>
+        <p class="err" id="teamErr"></p></section>
+      <section class="panel"><h2><span class="n">📝</span>Moderator activity log</h2><div class="table" id="modLog"><p class="dim">Loading…</p></div></section>
+    </div>
+    <div class="tabp" data-pane="schedule" role="tabpanel" hidden>
+      <section class="panel"><h2><span class="n">🗓️</span>Scheduled themes &amp; banners</h2>
+        <p class="dim small">Times are your local time. A scheduled banner replaces the manual announcement while it’s active; a scheduled theme applies to everyone who hasn’t picked a theme themselves. Server time now: <span id="schNow"></span></p>
+        <div class="table" id="schList"></div>
+        <div class="schf"><div><label>Type</label><div class="select"><select id="schKind"><option value="banner">Banner</option><option value="theme">Theme</option></select></div></div>
+          <div id="schThemeW" hidden><label>Theme</label><div class="select"><select id="schTheme"><option value="halloween">Halloween</option><option value="normal">Normal</option></select></div></div>
+          <div id="schTextW" class="wide"><label>Banner text</label><input id="schText" maxlength="280" placeholder="e.g. 🎃 Halloween marathon all weekend!"></div>
+          <div id="schColorW"><label>Colour</label><input type="color" id="schColor" value="#5fe3ff" class="color"></div>
+          <div><label>Starts</label><input type="datetime-local" id="schStart"></div><div><label>Ends</label><input type="datetime-local" id="schEnd"></div></div>
+        <div class="btns"><button class="btn glow sm" id="schAdd" type="button">Add to schedule</button></div><p class="err" id="schErr"></p></section>
+    </div>
+    <div class="tabp" data-pane="features" role="tabpanel" hidden>
+      <section class="panel"><h2><span class="n">🎛️</span>Feature switches</h2>
+        <p class="dim small">Turn whole features off site-wide in one tap. Changes apply within a minute (site config cache).</p>
+        <div class="fsw" id="featList"><p class="dim">Loading…</p></div><p class="err" id="featErr"></p></section>
+    </div>
+    <div class="tabp" data-pane="system" role="tabpanel" hidden>
+      <section class="panel"><h2><span class="n">🩺</span>Site health <button class="btn ghost sm" id="hRefresh" type="button" style="margin-left:auto">Refresh</button></h2>
+        <div class="sgrid" id="health"><p class="dim">Loading…</p></div></section>
+      <section class="panel"><h2><span class="n">💾</span>Backup</h2>
+        <p class="dim small">One click downloads every GhostFlix Supabase table (accounts’ lists, history, profiles, reports, chat, roles…) plus the app store as one JSON file. Keep it somewhere private — it contains user data.</p>
+        <p id="bkLast" class="small"></p>
+        <div class="btns"><button class="btn glow sm" id="bkGo" type="button">Download backup now</button></div><p class="dim small" id="bkOut"></p></section>
     </div>
     <div class="tabp" data-pane="notifications" role="tabpanel" hidden>
       <section class="panel" id="pushPanel">
@@ -98,6 +157,13 @@
       </section>
     </div>
     <div class="tabp" data-pane="content" role="tabpanel" hidden>
+    <section class="panel" id="ctlPanel">
+      <h2><span class="n">📌</span>Hide, pin &amp; feature</h2>
+      <p class="dim small">Hide a title everywhere on GhostFlix (rows, search, details, Top 10), or pin it to the hero, a “Featured on GhostFlix” row, or the front of a home row.</p>
+      <div class="lookup"><input id="ctlQ" placeholder="Search a title or TMDB id…" autocomplete="off"><div class="results" id="ctlRes"></div></div>
+      <div class="cols"><div><h3 class="sub">Hidden site-wide</h3><div class="table" id="ctlHidden"></div></div><div><h3 class="sub">Pinned / featured</h3><div class="table" id="ctlPins"></div></div></div>
+      <p class="err" id="ctlErr"></p>
+    </section>
     <div class="cols">
       <section class="panel" id="addPanel">
         <h2><span class="n">1</span>Add video to a title</h2>
@@ -196,6 +262,6 @@
   </div>
 </main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script src="/admin.js?v=20261023yf" type="module"></script>
+<script src="/admin.js?v=20261023zg" type="module"></script>
 </body>
 </html>

@@ -1,11 +1,11 @@
 // GhostFlix front-end — tiny dependency-free SPA.
-import { createAuth, ICONS } from './auth.js?v=20261023yf';
-import { applyCosmetics } from './cosmetics.js?v=20261023yf';
-import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023yf';
-import { createPush } from './push.js?v=20261023yf';
-import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023yf';
-import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023yf';
-import { createCommunity } from './community.js?v=20261023yf';
+import { createAuth, ICONS } from './auth.js?v=20261023zg';
+import { applyCosmetics } from './cosmetics.js?v=20261023zg';
+import { Settings, applySettings, renderSettings, embedSandbox } from './settings.js?v=20261023zg';
+import { createPush } from './push.js?v=20261023zg';
+import { viewDiscover, viewLive, viewPartyHome, viewParty, leaveParty } from './pages.js?v=20261023zg';
+import { Profiles, lsKey, createProfiles } from './profiles.js?v=20261023zg';
+import { createCommunity } from './community.js?v=20261023zg';
 applySettings(); applyCosmetics();
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1029,7 +1029,7 @@ drawerEl.addEventListener('click', (e) => { if (e.target.closest('a,[data-signin
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerEl.classList.contains('open')) setDrawer(false); });
 
 // ---- installable app (PWA) ----
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023yf').catch(() => {}));
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=20261023zg').catch(() => {}));
 const installEl = $('#drawerInstall');
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);

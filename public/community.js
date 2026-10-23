@@ -189,7 +189,7 @@ export function createCommunity(ctx) {
   const loadH2C = () => (h2c ||= new Promise((ok, no) => { if (window.html2canvas) return ok(window.html2canvas); const s = document.createElement('script'); s.src = '/vendor/html2canvas.min.js'; s.onload = () => ok(window.html2canvas); s.onerror = () => { h2c = null; no(new Error('Couldn’t load the screenshot tool')); }; document.head.appendChild(s); }));
   async function shot() {
     const H = await loadH2C();
-    const canvas = await H(document.body, { backgroundColor: '#04050a', logging: false, useCORS: true, imageTimeout: 4000, foreignObjectRendering: false, scale: Math.min(1, 1280 / innerWidth),
+    const canvas = await H(document.body, { backgroundColor: '#04050a', logging: false, useCORS: false, foreignObjectRendering: false, scale: Math.min(1, 1280 / innerWidth),
       x: scrollX, y: scrollY, width: innerWidth, height: innerHeight, windowWidth: innerWidth, windowHeight: innerHeight,
       ignoreElements: (el) => el.tagName === 'IFRAME' || el.tagName === 'VIDEO' || el.classList?.contains('gfm') || el.id === 'toast' });
     for (const q of [0.7, 0.5, 0.35]) { const u = canvas.toDataURL('image/jpeg', q); if (u.length <= 880000) return u; }
